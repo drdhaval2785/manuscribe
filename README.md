@@ -58,8 +58,9 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 
 ## Getting started
 
-1. Get this folder, either by downloading it or with `git clone`.
-2. Double-click **`Manuscriber.html`**, or open `app/index.html` in your browser.
+1. Get this folder: use **Code → Download ZIP** on GitHub, or
+   `git clone https://github.com/drdhaval2785/manuscribe.git`.
+2. Double-click **`Manuscribe.html`**, or open `app/index.html` in your browser.
 3. Click **＋ New transcription** and choose the PDF of your manuscript.
 
 That is all. Bookmark the page if you like.
@@ -496,7 +497,9 @@ There is no build step and there are no dependencies. The code is plain JavaScri
 tags on a `window.ME` namespace, because ES modules do not load from `file://`.
 
 ```
-Manuscriber.html        launcher (redirects to app/index.html)
+Manuscribe.html         launcher to double-click (redirects to app/index.html)
+index.html              the same redirect, for a web server such as GitHub Pages
+LICENSE                 GNU General Public License, version 3
 app/index.html          the application
 app/css/app.css         the look of the application
 app/img/logo.png        the logo
@@ -547,9 +550,9 @@ It lists 588 elements from TEI P5 4.12.0.
 
 ## Credits and licences
 
-Manuscribe itself has **no licence yet**. Until one is added, the default rules of copyright apply.
+Manuscribe is licensed under the [GNU General Public License, version 3](LICENSE) (GPL-3.0).
 
-It includes:
+It includes these components, which keep their own licences:
 
 | Component | Licence |
 |---|---|

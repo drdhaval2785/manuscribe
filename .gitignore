@@ -9,7 +9,8 @@
 *.lipikara.json
 /*.xml
 /*.html
-!/Manuscriber.html
+!/Manuscribe.html
+!/index.html
 
 # Videos and what they are made from
 videos/
