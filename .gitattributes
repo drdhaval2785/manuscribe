@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.png  binary
+*.ttf  binary
+
+# Not written by hand: left out of language statistics and collapsed in diffs
+app/vendor/**                  linguist-vendored
+app/fonts/tiro-regular.base64.js  linguist-generated
+app/js/teischema.js            linguist-generated

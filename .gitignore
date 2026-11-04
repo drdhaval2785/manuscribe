@@ -1,0 +1,34 @@
+# Manuscribe is the app itself: app/, the launcher and the documentation.
+# Everything below stays out of the repository.
+
+# Manuscript scans and sample PDFs (large, and they may have rights of their own)
+*.pdf
+
+# Your own work: backup files and exports
+*.manuscribe.json
+*.lipikara.json
+/*.xml
+/*.html
+!/Manuscriber.html
+
+# Videos and what they are made from
+videos/
+*.mp4
+*.mov
+*.webm
+
+# The original brief, and the full-size source of the logo
+manuscript_editor_specs.md
+logo1.png
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+
+# Tools
+node_modules/

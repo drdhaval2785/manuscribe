@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manuscribe — Manuscript Transcription</title>
+<script src="js/foliostyle.js"></script>
+<link rel="icon" href="img/logo.png" type="image/png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="no-project">
+
+<header id="topbar">
+  <div class="brand" title="Manuscribe — diplomatic transcription of Sanskrit manuscripts"><img class="logo" src="img/logo.png" alt=""><span class="brand-name">Manuscribe</span></div>
+  <button id="btn-projects" class="tbtn" title="All transcriptions">☰ Projects</button>
+  <div id="proj-title" class="proj-title"></div>
+  <div class="spacer"></div>
+  <label class="tb-select" title="Default layout of the folios">Layout <select id="sel-layout"></select></label>
+  <span id="save-status" class="save-status saved">Saved</span>
+  <button id="btn-backup" class="tbtn" title="Save a backup file of the project (Ctrl+S)">Backup</button>
+  <button id="btn-export" class="tbtn primary" title="Export Saktumiva TEI XML">Export XML</button>
+  <button id="btn-settings" class="tbtn icon" title="Settings">⚙</button>
+  <button id="btn-help" class="tbtn icon" title="Shortcuts &amp; tag guide (F1)">?</button>
+  <button id="btn-sidebar" class="tbtn icon" title="Show / hide the side panel">◧</button>
+</header>
+
+<main id="main">
+  <section id="workspace">
+    <div id="pdf-pane">
+      <div id="pdf-view"></div>
+      <div class="pdf-tools">
+        <button id="btn-zoom-out" class="pbtn" title="Zoom out (Ctrl+wheel)">−</button>
+        <button id="pdf-zoom" class="pbtn zoom" title="Reset zoom">100%</button>
+        <button id="btn-zoom-in" class="pbtn" title="Zoom in (Ctrl+wheel)">+</button>
+        <button id="btn-pdf-mode" class="pbtn" title="Show only the leaf (as calibrated) or the whole PDF page">Leaf</button>
+        <button id="btn-rotate" class="pbtn" title="Rotate the page">⟳</button>
+        <button id="btn-filters" class="pbtn" title="Brightness / contrast">◐</button>
+        <button id="btn-calibrate" class="pbtn accent" title="Draw the leaf and the text blocks on the PDF">⌖ Calibrate</button>
+        <div id="filters-pop" class="filters-pop" hidden>
+          <label>Brightness <input id="f-b" type="range" min="40" max="200" value="100"></label>
+          <label>Contrast <input id="f-c" type="range" min="40" max="300" value="100"></label>
+          <label class="check"><input id="f-gray" type="checkbox"> Greyscale</label>
+          <label class="check"><input id="f-inv" type="checkbox"> Invert</label>
+          <button id="f-reset" class="btn small ghost">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="midbar">
+      <div id="midbar-grip" title="Drag to resize"></div>
+      <div class="folio-nav">
+        <button id="btn-prev" class="nbtn" title="Previous folio side">‹</button>
+        <select id="sel-folio" title="Go to folio side"></select>
+        <button id="btn-next" class="nbtn" title="Next folio side">›</button>
+        <span id="folio-count" class="folio-count"></span>
+        <button id="btn-copy-folio" class="nbtn copy-folio" title="Copy this folio’s XML: the text as it stands inside &lt;p&gt;, with its &lt;pb/&gt;, &lt;lb/&gt; and tags">⧉ XML</button>
+      </div>
+      <div id="toolbar"></div>
+    </div>
+
+    <div id="editor-pane">
+      <div id="calib-hint" class="calib-hint" hidden>
+        Not calibrated yet — the typing area uses a standard layout and the line guide on the PDF is off.
+        <button class="btn small primary" onclick="ME.App.calibrate()">⌖ Calibrate…</button>
+        <button class="btn small ghost" onclick="this.parentNode.hidden = true">Hide</button>
+      </div>
+    </div>
+
+    <footer id="statusbar">
+      <div id="status-pos" class="status-pos"></div>
+      <div class="status-right">
+        <span id="storage-warning" class="storage-warning" hidden title="This browser does not allow IndexedDB here. Projects are saved in localStorage and the PDF must be selected each time. Use Backup regularly.">⚠ limited storage</span>
+        <button id="translit-badge" class="badge">Unicode</button>
+        <span class="ed-zoom-ctl" title="Size of the letters in the typing area">
+          <button id="btn-font-down" class="sbtn font" title="Smaller letters">A−</button><button id="font-size" class="sbtn zoom" title="Letter size — click for 100%">100%</button><button id="btn-font-up" class="sbtn font big" title="Larger letters">A+</button>
+        </span>
+        <span class="ed-zoom-ctl" title="Size of the whole typing area (folio)">
+          <button id="btn-ed-out" class="sbtn">−</button><button id="ed-zoom" class="sbtn zoom">100%</button><button id="btn-ed-in" class="sbtn">+</button>
+        </span>
+      </div>
+    </footer>
+  </section>
+
+  <aside id="sidebar">
+    <nav class="side-tabs">
+      <button class="side-tab sel" data-tab="tag">Tag</button>
+      <button class="side-tab" data-tab="folio">Folio</button>
+      <button class="side-tab" data-tab="works">Cited works</button>
+      <button class="side-tab" data-tab="ms">Manuscript</button>
+    </nav>
+    <div id="tab-tag" class="side-panel"></div>
+    <div id="tab-folio" class="side-panel" hidden></div>
+    <div id="tab-works" class="side-panel" hidden></div>
+    <div id="tab-ms" class="side-panel" hidden></div>
+  </aside>
+</main>
+
+<div id="start">
+  <div class="start-card">
+    <div class="start-head">
+      <img class="logo big" src="img/logo.png" alt="">
+      <div>
+        <h1>Manuscribe</h1>
+        <p class="tagline">Diplomatic transcription of Sanskrit manuscripts — linear, tripāṭha, pañcapāṭha and interlinear — exported as Saktumiva TEI XML.</p>
+      </div>
+    </div>
+    <div class="start-actions">
+      <button id="btn-new" class="btn primary big">＋ New transcription</button>
+      <button id="btn-import" class="btn big">Import project file…</button>
+    </div>
+    <h2>Your transcriptions</h2>
+    <div id="project-list" class="project-list"></div>
+    <p class="start-foot">Everything stays on this computer, saved automatically in this browser. Keep backup files (Ctrl+S) for safety and to move work between computers.</p>
+  </div>
+</div>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/tei.js"></script>
+<script src="js/translit.js"></script>
+<script src="js/store.js"></script>
+<script src="js/model.js"></script>
+<script src="js/foliolayout.js"></script>
+<script src="js/spans.js"></script>
+<script src="js/importxml.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/pdfview.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/commands.js"></script>
+<script src="js/export.js"></script>
+<script src="js/exporthtml.js"></script>
+<script src="js/teischema.js"></script>
+<script src="js/tagsummary.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
