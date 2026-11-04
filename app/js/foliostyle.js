@@ -142,6 +142,8 @@ ME.FOLIO_CSS = String.raw`
 .folio.hide-markers .t-x-marker { display: none; }
 /* a tint, not an outline: an outline would stand in the space beside the tag */
 .t.active { background-color: rgba(178, 58, 38, .12); border-radius: 2px; }
+/* raised marks must not push the text of their line down, into the next one */
+.chip.in-margin, .t-x-marker.chip, .t-milestone.chip, .t-lb.chip, .t-pb.chip, .t-pc.chip { line-height: 0; }
 .chip.active { outline: 1.5px solid rgba(178, 58, 38, .65); outline-offset: 1px; }
 
 /* ---------------- tags around a vowel sign only (क + <del>ि</del>) ---------------- */

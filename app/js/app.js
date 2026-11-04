@@ -755,7 +755,7 @@
     }
     const reg = Model.regions(p, e);
     const ownReg = !!pg.regions;
-    host.append(
+    host.append(...[
       U.el('h4', null, 'Folio side ' + e.label + (e.pdfPage ? ' · PDF page ' + e.pdfPage : '')),
       U.el('div', { class: 'inline-field' }, U.el('label', null, 'Label'), labelInp, renameBtn),
       U.el('p', { class: 'help' }, 'Rename to fix the numbering (e.g. a missing or doubled folio). Following folios are not renumbered.'),
@@ -770,7 +770,7 @@
       U.el('h4', null, 'Progress'),
       U.el('div', { class: 'progress' }, U.el('i', { style: { width: Math.round(Model.pageProgress(p, e.label) * 100) + '%' } })),
       U.el('p', { class: 'help' }, Math.round(Model.pageProgress(p, e.label) * 100) + '% of the lines of this folio side have text.'),
-    );
+    ].filter(Boolean));
   }
 
   function renderWorksTab() {

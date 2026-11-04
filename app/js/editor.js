@@ -1182,7 +1182,13 @@
     Editor.current = posOf(line);
     U.$$('.line.current', folio).forEach((l) => l.classList.remove('current'));
     line.classList.add('current');
-    if (isM(line)) { hook('onLineFocus', Editor.current); return; }
+    if (isM(line)) {
+      // the folio stays as it is: its line keeps the room of the line being edited
+      const host = line._chip.closest('.line');
+      if (host) { host.classList.add('current'); openRoom(host); }
+      hook('onLineFocus', Editor.current);
+      return;
+    }
     // room around the line and keeping it in the middle of the pane: after a mouse click or drag
     // has ended, so that the text does not move under the pointer
     if (drag) centerAfterDrag = line; else { openRoom(line); Editor.centerLine(line); }

@@ -371,7 +371,7 @@
             U.el('button', { class: 'btn small', onclick: () => set(st.lines - 1) }, '−'), inp,
             U.el('button', { class: 'btn small', onclick: () => set(st.lines + 1) }, '+'));
         }
-        calibBar.append(
+        calibBar.append(...[
           U.el('span', { class: 'calib-step' }, 'Step ' + (i + 1) + ' / ' + steps.length),
           U.el('span', { class: 'calib-swatch', style: { background: st.color } }),
           U.el('span', { class: 'calib-label' }, st.label),
@@ -379,7 +379,7 @@
           U.el('button', { class: 'btn small' + (rects[st.key] ? ' primary' : ''), onclick: () => { i++; showStep(); } }, rects[st.key] ? (i === steps.length - 1 ? 'Finish' : 'Next') : 'Skip'),
           i > 0 ? U.el('button', { class: 'btn small', onclick: () => { i--; showStep(); } }, 'Back') : null,
           U.el('button', { class: 'btn small ghost', onclick: () => finish(false) }, 'Cancel'),
-        );
+        ].filter(Boolean));
       };
 
       let drag = null;
