@@ -170,6 +170,7 @@ witnesses/<siglum>/project.json   a witness, as Manuscribe holds it
 witnesses/<siglum>/images.json    its PDF, by name, size and SHA-256; the PDF itself is not included
 profiles/<name>.json          the normalisation rules in force, for the record
 output/tei/<siglum>.xml       TEI of each witness, made from the above and safe to regenerate
+collation/<work>/<id>.json    the alignment of each citation block, with its settings and input hashes
 
 To open it, use Import edition package on Manuscribe's start screen.
 `;
@@ -202,6 +203,9 @@ To open it, use Import edition package on Manuscribe's start screen.
       files.push({ name: 'witnesses/' + dir + '/images.json', data: canonical(p.pdf ? { file: p.pdf.name || '', bytes: p.pdf.bytes || (blob && blob.size) || null, pages: p.pdf.pages || null, sha256: p.pdf.sha256 || null } : {}) });
       const named = Object.assign({}, p, { meta: Object.assign({}, p.meta, { siglum: w.siglum }) });
       files.push({ name: 'output/tei/' + dir + '.xml', data: Export.build(named, {}).xml });
+    }
+    for (const table of await ME.Collate.forPackage(ed.id)) {
+      files.push({ name: 'collation/' + safeName(table.work) + '/' + safeName(table.unit) + '.json', data: canonical(table) });
     }
     return { files, missing };
   };
@@ -250,6 +254,9 @@ To open it, use Import edition package on Manuscribe's start screen.
       ed.witnesses.push(c);
     }
     await Store.putEdition(ed);
+    const tables = [];
+    for (const [name, bytes] of zip) if (name.startsWith('collation/')) tables.push(JSON.parse(Zip.text(bytes)));
+    await ME.Collate.fromPackage(ed.id, tables);
     return ed;
   };
 
@@ -552,8 +559,10 @@ To open it, use Import edition package on Manuscribe's start screen.
     const remind = due === null ? null : U.el('div', { class: 'ed-remind' }, due === 'never'
       ? 'This edition has never been saved outside this browser. Clearing the browser’s data would delete it, so please export a package.'
       : 'Your last package export was ' + due + ' days ago, and the work has changed since. Please export a new one.');
+    const normSection = ME.NormView.section(ed, list, redraw);
+    const collationSection = await ME.CollateView.section(ed, list, redraw);
     host.innerHTML = '';
-    host.append(
+    host.append(...[
       U.el('div', { class: 'ed-bar' },
         U.el('button', { class: 'btn small', onclick: () => ME.App.showStart() }, '‹ Start screen'),
         title,
@@ -579,7 +588,9 @@ To open it, use Import edition package on Manuscribe's start screen.
       problemsList(reg, ed),
       coverageGrid(ed, reg, redraw),
       U.el('h2', null, 'Normalisation'),
-      ME.NormView.section(ed, list, redraw));
+      normSection,
+      U.el('h2', null, 'Collation'),
+      collationSection].filter(Boolean)); // append would write an empty value out as "null"
     scroller.scrollTop = top;
   };
 

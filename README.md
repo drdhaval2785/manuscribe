@@ -438,6 +438,34 @@ omission. Only text inside a paragraph or verse with an `xml:id` is compared.
 Sandhi rules read word spaces, as they do in Saktumiva. If a scribe's space falls inside a word, as in
 `त्र यो दश`, the rule sees a word ending in *o* and treats it as *-aḥ*. The preview shows where this happens.
 
+### Collation
+
+**Collate** in the edition screen lines up the witnesses of a work, one citation block at a time. Only blocks
+whose text or settings have changed are aligned again, and the page stays usable meanwhile; **Cancel** stops it
+and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with its default scoring.
+
+- **Align by:** letters by default. On a real commentary passage, alignment by letters and by akṣaras was far
+  better than by words, as Li advises.
+- **The table:** click a citation ID. Each row is a witness, or both states of one that has corrections, in the
+  order of the aligner's guide tree, so similar witnesses sit together. Columns where witnesses differ are
+  shaded, and **Next difference** goes to them. **Show** switches between the normalised form and the text as
+  written. Click a cell for its reading, its place and the rules that touched it, and **Go to this line** opens
+  the witness there. The table only reads; correcting it comes in a later version.
+- **What an empty cell means:** hatched means that witness has nothing there. `‡` means text lost to damage, which
+  is not an omission. A witness without the block has its own row saying so, using the reason you gave in the
+  citation grid.
+- **After the aligner:** a witness that omits a long passage tends to be scattered across it (`kr---at---u`).
+  Manuscribe moves a stretch up against its neighbour if it reads the same in its new columns and leaves fewer
+  gaps. Nothing else moves.
+- **How far the witnesses agree:** a table of each pair, over all blocks or over the passages you tick as samples.
+  A lacuna or an absent block counts neither way, so lost text never looks like agreement.
+- **Saving and importing:** the table saves as CollateX input, a CollateX table, a TEI corpus for Saktumiva's matrix
+  editor, or Manuscribe's own file. **Import alignment…** reads a file saved by Saktumiva, a CollateX table or a TEI
+  corpus. It must spell the same text as the block, or it is refused, so that every reading keeps its place in the
+  manuscript. An imported alignment stays until its text changes or you choose **Align again**.
+
+Tables go into the edition package, in `collation/<work>/<id>.json`, with their settings and a hash of their input.
+
 ## Exporting
 
 ### TEI XML
@@ -587,6 +615,8 @@ app/js/
   normalize.js          normalisation: writing, rules, profiles, offset map, tokens
   tokens.js             from stored lines to witness layers and tokens with source pointers
   normview.js           the Normalisation part of the edition screen, and its preview
+  collate.js            collation: the aligner in a Worker, tables, agreement, exchange formats
+  collateview.js        the Collation part of the edition screen, and the table
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor
@@ -596,7 +626,7 @@ app/js/
   teischema.js          elements and attributes allowed by TEI (generated)
   tagsummary.js         the summary of tags and attributes
   app.js                the application and its tabs
-app/vendor/             pdf.js 3.11.174
+app/vendor/             pdf.js 3.11.174; saktumiva-aligner.js, generated from Saktumiva 2.0 by tools/bundle-aligner.mjs
 app/fonts/              Tiro Devanagari Sanskrit; tiro-regular.base64.js is the same font as a
                         script, because a page opened from disk cannot fetch a font to embed it
 ```
@@ -632,6 +662,7 @@ It includes these components, which keep their own licences:
 |---|---|
 | [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174, Mozilla | Apache License 2.0 |
 | Tiro Devanagari Sanskrit, © The Indigo Project Authors ([Tiro Typeworks](https://github.com/TiroTypeworks/Indigo)) | SIL Open Font License 1.1 (`app/fonts/OFL.txt`) |
+| The aligner of [Saktumiva 2.0](https://github.com/chchch/saktumiva), Charles Li (`app/vendor/saktumiva-aligner.js`), and its normalisation rules, rewritten as data in `app/js/normalize.js` | GNU GPL 3.0 |
 | Element and attribute lists from the [TEI P5 Guidelines](https://tei-c.org/) | CC BY 3.0 and BSD 2-Clause, © TEI Consortium |
 
 The tag set follows the [Saktumiva TEI guide](https://www.saktumiva.org/wiki/tei).

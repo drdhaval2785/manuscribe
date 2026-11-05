@@ -6,7 +6,7 @@
   // The name the project had when these stores were first made. It must stay: changing it would
   // leave everything people have already saved in this browser out of reach.
   const DB_NAME = 'lipikara';
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   const BACKUP_EVERY_MS = 20 * 60 * 1000;
   const BACKUPS_KEPT = 25;
   let db = null;
@@ -34,6 +34,10 @@
               b.createIndex('project', 'project');
             }
             if (!d.objectStoreNames.contains('editions')) d.createObjectStore('editions', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('collations')) {
+              const c = d.createObjectStore('collations', { keyPath: 'key' });
+              c.createIndex('edition', 'edition');
+            }
           };
           r.onsuccess = () => resolve(r.result);
           r.onerror = () => reject(r.error);
@@ -108,6 +112,37 @@
     async deleteEdition(id) {
       if (fallback) { localStorage.removeItem('lipikara.edition.' + id); return; }
       await req(tx('editions', 'readwrite').delete(id));
+      await Store.deleteCollations(id);
+    },
+
+    // Collation tables, one per citation block of a work. Without IndexedDB they do not fit: browsers
+    // give localStorage a few MB, and a table can always be made again.
+    async listCollations(edition) {
+      if (fallback) return [];
+      return req(tx('collations').index('edition').getAll(edition));
+    },
+
+    async getCollation(key) {
+      if (fallback) return null;
+      return req(tx('collations').get(key));
+    },
+
+    async putCollation(rec) {
+      if (fallback) return false;
+      await req(tx('collations', 'readwrite').put(rec));
+      return true;
+    },
+
+    async deleteCollation(key) {
+      if (fallback) return;
+      await req(tx('collations', 'readwrite').delete(key));
+    },
+
+    async deleteCollations(edition) {
+      if (fallback) return;
+      const keys = await req(tx('collations').index('edition').getAllKeys(edition));
+      const s = tx('collations', 'readwrite');
+      for (const k of keys) s.delete(k);
     },
 
     async putPdf(id, blob) {

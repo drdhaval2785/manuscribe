@@ -20,7 +20,7 @@
 
   /* Reads the lines of the given streams. -> {blocks: Map(id or null -> block), account, unreadable}
      A block: {id, auto, repeated, ac, pc, marginal: [...], first: {label, box, i}}. */
-  Tokens.read = function (project, keys, opts) {
+  function* readSteps(project, keys, opts) {
     const ignore = new Set((opts && opts.ignoreTags) || Norm.IGNORE_TAGS);
     const blocks = new Map();
     const account = { total: 0, shared: 0, acOnly: 0, pcOnly: 0, marginal: 0, editorial: 0 };
@@ -133,10 +133,33 @@
           }
         };
         walk(root, { layer: 'both', into: null, flags: [], ignored: null });
+        yield;
       }
     }
     return { blocks, account, unreadable };
-  };
+  }
+
+  // Runs steps to the end at once, or (async) giving the page its turn, so that a large witness never
+  // holds it up for long.
+  function runNow(steps) {
+    for (;;) {
+      const x = steps.next();
+      if (x.done) return x.value;
+    }
+  }
+  async function runSliced(steps, sliceMs) {
+    let t = performance.now();
+    for (;;) {
+      const x = steps.next();
+      if (x.done) return x.value;
+      if (performance.now() - t > sliceMs) {
+        await new Promise((r) => setTimeout(r, 0));
+        t = performance.now();
+      }
+    }
+  }
+
+  Tokens.read = (project, keys, opts) => runNow(readSteps(project, keys, opts));
 
   const skipsOf = (b) => {
     const skip = [];
@@ -174,7 +197,7 @@
       }
       const t = b.dip.slice(p.from, p.to);
       if (t.includes('॰')) flags.add('abbr');
-      const out = { id: (o.prefix || '') + 't' + (k + 1), t, n: p.n, src, rules: Array.from(fired), flags: Array.from(flags) };
+      const out = { id: (o.prefix || '') + 't' + (k + 1), from: p.from, t, n: p.n, src, rules: Array.from(fired), flags: Array.from(flags) };
       if (p.n.includes(Norm.GAP)) {
         while (gap0 < b.gaps.length && b.gaps[gap0].at < p.from) gap0++;
         const g = b.gaps[gap0];
@@ -182,12 +205,12 @@
       }
       return out;
     });
-    return { dip: b.dip, text: res.text, n: Norm.fromSlp(res.text), at: res.at, hits: res.hits, tokens, runs: b.runs };
+    return { dip: b.dip, text: res.text, n: Norm.fromSlp(res.text), at: res.at, hits: res.hits, tokens, runs: b.runs, gaps: b.gaps };
   };
 
   /* All witnesses of a work: {units: [{id, states: [{siglum, w, layer, label, ...state}], absent: [sigla]}],
      outside: [{siglum, chars}], order}. */
-  Tokens.forWork = function (ed, list, workId, opts) {
+  function* workSteps(ed, list, workId, opts) {
     const o = opts || {};
     const settings = Norm.settings(ed.norm);
     const rules = new Set(settings.on);
@@ -199,7 +222,7 @@
     for (const { w, p } of here) {
       const keys = Export.streamsUsed(p).filter((s) => ((w.streams && w.streams[s]) || s) === workId);
       if (!keys.length) continue;
-      const { blocks, unreadable: bad } = Tokens.read(p, keys, { ignoreTags: settings.ignoreTags });
+      const { blocks, unreadable: bad } = yield* readSteps(p, keys, { ignoreTags: settings.ignoreTags });
       for (const u of bad) unreadable.push(Object.assign({ siglum: w.siglum }, u));
       let prev = -1;
       for (const [id, b] of blocks) {
@@ -219,7 +242,8 @@
           Tokens.state(src, { kind: o.kind, rules, declared: w.declare, prefix: w.siglum + (layer === 'base' ? '' : layer) + '.' + id + '.' }));
         const same = b.ac.dip === b.pc.dip && JSON.stringify(b.ac.gaps.map((g) => g.at)) === JSON.stringify(b.pc.gaps.map((g) => g.at));
         if (same) unit.states.push(make(b.pc, 'base'));
-        else unit.states.push(make(b.ac, 'ac'), make(b.pc, 'pc'));
+        else { unit.states.push(make(b.ac, 'ac')); yield; unit.states.push(make(b.pc, 'pc')); }
+        yield;
       }
     }
     const all = new Set(here.map((x) => x.w.siglum));
@@ -231,7 +255,10 @@
         return Object.assign(u, { absent: Array.from(all).filter((s) => !has.has(s)) });
       }),
     };
-  };
+  }
+
+  Tokens.forWork = (ed, list, workId, opts) => runNow(workSteps(ed, list, workId, opts));
+  Tokens.forWorkSliced = (ed, list, workId, opts) => runSliced(workSteps(ed, list, workId, opts), 30);
 
   ME.Tokens = Tokens;
 })(window.ME);
