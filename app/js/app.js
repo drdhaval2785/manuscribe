@@ -296,18 +296,49 @@
   App.importXml = async function (file, opts) {
     const p = App.project;
     App.flush();
-    let res;
+    let res, src;
     try {
-      res = Importer.parse(await file.text(), {});
+      src = await file.text();
+      res = Importer.parse(src, {});
     } catch (e) {
       U.toast('Could not read ' + file.name + ': ' + e.message, 'err', 6000);
       return;
     }
     if (!res.lines.length) { U.toast('No transcription found in ' + file.name, 'warn', 5000); return; }
+    const problems = Importer.tagProblems(src);
+    if (problems.length) {
+      const shown = problems.slice(0, 20).map((x) => (x.found ? 'Line ' + x.line + ': </' + x.found + '> closes <' + x.open + '> from line ' + x.openLine : 'Line ' + x.openLine + ': <' + x.open + '> is never closed')).join('\n');
+      await UI.modal({
+        title: 'This file was not imported',
+        body: U.el('div', null,
+          U.el('p', { class: 'confirm-text' }, file.name + ' has ' + problems.length + ' mismatched tag(s). Reading past them would run the text together, so nothing has been changed. Please correct the file and import it again.'),
+          U.el('pre', { class: 'bulk-preview' }, shown + (problems.length > 20 ? '\n… and ' + (problems.length - 20) + ' more' : ''))),
+        buttons: [{ label: 'OK', kind: 'primary', value: null }],
+      });
+      return;
+    }
     const labels = Array.from(new Set(res.pages));
     const overwritten = labels.filter((l) => Model.pageHasContent(p.pages[l]));
-    if (!(opts && opts.fresh) && overwritten.length && !(await UI.confirm(overwritten.length + ' of the ' + labels.length + ' folio sides in this file already have text here (' + overwritten.slice(0, 6).join(', ') + (overwritten.length > 6 ? ' …' : '') + '). Their text and tags will be replaced by the file.', { title: 'Replace these folio sides?', ok: 'Replace', danger: true }))) return;
-    const rep = Importer.apply(p, res, entry().label);
+    if (!(opts && opts.fresh) && overwritten.length) {
+      // shows what would be lost, since an older file looks just like a newer one
+      const trial = U.clone(p);
+      Importer.apply(trial, Importer.parse(src, {}), entry().label);
+      const changed = Importer.changedLines(p, trial, labels);
+      if (changed.length) {
+        const shown = changed.slice(0, 12).map((c) => c.label + ' · ' + Model.BOX_LABEL[c.box].toLowerCase() + ' · line ' + (c.i + 1) + '\n  now:  ' + (c.from || '(empty)') + '\n  file: ' + (c.to || '(empty)')).join('\n');
+        const go = await UI.modal({
+          title: 'Replace these folio sides?',
+          body: U.el('div', null,
+            U.el('p', { class: 'confirm-text' }, changed.length + ' line(s) on ' + overwritten.length + ' folio side(s) would change. Check that ' + file.name + ' is your latest file: an older one would undo later work.'),
+            U.el('pre', { class: 'bulk-preview' }, shown + (changed.length > 12 ? '\n… and ' + (changed.length - 12) + ' more' : '')),
+            U.el('p', { class: 'help' }, 'The present state is kept first as an automatic backup (Manuscript tab → Restore an automatic backup).')),
+          buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Replace', value: true, kind: 'danger' }],
+        });
+        if (!go) return;
+        await Store.backupNow(p);
+      }
+    }
+    const rep = Importer.apply(p, res, entry().label, { fresh: !!(opts && opts.fresh) });
     App.entries = Model.entries(p);
     App.changed();
     const first = App.entries.findIndex((e) => e.label === rep.folios[0]);

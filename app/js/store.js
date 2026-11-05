@@ -103,6 +103,14 @@
     },
     _lastBackup: {},
 
+    // whatever the time since the last one; false if this browser cannot keep backups
+    async backupNow(p) {
+      if (fallback) return false;
+      Store._lastBackup[p.id] = 0;
+      await Store.maybeBackup(p);
+      return true;
+    },
+
     async listBackups(projectId) {
       if (fallback) return [];
       const all = await req(tx('backups').index('project').getAll(projectId));

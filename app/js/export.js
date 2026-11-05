@@ -46,15 +46,18 @@
   /* ---------- token streams ---------- */
 
   /* Does a line end a word? A line ending in a space (or a daṇḍa) does; otherwise its last word
-     continues on the next line, which then starts with <lb break="no"/>. Notes and markers at
-     the end of a line do not count. An explicit break="no" after a daṇḍa is kept. */
+     continues on the next line, which then starts with <lb break="no"/>. Notes, additions written
+     outside the line and markers at the end of a line do not count. An explicit break="no" is kept
+     unless the line now really ends in a space. */
   function lineEnd(tei) {
     const r = TEI.parse(tei);
-    if (!r) return { open: false, spaced: true };
-    for (const el of Array.from(r.querySelectorAll('note, metamark, x-marker, pc, milestone'))) el.remove();
+    if (!r) return { open: false, spaced: true, rawSpaced: true };
+    for (const el of Array.from(r.querySelectorAll('note, metamark, x-marker, pc, milestone, corr, add'))) {
+      if (el.nodeName !== 'add' || TEI.placeOf('add', TEI.attrsOf(el)) !== 'inline') el.remove();
+    }
     const text = r.textContent.replace(/\u200B/g, '');
     const spaced = !text.trim() || /\s$/.test(text);
-    return { open: !spaced && !/[|।॥]$/.test(text), spaced };
+    return { open: !spaced && !/[|।॥]$/.test(text), spaced, rawSpaced: /\s(?:<[^>]+>)*$/.test(tei) };
   }
 
   // How the stream stands at the end of the folio sides before entries[idx]
@@ -69,7 +72,7 @@
         for (let i = arr.length - 1; i >= 0; i--) if (TEI.hasContent(arr[i])) return lineEnd(arr[i]);
       }
     }
-    return { open: false, spaced: true };
+    return { open: false, spaced: true, rawSpaced: true };
   }
 
   // a <quote> inside a marginal note is a plain tag: its source points to the cited works too
@@ -88,7 +91,7 @@
 
   function streamTokens(project, key, entries, ctx, startEnd) {
     const tokens = [];
-    let prev = startEnd || { open: false, spaced: true }; // how the previous line of this stream ended
+    let prev = startEnd || { open: false, spaced: true, rawSpaced: true }; // how the previous line of this stream ended
     for (const e of entries) {
       const pg = project.pages[e.label];
       if (!pg) continue;
@@ -106,9 +109,9 @@
         if (s.boxes.length > 1) pageTokens.push({ t: 'cb', n: box });
         for (let i = 0; i <= last; i++) {
           const has = TEI.hasContent(arr[i]);
-          const brk = has && (prev.open || (meta[i] && meta[i].brk && !prev.spaced));
+          const brk = has && (prev.open || (meta[i] && meta[i].brk && !prev.rawSpaced));
           pageTokens.push({ t: 'lb', n: Model.lineNumber(project, e.label, box, i), brk });
-          prev = has ? lineEnd(arr[i]) : { open: false, spaced: true };
+          prev = has ? lineEnd(arr[i]) : { open: false, spaced: true, rawSpaced: true };
           const where = e.label + ' · ' + Model.BOX_LABEL[box].toLowerCase() + ' · line ' + (i + 1);
           if (!arr[i]) continue;
           const r = TEI.parse(arr[i]);

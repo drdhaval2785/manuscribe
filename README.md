@@ -447,6 +447,19 @@ folios are left alone.
 The reader is tolerant: tags left unclosed or without their start are handled, and reported where
 something had to be ignored.
 
+**Exporting and importing again.** Importing an XML file exported by Manuscribe gives back the same
+text, tags, attributes, line numbers, cited works, manuscript details and layout, and exporting again
+gives the same `<body>`. XML does not carry the PDF, the calibration or your settings: use a Backup file
+for those.
+
+**Mismatched tags.** A file in which a note or addition is closed by the wrong tag, or never closed, is not
+imported, because reading past it would run the text together. The dialog lists the lines to correct, and
+nothing is changed. Other unmatched tags are tolerated, since a copied folio may start inside a `<p>`.
+
+**Replacing folios.** When a file would change text you already have, the dialog lists the lines that
+would change, so that an older file cannot silently undo later work. The present state is kept first as an
+automatic backup (Manuscript tab → Restore an automatic backup).
+
 ## Folio numbering and missing folios
 
 Say which folio the first PDF page with text shows, and whether each PDF page shows one or two folio
