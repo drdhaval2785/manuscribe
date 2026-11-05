@@ -102,6 +102,8 @@
     return workerReady;
   }
 
+  PdfView.ensureWorker = ensureWorker;
+
   PdfView.load = async function (blob) {
     await ensureWorker();
     const data = new Uint8Array(await blob.arrayBuffer());

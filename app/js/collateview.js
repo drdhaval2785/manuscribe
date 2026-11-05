@@ -21,6 +21,8 @@
     const c = Collate.isCurrent(ed, list, s);
     if (c === false) return { text: 'settings changed', cls: 'warn' };
     if (c === null) return { text: 'collate to check', cls: 'warn' };
+    if (s.review) return { text: s.review + ' to review', cls: 'warn' };
+    if (s.checked) return { text: '✓ read through', cls: 'ok' };
     return { text: s.imported ? 'imported' : 'up to date', cls: 'ok' };
   }
 
@@ -59,7 +61,7 @@
       Object.entries(Norm.TOKENIZERS).map(([k, t]) => U.el('option', { value: k, selected: k === kind }, t.label)));
     const progress = U.el('div', { class: 'cv-progress', hidden: true });
     const go = U.el('button', { class: 'btn small primary', disabled: !ids.length, onclick: () => CollateView.collate(ed, list, workId, progress, go, redraw, false) }, 'Collate');
-    const again = U.el('button', { class: 'btn small', disabled: !ids.length, title: 'Align every block again, even where nothing has changed. An alignment you imported is replaced.', onclick: async () => {
+    const again = U.el('button', { class: 'btn small', disabled: !ids.length, title: 'Align every block again, even where nothing has changed. What you have corrected or locked stays; an alignment you imported is replaced.', onclick: async () => {
       if ([...summaries.values()].some((s) => s.work === workId && s.imported) && !(await UI.confirm('This replaces the alignments you imported for this work. Continue?', { ok: 'Align again' }))) return;
       CollateView.collate(ed, list, workId, progress, go, redraw, true);
     } }, 'Align again');
@@ -79,7 +81,9 @@
         U.el('td', { class: 'cv-unit' }, s ? U.el('button', { class: 'link', title: 'Open the table', onclick: () => CollateView.open(ed, list, workId, id, redraw) }, id) : id),
         U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text)),
         U.el('td', { class: 'num' }, s ? String(s.labels) : ''), U.el('td', { class: 'num' }, s ? String(s.ncols) : ''),
-        U.el('td', { class: 'num' }, s && s.ncols ? ((100 * s.variants) / s.ncols).toFixed(0) + '%' : ''));
+        U.el('td', { class: 'num' }, s && s.ncols ? ((100 * s.variants) / s.ncols).toFixed(0) + '%' : ''),
+        U.el('td', { class: 'num' }, s && s.corrections ? String(s.corrections) : ''),
+        U.el('td', { class: 'num' }, s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : ''));
     });
     const opened = CollateView.agreeOpen;
     const agreeBox = U.el('div');
@@ -101,7 +105,7 @@
         U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…')),
       progress,
       ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
-        U.el('thead', null, U.el('tr', null, ['Sample', 'Citation ID', '', 'Rows', 'Columns', 'Columns that differ'].map((h) => U.el('th', null, h)))),
+        U.el('thead', null, U.el('tr', null, ['Sample', 'Citation ID', '', 'Rows', 'Columns', 'Columns that differ', 'Corrections', 'Aligner against your reading'].map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : null }, h)))),
         U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.'),
       fold);
   };
@@ -132,8 +136,9 @@
       const secs = ((performance.now() - started) / 1000).toFixed(1);
       const bits = [res.done.length + ' block(s) aligned', res.kept.length + ' unchanged'];
       if (res.removed.length) bits.push(res.removed.length + ' no longer in any witness, removed');
+      if (res.reviewed) bits.push(res.reviewed + ' locked passage(s) to review, because their text changed');
       const worry = res.outside.reduce((a, x) => a + x.chars, 0);
-      U.toast(bits.join(', ') + ' in ' + secs + ' s.' + (worry ? ' Text outside any citation ID was left out.' : ''), worry || res.skipped.length ? 'warn' : 'ok', 6000);
+      U.toast(bits.join(', ') + ' in ' + secs + ' s.' + (worry ? ' Text outside any citation ID was left out.' : ''), worry || res.skipped.length || res.reviewed ? 'warn' : 'ok', 6000);
     } catch (e) {
       if (e.cancelled) U.toast('Stopped. Blocks already aligned are kept.', 'warn', 4000);
       else U.toast('Collation stopped: ' + e.message, 'err', 8000);
@@ -177,6 +182,7 @@
     const rec = await Store.getCollation(Collate.keyOf(ed.id, workId, sel.value));
     try {
       const text = await file.text();
+      if ((rec.table.ops || []).length && !(await UI.confirm('This replaces the ' + rec.table.ops.length + ' correction(s) you made to ' + sel.value + '. Continue?', { ok: 'Replace', danger: true }))) return;
       const table = Collate.fromFile(rec.table, text);
       await Collate.saveImported(ed, await loadFresh(list), table);
       U.toast('Imported the alignment of ' + sel.value + '.', 'ok', 4000);
@@ -186,20 +192,94 @@
     }
   };
 
+  /* ---------- the scan beside a reading ---------- */
+
+  const Scan = { docs: new Map(), pages: new Map(), seq: 0 };
+
+  async function scanDoc(p) {
+    if (Scan.docs.has(p.id)) return Scan.docs.get(p.id);
+    const blob = await Store.getPdf(p.id);
+    if (!blob) return null;
+    await ME.PdfView.ensureWorker();
+    const task = window.pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
+    Scan.docs.set(p.id, task);
+    if (Scan.docs.size > 3) {
+      const [first] = Scan.docs.keys();
+      Scan.docs.get(first).then((d) => d.destroy()).catch(() => {});
+      Scan.docs.delete(first);
+    }
+    return task;
+  }
+
+  async function scanPage(p, pageNo) {
+    const key = p.id + '/' + pageNo + '/' + ((p.ui && p.ui.rotation) || 0);
+    if (Scan.pages.has(key)) return Scan.pages.get(key);
+    const doc = await scanDoc(p);
+    if (!doc) return null;
+    const page = await doc.getPage(pageNo);
+    // turned as the witness is shown, since its calibration was done that way
+    const rotation = (p.ui && p.ui.rotation) || 0;
+    const first = page.getViewport({ scale: 1, rotation });
+    const scale = Math.min(4, 2400 / first.width);
+    const view = page.getViewport({ scale, rotation });
+    const canvas = document.createElement('canvas');
+    canvas.width = view.width;
+    canvas.height = view.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: view }).promise;
+    Scan.pages.set(key, canvas);
+    if (Scan.pages.size > 4) Scan.pages.delete(Scan.pages.keys().next().value);
+    return canvas;
+  }
+
+  /* Puts the line a reading stands on into `host`. -> what it showed, for the tests and for telling the editor. */
+  CollateView.showScan = async function (host, p, src) {
+    const seq = ++Scan.seq;
+    host.innerHTML = '';
+    const note = (text) => { host.append(U.el('p', { class: 'help cv-scan-note' }, text)); return { shown: false, why: text }; };
+    if (!p.pdf) return note('This witness has no PDF.');
+    if (!window.pdfjsLib) return note('The PDF reader is not available.');
+    const entry = ME.Model.entries(p).find((e) => e.label === src.folio);
+    if (!entry) return note('Folio ' + src.folio + ' is not in the present numbering of this witness.');
+    let page;
+    try { page = await scanPage(p, entry.pdfPage); } catch (e) { return note('The PDF could not be read: ' + e.message); }
+    if (seq !== Scan.seq) return { shown: false, why: 'superseded' };
+    if (!page) return note('This witness’s PDF is not stored in this browser. Relink PDFs to see the scan here.');
+    const rect = ME.Model.lineRect(p, entry, src.box, src.line);
+    const regions = ME.Model.regions(p, entry);
+    const leaf = (regions && regions.leaf) || ME.Model.defaultLeaf(entry);
+    const area = rect ? [Math.max(0, rect[0] - 0.015), Math.max(0, rect[1] - rect[3] * 1.2), Math.min(1, rect[2] + 0.03), rect[3] * 3.4] : leaf;
+    const sw = area[2] * page.width, sh = Math.min(area[3], 1 - area[1]) * page.height;
+    const width = Math.max(320, host.clientWidth || 900);
+    const canvas = U.el('canvas', { class: 'cv-scan', width: Math.round(width), height: Math.round((width * sh) / sw) });
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(page, area[0] * page.width, area[1] * page.height, sw, sh, 0, 0, canvas.width, canvas.height);
+    if (rect) {
+      const k = canvas.width / sw;
+      ctx.fillStyle = 'rgba(255, 196, 0, .22)';
+      ctx.fillRect((rect[0] * page.width - area[0] * page.width) * k, (rect[1] * page.height - area[1] * page.height) * k, rect[2] * page.width * k, rect[3] * page.height * k);
+    }
+    host.append(canvas);
+    if (!rect) host.append(U.el('p', { class: 'help cv-scan-note' }, 'This folio is not calibrated, so the whole leaf is shown. Calibrate it in the witness to see just the line.'));
+    return { shown: true, line: !!rect, rect, area, canvas: [canvas.width, canvas.height] };
+  };
+
   /* ---------- the table ---------- */
 
-  function buildTable(table, host, detail, state) {
-    const grid = Collate.grid(table);
-    const variant = Collate.variantColumns(table, grid);
+  const escHtml = (s) => U.escXml(String(s));
+  const STATE_SHORT = { om: 'om', lac: 'lac', illeg: 'ill', na: 'n/a', ambig: '?' };
+  const lower = (arr, v) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < v) lo = m + 1; else hi = m; } return lo; };
+
+  function buildTable(table, host, ui, state) {
+    const E = ME.CollateEdit;
     const absent = table.absent || [];
     const cw = WIDTH[table.params.tokens] || WIDTH.letter;
     const nrows = table.order.length + absent.length;
-    const scroller = U.el('div', { class: 'cv-scroller', tabindex: '0', role: 'grid', 'aria-label': 'Collation table of ' + table.unit });
-    const inner = U.el('div', { class: 'cv-inner', style: { width: LABEL + table.ncols * cw + 'px', height: ROW * (nrows + 1) + 'px' } });
-    const head = U.el('div', { class: 'cv-row cv-head' }, U.el('div', { class: 'cv-label' }, ''));
+    const scroller = U.el('div', { class: 'cv-scroller', tabindex: '0', role: 'grid', 'aria-label': 'Collation table of ' + table.unit + '. Arrow keys move; Alt and an arrow moves the reading.' });
+    const inner = U.el('div', { class: 'cv-inner' });
+    const head = U.el('div', { class: 'cv-row cv-head' }, U.el('div', { class: 'cv-label' }, ''), U.el('div', { class: 'cv-cells' }));
     const rowEls = table.order.map((label) => {
       const st = table.states[label];
-      return U.el('div', { class: 'cv-row' }, U.el('div', { class: 'cv-label', title: st.layer === 'ac' ? 'Before correction' : st.layer === 'pc' ? 'After correction' : '' }, label));
+      return U.el('div', { class: 'cv-row', dataset: { label } }, U.el('div', { class: 'cv-label', title: st.layer === 'ac' ? 'Before correction' : st.layer === 'pc' ? 'After correction' : '' }, label), U.el('div', { class: 'cv-cells' }));
     });
     const absentEls = absent.map((a) => U.el('div', { class: 'cv-row cv-absent' }, U.el('div', { class: 'cv-label' }, a.siglum), U.el('div', { class: 'cv-absent-note' }, ABSENT[a.state] || a.state)));
     inner.append(head, ...rowEls, ...absentEls);
@@ -207,26 +287,44 @@
     host.innerHTML = '';
     host.append(scroller);
 
+    let grid, variant, locks, cuts, linked;
+    const measure = () => {
+      grid = Collate.grid(table);
+      variant = Collate.variantColumns(table, grid);
+      locks = E.lockMap(table);
+      cuts = E.cutMap(table);
+      linked = E.linked(table);
+      inner.style.width = LABEL + table.ncols * cw + 'px';
+      inner.style.height = ROW * (nrows + 1) + 'px';
+      state.count = variant.reduce((a, b) => a + b, 0);
+    };
+
     const paint = () => {
       const first = Math.max(0, Math.floor((scroller.scrollLeft - LABEL) / cw) - BUFFER);
       const last = Math.min(table.ncols, Math.ceil((scroller.scrollLeft + scroller.clientWidth) / cw) + BUFFER);
-      const headCells = [];
+      const pos = (c) => 'left:' + c * cw + 'px;width:' + cw + 'px';
+      let h = '';
       for (let c = first; c < last; c++) {
         const mark = (c + 1) % 10 === 0;
-        headCells.push(U.el('div', { class: 'cv-col' + (variant[c] ? ' v' : ''), style: { left: LABEL + c * cw + 'px', width: cw + 'px' } }, mark ? String(c + 1) : ''));
+        h += '<div class="cv-col' + (variant[c] ? ' v' : '') + (locks[c] === 2 ? ' lk2' : locks[c] ? ' lk1' : '') + (cuts[c] ? ' cut' : '') + '" style="' + pos(c) + '">' + (mark ? c + 1 : '') + '</div>';
       }
-      head.replaceChildren(head.firstChild, ...headCells);
+      head.lastChild.innerHTML = h;
+      const sel = state.sel;
       table.order.forEach((label, r) => {
         const st = table.states[label];
         const g = grid[r];
-        const cells = [];
+        const row = table.cells[label];
+        const link = linked[label];
+        let out = '';
         for (let c = first; c < last; c++) {
           const k = g[c];
-          const sel = state.sel && state.sel.r === r && state.sel.c === c;
           let cls = 'cv-cell';
           let text = '';
-          if (k < 0) cls += ' blank';
-          else {
+          const cellState = row ? row[table.colIds[c]] : null;
+          if (k < 0) {
+            cls += ' blank';
+            if (cellState) { cls += ' st-' + cellState; text = STATE_SHORT[cellState]; }
+          } else {
             const tok = st.n[k];
             if (tok === Norm.GAP) { cls += ' gap'; text = Norm.GAP; }
             else if (state.show === 'dip') {
@@ -237,72 +335,318 @@
             } else text = tok;
             if (st.rules[k] && st.rules[k].some((x) => !['spaces', 'punct', 'verse-number'].includes(x))) cls += ' by-rule';
             if (st.flags[k] && st.flags[k].includes('unclear')) cls += ' unclear';
+            if (cellState) cls += ' st-' + cellState;
           }
           if (variant[c]) cls += ' v';
-          if (sel) cls += ' sel';
-          cells.push(U.el('div', { class: cls, dataset: { r: String(r), c: String(c) }, style: { left: LABEL + c * cw + 'px', width: cw + 'px' } }, text));
+          if (locks[c]) cls += ' lk';
+          if (cuts[c]) cls += ' cut';
+          if (link && link.has(c)) cls += ' linked';
+          if (sel && sel.r === r && c >= sel.c1 && c <= sel.c2) cls += ' sel';
+          out += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c + '" style="' + pos(c) + '">' + escHtml(text) + '</div>';
         }
-        rowEls[r].replaceChildren(rowEls[r].firstChild, ...cells);
+        rowEls[r].lastChild.innerHTML = out;
       });
     };
     let queued = false;
     const queue = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; paint(); }); };
     scroller.addEventListener('scroll', queue);
+
+    const reveal = (c) => {
+      const left = c * cw, right = left + cw, viewL = scroller.scrollLeft, viewR = viewL + scroller.clientWidth - LABEL;
+      if (left < viewL) scroller.scrollLeft = left; else if (right > viewR) scroller.scrollLeft = right - (scroller.clientWidth - LABEL);
+    };
+    const select = (r, c1, c2, keepDetail) => {
+      const a = Math.max(0, Math.min(c1, c2)), z = Math.min(table.ncols - 1, Math.max(c1, c2));
+      state.sel = { r, c1: a, c2: z, anchor: c1 };
+      if (!keepDetail) ui.detail();
+      ui.buttons();
+      paint();
+    };
     scroller.addEventListener('click', (e) => {
       const cell = e.target.closest('.cv-cell');
       if (!cell) return;
-      state.sel = { r: +cell.dataset.r, c: +cell.dataset.c };
-      showDetail(table, grid, detail, state);
-      paint();
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      if (e.shiftKey && state.sel && state.sel.r === r) select(r, state.sel.anchor, c);
+      else select(r, c, c);
+      scroller.focus({ preventScroll: true });
+    });
+    scroller.addEventListener('keydown', (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) ui.redo(); else ui.undo(); return; }
+      if (mod) return;
+      const k = e.key;
+      if (!state.sel && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(k)) { select(0, Math.max(0, Math.floor(scroller.scrollLeft / cw)), Math.max(0, Math.floor(scroller.scrollLeft / cw))); e.preventDefault(); return; }
+      const s = state.sel;
+      if (k === 'ArrowLeft' || k === 'ArrowRight') {
+        e.preventDefault();
+        const d = k === 'ArrowRight' ? 1 : -1;
+        if (e.altKey) { ui.move(d); return; }
+        if (e.shiftKey) { const end = (s.anchor === s.c1 ? s.c2 : s.c1) + d; select(s.r, s.anchor, Math.max(0, Math.min(table.ncols - 1, end))); reveal(end); return; }
+        const c = Math.max(0, Math.min(table.ncols - 1, (d > 0 ? s.c2 : s.c1) + d));
+        select(s.r, c, c); reveal(c);
+      } else if (k === 'ArrowUp' || k === 'ArrowDown') {
+        e.preventDefault();
+        select(Math.max(0, Math.min(table.order.length - 1, s.r + (k === 'ArrowDown' ? 1 : -1))), s.c1, s.c2);
+      } else if (!e.altKey && !e.shiftKey && ui.keys[k.toLowerCase()]) {
+        e.preventDefault();
+        ui.keys[k.toLowerCase()]();
+      }
     });
 
     state.jump = (dir) => {
-      const here = Math.floor((scroller.scrollLeft + 1) / cw);
+      const here = state.sel ? (dir > 0 ? state.sel.c2 : state.sel.c1) : Math.floor((scroller.scrollLeft + 1) / cw);
       let c = here + dir;
       // from the end of one run of differing columns to the start of the next
       while (c >= 0 && c < table.ncols && variant[c] && variant[c - dir]) c += dir;
       while (c >= 0 && c < table.ncols && !variant[c]) c += dir;
-      if (c >= 0 && c < table.ncols) scroller.scrollLeft = Math.max(0, c * cw - cw);
+      if (c >= 0 && c < table.ncols) {
+        scroller.scrollLeft = Math.max(0, c * cw - 3 * cw);
+        select(state.sel ? state.sel.r : 0, c, c);
+      }
+    };
+    state.goTo = (c1, c2, label) => {
+      const r = Math.max(0, label ? table.order.indexOf(label) : (state.sel ? state.sel.r : 0));
+      scroller.scrollLeft = Math.max(0, c1 * cw - 3 * cw);
+      select(r, c1, Math.max(c1, Math.min(c1 + 60, c2)));
     };
     state.repaint = paint;
-    state.count = variant.reduce((a, b) => a + b, 0);
+    state.refresh = () => {
+      measure();
+      if (state.sel) {
+        state.sel.c1 = Math.min(state.sel.c1, table.ncols - 1);
+        state.sel.c2 = Math.min(state.sel.c2, table.ncols - 1);
+      }
+      paint();
+    };
+    state.gridNow = () => grid;
+    state.scroller = scroller;
+    measure();
     paint();
-    return { scroller, paint };
   }
 
   const placeLine = (s) => s.folio + ' · ' + (s.box === 'main' ? 'main text' : s.box) + ' · line ' + (s.line + 1);
 
-  function showDetail(table, grid, detail, state) {
-    detail.innerHTML = '';
-    if (!state.sel) return;
-    const label = table.order[state.sel.r];
-    const st = table.states[label];
-    const k = grid[state.sel.r][state.sel.c];
-    if (k < 0) {
-      detail.append(U.el('strong', null, label), ' has nothing in this column.');
-      return;
-    }
-    const tok = Collate.token(st, k);
-    const src = tok.src.filter((x) => x.folio);
-    const why = tok.rules.map((r) => Norm.rule(r)).filter(Boolean).map((r) => r.name);
-    const tags = tok.flags.map((f) => f.replace(/^ignored:/, 'not compared: '));
-    detail.append(U.el('strong', null, label), ' ',
-      U.el('span', { class: 'cv-t' }, tok.t.trim() || '(no letter of its own)'), ' → ', U.el('code', null, tok.n),
-      src.length ? ' · ' + placeLine(src[0]) : '',
-      why.length ? ' · ' + why.join(', ') : '', tags.length ? ' · ' + tags.join(', ') : '');
-    if (src.length && state.go) {
-      detail.append(' ', U.el('button', { class: 'btn small', onclick: () => state.go(st.siglum, src[0]) }, 'Go to this line'));
-    }
-  }
-
   CollateView.open = async function (ed, list, workId, unit, redraw) {
+    const E = ME.CollateEdit;
     const rec = await Store.getCollation(Collate.keyOf(ed.id, workId, unit));
     if (!rec) { U.toast('That table is no longer here', 'warn'); return; }
-    const table = rec.table;
+    const table = E.ensure(rec.table);
     const body = U.el('div', { class: 'cv-view' });
     const host = U.el('div', { class: 'cv-host' });
-    const detail = U.el('div', { class: 'cv-detail' }, 'Click a cell to see its reading and its place in the manuscript.');
-    const state = { show: 'n', sel: null };
+    const detailBox = U.el('div', { class: 'cv-detail' }, 'Click a cell to see its reading and its place in the manuscript. Shift and click selects several.');
+    const scanBox = U.el('div', { class: 'cv-scanbox' });
+    const unitBox = U.el('div', { class: 'cv-unitbox' });
+    const state = { show: 'n', sel: null, linkA: null };
+
+    let saving = null;
+    const saveNow = async () => { if (saving) { clearTimeout(saving); saving = null; } await Collate.saveTable(ed, rec); };
+    const saveSoon = () => { if (saving) clearTimeout(saving); saving = setTimeout(() => { saving = null; Collate.saveTable(ed, rec); }, 600); };
+
+    const status = U.el('span', { class: 'help cv-count' });
+    const showStatus = () => {
+      const bits = [state.count + ' of ' + table.ncols + ' columns differ'];
+      if (table.ops.length) bits.push(table.ops.length + ' correction(s)');
+      if (table.checked) {
+        const acc = E.againstCorrections(table);
+        bits.push('read through: the aligner had ' + (100 * acc.recall).toFixed(1) + '% as you have it');
+      }
+      status.textContent = bits.join(' · ');
+    };
+
+    const selTokens = () => {
+      const s = state.sel;
+      if (!s) return null;
+      const label = table.order[s.r];
+      const st = table.states[label];
+      const k1 = lower(st.cols, s.c1), k2 = lower(st.cols, s.c2 + 1) - 1;
+      return { label, st, k1, k2, any: k1 <= k2 };
+    };
+
+    const act = (op, then) => {
+      try {
+        E.perform(table, op);
+      } catch (e) {
+        U.toast(e.message, 'warn', 3500);
+        return false;
+      }
+      state.refresh();
+      if (then) then();
+      after();
+      return true;
+    };
+    const after = () => {
+      saveSoon();
+      showStatus();
+      ui.buttons();
+      ui.detail();
+      places.refreshSoon();
+    };
+
+    const ui = { keys: {} };
+    ui.move = (d) => {
+      const x = selTokens();
+      if (!x) { U.toast('Select a reading first'); return; }
+      if (!x.any) { U.toast('There is nothing to move in the selected cells'); return; }
+      const s = state.sel;
+      if (act({ op: 'shift', label: x.label, k1: x.k1, k2: x.k2, delta: d })) {
+        // the selection stays on the reading, wherever it now stands
+        const a = x.st.cols[x.k1];
+        state.sel = { r: s.r, c1: a, c2: x.st.cols[x.k2], anchor: a };
+        state.repaint();
+        ui.detail();
+        ui.buttons();
+      }
+    };
+    ui.merge = () => {
+      const s = state.sel;
+      if (!s) { U.toast('Select a column first'); return; }
+      act({ op: 'merge', at: table.colIds[s.c1] });
+    };
+    ui.split = () => {
+      const s = state.sel;
+      if (!s) { U.toast('Select the witness to set apart'); return; }
+      act({ op: 'split', at: table.colIds[s.c1], labels: [table.order[s.r]] });
+    };
+    ui.swap = () => {
+      const s = state.sel;
+      if (!s) { U.toast('Select a column first'); return; }
+      act({ op: 'swap', at: table.colIds[s.c1] });
+    };
+    ui.setState = (v) => {
+      const s = state.sel;
+      if (!s) { U.toast('Select the cells first'); return; }
+      act({ op: 'state', label: table.order[s.r], from: table.colIds[s.c1], to: table.colIds[s.c2], state: v || null });
+    };
+    ui.cut = () => {
+      const s = state.sel;
+      if (!s) { U.toast('Select a column first'); return; }
+      const cuts = E.cutMap(table);
+      act({ op: 'cut', at: table.colIds[s.c1], on: !cuts[s.c1] });
+    };
+    ui.lock = () => {
+      const s = state.sel;
+      if (!s) { U.toast('Select the columns first'); return; }
+      const m = E.lockMap(table);
+      let manual = false; // what you corrected is locked lightly, and can still be changed; this is the firm kind
+      for (let c = s.c1; c <= s.c2; c++) if (m[c] === 2) manual = true;
+      act({ op: manual ? 'unlock' : 'lock', from: table.colIds[s.c1], to: table.colIds[s.c2] });
+    };
+    ui.transpose = () => {
+      const s = state.sel;
+      if (!s) { U.toast('Select one of the two passages first'); return; }
+      const here = { label: table.order[s.r], from: table.colIds[s.c1], to: table.colIds[s.c2] };
+      if (!state.linkA) {
+        state.linkA = here;
+        U.toast('Now select the other place, in the same row, and click Transposition again', 'ok', 5000);
+        ui.buttons();
+        return;
+      }
+      const a = state.linkA;
+      state.linkA = null;
+      if (a.label !== here.label) { U.toast('Both places must be in the same witness', 'warn'); ui.buttons(); return; }
+      act({ op: 'link', label: a.label, a: [a.from, a.to], b: [here.from, here.to] });
+    };
+    ui.undo = () => { const op = E.undo(table); if (!op) { U.toast('Nothing to undo'); return; } state.refresh(); U.toast('Undid: ' + E.opName(op)); after(); };
+    ui.redo = () => { const op = E.redo(table); if (!op) { U.toast('Nothing to redo'); return; } state.refresh(); U.toast('Redid: ' + E.opName(op)); after(); };
+    ui.checked = () => { act({ op: 'check', on: !table.checked }); };
+    ui.reset = async () => {
+      if (!table.ops.length) { U.toast('There are no corrections to take back'); return; }
+      if (!(await UI.confirm('Take back all ' + table.ops.length + ' correction(s) to this block, including its locks? This cannot be undone.', { ok: 'Take back', danger: true }))) return;
+      E.reset(table);
+      state.refresh();
+      after();
+    };
+    Object.assign(ui.keys, { m: ui.merge, s: ui.split, w: ui.swap, l: ui.lock, b: ui.cut, t: ui.transpose, n: () => state.jump(1), p: () => state.jump(-1) });
+
+    ui.detail = () => {
+      detailBox.innerHTML = '';
+      unitBox.innerHTML = '';
+      const s = state.sel;
+      if (!s) return;
+      const label = table.order[s.r];
+      const st = table.states[label];
+      const g = state.gridNow();
+      const k = g[s.r][s.c1];
+      const cellState = E.stateOf(table, label, table.colIds[s.c1]);
+      if (k < 0) {
+        detailBox.append(U.el('strong', null, label), ' has nothing in this column', cellState ? ': ' + E.STATES[cellState] : '. An empty cell counts as an omission unless you say otherwise.');
+        scanBox.innerHTML = '';
+      } else {
+        const tok = Collate.token(st, k);
+        const src = tok.src.filter((x) => x.folio);
+        const why = tok.rules.map((r) => Norm.rule(r)).filter(Boolean).map((r) => r.name);
+        const tags = tok.flags.map((f) => f.replace(/^ignored:/, 'not compared: '));
+        detailBox.append(U.el('strong', null, label), ' ',
+          U.el('span', { class: 'cv-t' }, tok.t.trim() || '(no letter of its own)'), ' → ', U.el('code', null, tok.n),
+          src.length ? ' · ' + placeLine(src[0]) : '',
+          why.length ? ' · ' + why.join(', ') : '', tags.length ? ' · ' + tags.join(', ') : '', cellState ? ' · ' + E.STATES[cellState] : '');
+        const x = list.find((y) => y.w.siglum === st.siglum);
+        if (src.length && x && x.p) {
+          detailBox.append(' ', U.el('button', { class: 'btn small', onclick: () => state.go(st.siglum, src[0]) }, 'Go to this line'));
+          state.scanResult = CollateView.showScan(scanBox, x.p, src[0]);
+        } else scanBox.innerHTML = '';
+      }
+      // the readings of the variation unit this column is in
+      const unitNow = E.units(table).find((u) => s.c1 >= u.from && s.c1 <= u.to);
+      if (unitNow) {
+        unitBox.append(U.el('div', { class: 'cv-unit-head' }, 'Readings in this unit (columns ' + (unitNow.from + 1) + '–' + (unitNow.to + 1) + ')'),
+          U.el('ul', null, unitNow.readings.map((rd) => U.el('li', null, U.el('code', null, rd.n || '(nothing)'), ' ', rd.wits.join(' '))),
+            unitNow.missing.map((m) => U.el('li', { class: 'muted' }, m.wit + ': ' + m.state))));
+      }
+    };
+
+    const moveBtn = (d) => U.el('button', { class: 'btn small', title: 'Move the selected reading one column ' + (d < 0 ? 'left' : 'right') + ' (Alt+' + (d < 0 ? '←' : '→') + '). With no room, it gets a new column.', onclick: () => ui.move(d) }, d < 0 ? '◀ Move' : 'Move ▶');
+    const stateSel = U.el('select', { 'aria-label': 'What the selected cells are', title: 'Say what the selected cells are', onchange: () => { const v = stateSel.value; stateSel.value = ''; if (v) ui.setState(v === 'clear' ? null : v); } },
+      U.el('option', { value: '' }, 'Cell is…'), Object.entries(E.STATES).map(([k, t]) => U.el('option', { value: k }, t.split(':')[0])), U.el('option', { value: 'clear' }, 'Clear'));
+    const lockBtn = U.el('button', { class: 'btn small', title: 'Lock the selected columns against change, or unlock them (L). Whatever you correct is locked against aligning again anyway.', onclick: () => ui.lock() }, 'Lock');
+    const linkBtn = U.el('button', { class: 'btn small', title: 'Mark that a witness has a passage in another place: select one, click here, select the other, click again (T)', onclick: () => ui.transpose() }, 'Transposition');
+    const undoBtn = U.el('button', { class: 'btn small', title: 'Undo (Ctrl or Cmd+Z)', onclick: () => ui.undo() }, 'Undo');
+    const redoBtn = U.el('button', { class: 'btn small', title: 'Redo (Ctrl or Cmd+Shift+Z)', onclick: () => ui.redo() }, 'Redo');
+    const checkBtn = U.el('button', { class: 'btn small', title: 'You have read this whole block against the witnesses. It locks the block, and measures how close the aligner came to your version.', onclick: () => ui.checked() }, 'Mark as read');
+    ui.buttons = () => {
+      undoBtn.disabled = !table.ops.length;
+      redoBtn.disabled = !(table.redo && table.redo.length);
+      checkBtn.textContent = table.checked ? '✓ Read through' : 'Mark as read';
+      linkBtn.classList.toggle('primary', !!state.linkA);
+      if (state.sel) {
+        const m = E.lockMap(table);
+        let any = false;
+        for (let c = state.sel.c1; c <= state.sel.c2; c++) if (m[c] === 2) any = true;
+        lockBtn.textContent = any ? 'Unlock' : 'Lock';
+      }
+    };
+
+    /* ---------- places to check ---------- */
+    const placesList = U.el('ul', { class: 'cv-places' });
+    const placesTitle = U.el('summary', null, 'Places to check');
+    const placesBox = U.el('details', { class: 'nv-fold cv-places-fold' }, placesTitle, U.el('p', { class: 'help' }, 'Where aligners tend to go wrong. These are prompts to look, not findings.'), placesList);
+    const places = {
+      timer: null,
+      refreshSoon() { clearTimeout(places.timer); places.timer = setTimeout(places.refresh, 250); },
+      refresh() {
+        const items = E.attention(table);
+        placesTitle.textContent = 'Places to check (' + items.length + ')';
+        placesList.innerHTML = '';
+        const show = items.slice(0, 200);
+        for (const it of show) {
+          const go = U.el('button', { class: 'link', onclick: () => { if (!it.review) state.goTo(it.c1, it.c2, it.label); } }, E.KINDS[it.kind]);
+          const extra = [];
+          if (it.fix) extra.push(U.el('button', { class: 'btn small', onclick: () => act(it.fix) }, 'Mark as a transposition'));
+          if (it.review) {
+            const rv = table.review.find((x) => x.id === it.review);
+            if (rv) {
+              const at = new Map(table.colIds.map((id, c) => [id, c]));
+              if (at.has(rv.from)) extra.push(U.el('button', { class: 'btn small', onclick: () => state.goTo(at.get(rv.from), at.get(rv.to)) }, 'Show'));
+              extra.push(U.el('button', { class: 'btn small', onclick: () => { table.review = table.review.filter((x) => x !== rv); after(); } }, 'Dismiss'));
+            }
+          }
+          placesList.append(U.el('li', { class: 'cv-place k-' + it.kind }, go, ' ', it.review ? it.text + ' (was: ' + (table.review.find((x) => x.id === it.review) || {}).was + ')' : (it.c1 === it.c2 ? 'column ' + (it.c1 + 1) : 'columns ' + (it.c1 + 1) + '–' + (it.c2 + 1)) + ': ' + it.text, ' ', extra));
+        }
+        if (items.length > show.length) placesList.append(U.el('li', { class: 'help' }, '…and ' + (items.length - show.length) + ' more.'));
+        if (!items.length) placesList.append(U.el('li', { class: 'help' }, 'Nothing here stands out.'));
+      },
+    };
+
     state.go = (siglum, s) => {
       const x = list.find((y) => y.w.siglum === siglum);
       if (!x) return;
@@ -316,35 +660,54 @@
     const params = table.params;
     const stale = statusOf(ed, list, (await Collate.summaries(ed.id)).get(rec.key));
     const fmt = U.el('select', { 'aria-label': 'Export format' },
-      U.el('option', { value: 'cx-in' }, 'CollateX input (tokens)'), U.el('option', { value: 'cx-out' }, 'CollateX table'), U.el('option', { value: 'tei' }, 'TEI corpus (Saktumiva matrix editor)'), U.el('option', { value: 'native' }, 'Manuscribe table (with all settings)'));
+      U.el('option', { value: 'cx-in' }, 'CollateX input (tokens)'), U.el('option', { value: 'cx-out' }, 'CollateX table'), U.el('option', { value: 'tei' }, 'TEI corpus (Saktumiva matrix editor)'), U.el('option', { value: 'csv' }, 'CSV (spreadsheet)'), U.el('option', { value: 'native' }, 'Manuscribe table (with all settings)'));
     const save = U.el('button', { class: 'btn small', onclick: () => {
       const base = fileSafe(table.unit);
       if (fmt.value === 'cx-in') download(base + '.collatex-input.json', JSON.stringify(Collate.toCollateXInput(table), null, 1));
       else if (fmt.value === 'cx-out') download(base + '.collatex.json', JSON.stringify(Collate.toCollateXTable(table)));
       else if (fmt.value === 'tei') download(base + '.xml', Collate.toTeiCorpus(table), 'application/xml');
+      else if (fmt.value === 'csv') download(base + '.csv', Collate.toCsv(table, state.show), 'text/csv');
       else download(base + '.manuscribe-table.json', JSON.stringify(table, null, 1));
     } }, 'Save');
-    const count = U.el('span', { class: 'help cv-count' });
     body.append(...[
       U.el('div', { class: 'nv-head' },
         U.el('label', null, 'Show ', showSel),
-        U.el('button', { class: 'btn small', onclick: () => state.jump(-1) }, '‹ Previous difference'),
-        U.el('button', { class: 'btn small', onclick: () => state.jump(1) }, 'Next difference ›'),
-        count,
+        U.el('button', { class: 'btn small', title: 'P', onclick: () => state.jump(-1) }, '‹ Previous difference'),
+        U.el('button', { class: 'btn small', title: 'N', onclick: () => state.jump(1) }, 'Next difference ›'),
+        status,
         U.el('span', { class: 'cv-spacer' }),
         fmt, save),
-      stale.cls === 'warn' ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date.') : null,
-      host, detail,
+      stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
+      U.el('div', { class: 'nv-head cv-tools' },
+        moveBtn(-1), moveBtn(1),
+        U.el('button', { class: 'btn small', title: 'Make this column and the next one, if no witness has text in both (M)', onclick: () => ui.merge() }, 'Merge'),
+        U.el('button', { class: 'btn small', title: 'This witness’s reading is not the same as the others’ here: give it its own column (S)', onclick: () => ui.split() }, 'Split'),
+        U.el('button', { class: 'btn small', title: 'Change the order of this column and the next, if no witness has text in both (W)', onclick: () => ui.swap() }, 'Swap'),
+        stateSel,
+        U.el('button', { class: 'btn small', title: 'Add or remove a word or lemma boundary before this column (B)', onclick: () => ui.cut() }, 'Boundary'),
+        lockBtn, linkBtn, undoBtn, redoBtn,
+        U.el('span', { class: 'cv-spacer' }),
+        checkBtn,
+        U.el('button', { class: 'btn small danger-ghost', title: 'Take back all corrections to this block', onclick: () => ui.reset() }, 'Take back all')),
+      host, detailBox, scanBox, unitBox, placesBox,
       U.el('p', { class: 'nv-legend' },
-        U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ',
+        U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')].filter(Boolean));
     await UI.modal({
-      title: 'Collation: ' + table.unit, body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null, kind: 'primary' }],
+      title: 'Collation: ' + table.unit, body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }],
       onOpen: () => {
-        buildTable(table, host, detail, state);
-        count.textContent = state.count + ' of ' + table.ncols + ' columns differ';
+        buildTable(table, host, ui, state);
+        ui.buttons();
+        showStatus();
+        places.refresh();
+        state.scroller.focus({ preventScroll: true });
+        CollateView.lastOpen = { table, state, ui, rec };
       },
     });
+    clearTimeout(places.timer);
+    await saveNow();
+    CollateView.lastOpen = null;
+    if (redraw) redraw();
   };
 
   ME.CollateView = CollateView;

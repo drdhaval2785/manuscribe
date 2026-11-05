@@ -203,13 +203,19 @@
 
   const known = new Map(); // edition id -> Map(key -> summary)
   const summarise = (rec) => ({ key: rec.key, work: rec.work, unit: rec.unit, seen: rec.seen, paramsKey: rec.paramsKey, imported: !!rec.table.imported,
-    ncols: rec.table.ncols, variants: rec.table.variants, labels: rec.table.order.length, tokens: rec.table.tokens });
+    ncols: rec.table.ncols, variants: rec.table.variants, labels: rec.table.order.length, tokens: rec.table.tokens,
+    corrections: (rec.table.ops || []).length, locks: (rec.table.locks || []).length, review: (rec.table.review || []).length, checked: !!rec.table.checked,
+    accuracy: rec.table.checked ? ME.CollateEdit.againstCorrections(rec.table) : null });
   Collate.summaries = async function (edId) {
     if (known.has(edId)) return known.get(edId);
     const m = new Map();
     for (const rec of await Store.listCollations(edId)) m.set(rec.key, summarise(rec));
     known.set(edId, m);
     return m;
+  };
+  Collate.saveTable = async function (ed, rec) {
+    rec.table.variants = countVariants(rec.table);
+    await save(ed.id, rec);
   };
   async function save(edId, rec) {
     await Store.putCollation(rec);
@@ -275,12 +281,19 @@
       }
       const tokenRows = states.map((st) => ({ label: st.label, n: st.tokens.map((t) => t.n) }));
       if (o.onEstimate) o.onEstimate(Collate.estimateSeconds(tokenRows));
-      const aligned = await Collate.align(tokenRows, { signal: o.signal, onProgress: o.onProgress });
-      const table = {
-        unit: u.id, work: workId, params, inputs, order: aligned.order, ncols: aligned.ncols, tree: aligned.tree, absent, states: {},
-        empty: dropped.map((s) => s.label), tokens: tokenRows.reduce((a, r) => a + r.n.length, 0),
-      };
-      for (const st of states) table.states[st.label] = Object.assign(stateRecord(st), { cols: aligned.cols[st.label] });
+      const shared = { unit: u.id, work: workId, params, inputs, absent, states: {}, empty: dropped.map((s) => s.label), tokens: tokenRows.reduce((a, r) => a + r.n.length, 0) };
+      for (const st of states) shared.states[st.label] = stateRecord(st);
+      let table;
+      if (old && ME.CollateEdit.hasLocks(old.table)) {
+        // what the editor has corrected stays; only the rest is aligned again
+        table = await ME.CollateEdit.recollate(old.table, shared, (rows, extra) => Collate.align(rows, Object.assign({ signal: o.signal }, extra)));
+        out.reviewed = (out.reviewed || 0) + table.history[table.history.length - 1].sentToReview;
+      } else {
+        const aligned = await Collate.align(tokenRows, { signal: o.signal, onProgress: o.onProgress });
+        table = Object.assign(shared, { order: aligned.order, ncols: aligned.ncols, tree: aligned.tree });
+        for (const st of states) table.states[st.label].cols = aligned.cols[st.label];
+        ME.CollateEdit.ensure(table);
+      }
       table.variants = countVariants(table);
       await save(ed.id, { key, edition: ed.id, work: workId, unit: u.id, seen, paramsKey, table });
       out.done.push(u.id);
@@ -332,11 +345,17 @@
   /* Which columns differ, among the readings of the texts as corrected. Text lost to damage says nothing;
      an empty cell beside other witnesses' text is a difference. */
   Collate.variantColumns = function (table, grid) {
-    const rows = table.order.map((l, r) => ({ st: table.states[l], g: grid[r] })).filter((x) => x.st.layer !== 'ac');
+    const E = ME.CollateEdit;
+    const linked = E.linked(table);
+    const rows = table.order.map((l, r) => ({ l, st: table.states[l], g: grid[r], link: linked[l] })).filter((x) => x.st.layer !== 'ac');
     const out = new Uint8Array(table.ncols);
+    const ids = table.colIds;
+    const anyCells = table.cells && Object.keys(table.cells).length;
     for (let c = 0; c < table.ncols; c++) {
       let first = null, blanks = 0, known_ = 0, differ = false;
-      for (const { st, g } of rows) {
+      for (const { l, st, g, link } of rows) {
+        if (link && link.has(c)) continue;
+        if (anyCells && E.unknown(E.stateOf(table, l, ids ? ids[c] : c))) continue;
         const k = g[c];
         if (k < 0) { blanks++; continue; }
         const n = st.n[k];
@@ -364,8 +383,12 @@
       return pairs.get(k);
     };
     for (const t of tables) {
+      const E = ME.CollateEdit;
+      E.ensure(t);
+      const linked = E.linked(t);
       const grid = Collate.grid(t);
-      const rows = t.order.map((l, r) => ({ st: t.states[l], g: grid[r] })).filter((x) => x.st.layer !== 'ac');
+      const rows = t.order.map((l, r) => ({ l, st: t.states[l], g: grid[r] })).filter((x) => x.st.layer !== 'ac');
+      const counts = (x, c) => !E.unknown(E.stateOf(t, x.l, t.colIds[c])) && !(linked[x.l] && linked[x.l].has(c));
       for (const x of rows) add(x.st.siglum);
       for (let i = 0; i < rows.length; i++) {
         for (let j = i + 1; j < rows.length; j++) {
@@ -375,6 +398,7 @@
             if (ka < 0 && kb < 0) continue;
             const na = ka < 0 ? null : rows[i].st.n[ka], nb = kb < 0 ? null : rows[j].st.n[kb];
             if (na === Norm.GAP || nb === Norm.GAP) continue;
+            if (!counts(rows[i], c) || !counts(rows[j], c)) continue;
             p.sites++;
             if (na === nb) p.same++;
           }
@@ -406,6 +430,27 @@
     };
   };
 
+  // One row per witness, one column per column, with a state written out where one has been set.
+  Collate.toCsv = function (table, show) {
+    const E = ME.CollateEdit;
+    E.ensure(table);
+    const grid = Collate.grid(table);
+    const q = (v) => (/[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v);
+    return table.order.map((label, r) => {
+      const st = table.states[label];
+      const cells = [label];
+      for (let c = 0; c < table.ncols; c++) {
+        const k = grid[r][c];
+        const s = E.stateOf(table, label, table.colIds[c]);
+        let v = '';
+        if (k >= 0) v = show === 'dip' ? Collate.token(st, k).t.trim() : st.n[k];
+        if (s && (k < 0 || show !== 'dip')) v = (v ? v + ' ' : '') + '[' + s + ']';
+        cells.push(q(v));
+      }
+      return cells.join(',');
+    }).join('\n') + '\n';
+  };
+
   const esc = (s) => U.escXml(String(s));
   // The form Saktumiva saves and its matrix editor opens.
   Collate.toTeiCorpus = function (table) {
@@ -426,6 +471,13 @@
       '</title></titleStmt><publicationStmt><p>Made with Manuscribe.</p></publicationStmt><sourceDesc><listWit>\n' + list + '\n</listWit></sourceDesc></fileDesc>\n</teiHeader>\n' + rows + '\n</teiCorpus>\n';
   };
 
+  // An alignment from elsewhere replaces this table's, and with it any corrections.
+  function freshCopy(table, over) {
+    const c = Object.assign({}, table, over);
+    for (const k of ['colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'ops', 'review', 'base', 'redo', 'checked', 'lockSeq', 'linkSeq', 'history']) delete c[k];
+    return c;
+  }
+
   /* Reads an alignment made elsewhere into a table of the same block. The tokens must be this block's
      text: anything else would cut every reading off from its place in the manuscript, so it is refused.
      columns: {label: [one entry per column: list of token forms, possibly empty]} */
@@ -442,7 +494,7 @@
     const start = [];
     let ncols = 0;
     for (let c = 0; c < width; c++) { start.push(ncols); ncols += span[c]; }
-    const next = Object.assign({}, table, { ncols, order: table.order.slice(), states: {}, imported: source, tree: null });
+    const next = freshCopy(table, { ncols, order: table.order.slice(), states: {}, imported: source, tree: null });
     for (const l of table.order) {
       const st = table.states[l];
       const flat = columns[l].flatMap((cell, c) => cell.map((v, i) => ({ v, col: start[c] + i })));
@@ -452,6 +504,7 @@
       });
       next.states[l] = Object.assign({}, st, { cols: flat.map((x) => x.col) });
     }
+    ME.CollateEdit.ensure(next);
     next.variants = countVariants(next);
     return next;
   }
@@ -501,7 +554,7 @@
     if (missing.length) throw new Error('it lacks ' + missing.join(', '));
     const blockId = Array.from(doc.getElementsByTagName('ab')).find((x) => x.getAttribute('type') === 'blockid');
     if (blockId && blockId.textContent.trim() && blockId.textContent.trim() !== table.unit) throw new Error('it is the alignment of “' + blockId.textContent.trim() + '”, not of “' + table.unit + '”');
-    const next = Object.assign({}, table, { order: table.order.slice(), states: {}, imported: 'Saktumiva', tree: null });
+    const next = freshCopy(table, { order: table.order.slice(), states: {}, imported: 'Saktumiva', tree: null });
     let ncols = 0;
     for (const row of rows) {
       const label = row.getAttribute('n');
@@ -538,6 +591,7 @@
       next.states[label] = Object.assign({}, st, { from, n, cols, rules: {}, flags: {} });
     }
     next.ncols = ncols;
+    ME.CollateEdit.ensure(next);
     next.variants = countVariants(next);
     next.tokens = Object.values(next.states).reduce((a, x) => a + x.n.length, 0);
     return next;

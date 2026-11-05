@@ -449,8 +449,8 @@ and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with it
 - **The table:** click a citation ID. Each row is a witness, or both states of one that has corrections, in the
   order of the aligner's guide tree, so similar witnesses sit together. Columns where witnesses differ are
   shaded, and **Next difference** goes to them. **Show** switches between the normalised form and the text as
-  written. Click a cell for its reading, its place and the rules that touched it, and **Go to this line** opens
-  the witness there. The table only reads; correcting it comes in a later version.
+  written. Click a cell for its reading, its place, the rules that touched it and, if the witness has its PDF here,
+  the line itself from the scan. **Go to this line** opens the witness there.
 - **What an empty cell means:** hatched means that witness has nothing there. `‡` means text lost to damage, which
   is not an omission. A witness without the block has its own row saying so, using the reason you gave in the
   citation grid.
@@ -464,7 +464,40 @@ and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with it
   corpus. It must spell the same text as the block, or it is refused, so that every reading keeps its place in the
   manuscript. An imported alignment stays until its text changes or you choose **Align again**.
 
-Tables go into the edition package, in `collation/<work>/<id>.json`, with their settings and a hash of their input.
+#### Correcting the table
+
+Select a cell by clicking it or with the arrow keys; Shift selects several. Everything can be undone, including
+after closing and reopening.
+
+| Button | Key | What it does |
+|---|---|---|
+| ◀ Move, Move ▶ | Alt+←, Alt+→ | Moves the selected reading one column. With no room, it gets a column of its own |
+| Merge | M | Makes this column and the next one, if no witness has text in both |
+| Split | S | This witness's reading is not the same as the others' here: it gets its own column |
+| Swap | W | Changes the order of this column and the next, if no witness has text in both |
+| Cell is… | | Says what the selected cells are: omission, lacuna, illegible, outside coverage, or ambiguous |
+| Boundary | B | Adds or removes a word or lemma boundary before this column |
+| Lock | L | Locks the selected columns, so that nothing can change them until you unlock them |
+| Transposition | T | Select a passage, click, select where the witness has it instead, click again |
+| Undo, Redo | Cmd or Ctrl+Z, with Shift to redo | |
+| Previous, Next difference | P, N | |
+
+- **An empty cell counts as an omission** until you say otherwise. Lacuna, illegible, outside coverage and ambiguous
+  count neither as agreement nor as difference. A marked transposition counts as neither an omission nor an addition.
+- **Whatever you correct stays corrected.** If a witness's text changes, **Collate** aligns the rest again around your
+  corrections, which keep their columns exactly. If the text under one of them has itself changed, it is not moved to
+  somewhere that looks similar: its lock comes off and it is listed for your review. A new witness is fitted in without
+  moving anything. **Take back all** returns the block to what the aligner gave.
+- **Places to check** lists what aligners tend to get wrong: possible transpositions, readings broken into pieces, a few
+  letters alone between gaps, places where no reading has a majority, marked text among the differences, and differences
+  that exist only because a rule acted on one side. These are prompts to look, not findings. A possible transposition
+  can be marked from the list.
+- **Readings in this unit** shows who reads what between the word or lemma boundaries around the selected column.
+- **Mark as read** says that you have read the whole block against the witnesses. It locks the block, and the edition
+  screen then shows how much of your version the aligner had right, which is the measure of the aligner on your text.
+
+Tables go into the edition package, in `collation/<work>/<id>.json`, with their settings, a hash of their input, your
+corrections and their log. The table also saves as CSV.
 
 ## Exporting
 
@@ -616,6 +649,7 @@ app/js/
   tokens.js             from stored lines to witness layers and tokens with source pointers
   normview.js           the Normalisation part of the edition screen, and its preview
   collate.js            collation: the aligner in a Worker, tables, agreement, exchange formats
+  collateedit.js        correcting a table: the operation log, locks, places to check, aligning around locks
   collateview.js        the Collation part of the edition screen, and the table
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
