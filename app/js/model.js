@@ -13,8 +13,9 @@
       boxes: ['top', 'main', 'bottom'], streams: [{ key: 'main', boxes: ['main'] }, { key: 'commentary', boxes: ['top', 'bottom'] }],
     },
     pancapatha: {
-      label: 'Pañcapāṭha', desc: 'Main text in the centre; commentary runs top → right → bottom → left.',
-      boxes: ['top', 'left', 'main', 'right', 'bottom'], streams: [{ key: 'main', boxes: ['main'] }, { key: 'commentary', boxes: ['top', 'right', 'bottom', 'left'] }],
+      label: 'Pañcapāṭha', desc: 'Main text in the centre; commentary runs top → right → left → bottom.',
+      boxes: ['top', 'left', 'main', 'right', 'bottom'], streams: [{ key: 'main', boxes: ['main'] }, { key: 'commentary', boxes: ['top', 'right', 'left', 'bottom'] }],
+      tabOrder: ['main', 'top', 'right', 'left', 'bottom'],
     },
     interlinear: {
       label: 'Interlinear', desc: 'Main text in lines; the commentary is written above each line.',

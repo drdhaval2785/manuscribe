@@ -120,7 +120,7 @@ and offers **Download .xml** and **Download .html**.
 |---|---|---|
 | **Linear** | One block of text | One stream: base text |
 | **Tripāṭha** | Main text in the middle, commentary above and below | Base text, and commentary with `<cb n="top"/>` and `<cb n="bottom"/>` |
-| **Pañcapāṭha** | Main text in the middle, commentary in the top, right, bottom and left blocks | Base text, and commentary with a `<cb>` for each block |
+| **Pañcapāṭha** | Main text in the middle, commentary in the top, right, left and bottom blocks, read in that order | Base text, and commentary with a `<cb>` for each block |
 | **Interlinear** | Main text, with a line of commentary above each line | Base text, and interlinear commentary |
 
 The layout in the top bar is the default for the project. To change a single folio, use the Folio

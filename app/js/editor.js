@@ -533,7 +533,8 @@
     const { box, i } = posOf(line);
     const g = Editor.geom;
     if (g.type === 'interlinear') { Editor.focusLine(box === 'gloss' ? 'main' : 'gloss', i, 'end'); return; }
-    const order = Model.LAYOUTS[g.type].boxes;
+    const def = Model.LAYOUTS[g.type];
+    const order = def.tabOrder || def.boxes;
     const k = (order.indexOf(box) + dir + order.length) % order.length;
     Editor.focusContinue(order[k]);
   };
