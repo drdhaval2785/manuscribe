@@ -263,6 +263,12 @@ the note dialog.
 `place="above"` stands above the line and `place="below"` under it. `supralinear` and `infralinear` in
 imported or pasted XML become `above` and `below`, and are exported that way.
 
+### In the line itself
+
+`place="inline"` and `place="insitu"` keep the text in the line. An addition is editable there like
+the rest of the line, and a note is a small mark holding its text. `insitu` is not offered in the
+dialogs, but it is kept and exported as written.
+
 ### Places in the margin
 
 `top-margin`, `bottom-margin`, `left-margin` and `right-margin`. Forms such as `left` or `margin-left`

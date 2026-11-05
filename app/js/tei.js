@@ -166,6 +166,7 @@
     if (name === 'note' && /^#?editorial$/i.test(a.resp || '')) return 'foot';
     const p = String(a.place || (name === 'note' ? 'top' : 'above')).toLowerCase();
     if (p === 'above' || p === 'below' || p === 'inline') return p;
+    if (p === 'insitu') return 'inline';
     const side = /top|bottom|left|right/.exec(p);
     return side ? side[0] : 'bottom';
   };
@@ -322,7 +323,7 @@
     let span;
     if (name === 'x-marker') {
       span = TEI.makeChip('x-marker', attrs);
-    } else if (name === 'add' && (attrs.place === 'inline' || attrs['x-span'])) {
+    } else if (name === 'add' && (TEI.placeOf(name, attrs) === 'inline' || attrs['x-span'])) {
       span = TEI.makeWrap('add', attrs);
       for (const c of Array.from(node.childNodes)) renderNode(c, span);
     } else if (name === 'add' || name === 'corr' || (def && def.kind === 'chip') || (!def && !node.childNodes.length && name !== 'subst' && name !== 'choice')) {

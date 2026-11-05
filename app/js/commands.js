@@ -265,7 +265,7 @@
     remember('add', attrs);
     Editor.capture('command');
     let node;
-    if (attrs.place === 'inline') {
+    if (TEI.placeOf('add', attrs) === 'inline') {
       node = TEI.makeWrap('add', attrs);
       node.appendChild(TEI.toHtml(content));
     } else {
@@ -321,7 +321,7 @@
     project().settings.lastAttrs.subst = { place: v.place, rend: v.rend };
     const addAttrs = clean({ place: v.place, hand: v.hand });
     const makeAdd = () => {
-      if (v.place !== 'inline') return TEI.makeChip('add', addAttrs, TEI.sanitizeInput(v.added));
+      if (TEI.placeOf('add', addAttrs) !== 'inline') return TEI.makeChip('add', addAttrs, TEI.sanitizeInput(v.added));
       const a = TEI.makeWrap('add', addAttrs);
       a.appendChild(TEI.toHtml(TEI.sanitizeInput(v.added)));
       return a;
@@ -785,7 +785,7 @@
       afterSpan(changed, null);
       return;
     }
-    if (name === 'add' && (newAttrs.place === 'inline') !== !isChip) {
+    if (name === 'add' && (TEI.placeOf(name, newAttrs) === 'inline') !== !isChip) {
       // switching between an inline addition and one written above/below/in a margin
       let repl;
       if (isChip) { repl = TEI.makeWrap('add', newAttrs); repl.appendChild(TEI.toHtml(content !== null ? content : el.dataset.c || '')); } else repl = TEI.makeChip('add', newAttrs, TEI.fromHtml(el));

@@ -102,7 +102,7 @@
 
     const inChip = () => stack.some((e) => e.chip);
     const isChip = (name, attrs) => {
-      if (name === 'add') return attrs.place !== 'inline';
+      if (name === 'add') return TEI.placeOf(name, attrs) !== 'inline';
       const def = TEI.ELEMENTS[name];
       return !!def && def.kind === 'chip';
     };
