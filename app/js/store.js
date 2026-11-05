@@ -6,7 +6,7 @@
   // The name the project had when these stores were first made. It must stay: changing it would
   // leave everything people have already saved in this browser out of reach.
   const DB_NAME = 'lipikara';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const BACKUP_EVERY_MS = 20 * 60 * 1000;
   const BACKUPS_KEPT = 25;
   let db = null;
@@ -33,11 +33,15 @@
               const b = d.createObjectStore('backups', { keyPath: 'key' });
               b.createIndex('project', 'project');
             }
+            if (!d.objectStoreNames.contains('editions')) d.createObjectStore('editions', { keyPath: 'id' });
           };
           r.onsuccess = () => resolve(r.result);
           r.onerror = () => reject(r.error);
-          r.onblocked = () => reject(new Error('blocked'));
+          // another tab still holds the old database: wait for it, since falling back to
+          // localStorage here would make every project look lost
+          r.onblocked = () => { Store.blocked = true; alert('Manuscribe needs to update its storage. Please close its other tabs; your work is safe.'); };
         });
+        db.onversionchange = () => { db.close(); location.reload(); };
         if (navigator.storage && navigator.storage.persist) Store.persistAsked = navigator.storage.persist().catch(() => false);
       } catch (e) {
         console.warn('IndexedDB unavailable, using localStorage', e);
@@ -76,6 +80,34 @@
       const keys = await req(tx('backups').index('project').getAllKeys(id));
       const s = tx('backups', 'readwrite');
       for (const k of keys) s.delete(k);
+    },
+
+    async listEditions() {
+      if (fallback) {
+        const out = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k.startsWith('lipikara.edition.')) { try { out.push(JSON.parse(localStorage.getItem(k))); } catch (e) { /* skip */ } }
+        }
+        return out.sort((a, b) => (b.modified || 0) - (a.modified || 0));
+      }
+      const all = await req(tx('editions').getAll());
+      return all.sort((a, b) => (b.modified || 0) - (a.modified || 0));
+    },
+
+    async getEdition(id) {
+      if (fallback) { const s = localStorage.getItem('lipikara.edition.' + id); return s ? JSON.parse(s) : null; }
+      return req(tx('editions').get(id));
+    },
+
+    async putEdition(ed) {
+      if (fallback) { localStorage.setItem('lipikara.edition.' + ed.id, JSON.stringify(ed)); return; }
+      await req(tx('editions', 'readwrite').put(ed));
+    },
+
+    async deleteEdition(id) {
+      if (fallback) { localStorage.removeItem('lipikara.edition.' + id); return; }
+      await req(tx('editions', 'readwrite').delete(id));
     },
 
     async putPdf(id, blob) {

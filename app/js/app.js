@@ -49,6 +49,7 @@
     });
     Commands.buildToolbar($('toolbar'));
     wireChrome();
+    ME.Edition.init();
     document.addEventListener('keydown', Commands.onKeyDown, true);
     window.addEventListener('beforeunload', () => { App.flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) App.flush(); });
@@ -137,6 +138,10 @@
     if (App.project) App.flush();
     App.project = null;
     document.body.classList.add('no-project');
+    ME.Edition.current = null;
+    $('edition-view').hidden = true;
+    $('start-home').hidden = false;
+    ME.Edition.renderList();
     const list = $('project-list');
     list.innerHTML = '';
     const projects = await Store.listProjects();
@@ -395,6 +400,7 @@
     TEI.setUnanchored(p.settings.noAnchorIds);
     localStorage.setItem('lipikara.last', id);
     document.body.classList.remove('no-project');
+    $('btn-edition').hidden = !ME.Edition.current;
     $('proj-title').textContent = (p.meta.title || 'Untitled') + (p.meta.siglum ? '  ·  ' + p.meta.siglum : '');
     document.title = (p.meta.title || 'Untitled') + ' — Manuscribe';
     Commands.buildToolbar($('toolbar'));

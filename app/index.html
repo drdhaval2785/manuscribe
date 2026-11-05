@@ -13,6 +13,7 @@
 <header id="topbar">
   <div class="brand" title="Manuscribe — diplomatic transcription of Sanskrit manuscripts"><img class="logo" src="img/logo.png" alt=""><span class="brand-name">Manuscribe</span></div>
   <button id="btn-projects" class="tbtn" title="All transcriptions">☰ Projects</button>
+  <button id="btn-edition" class="tbtn" title="Back to this witness's edition" hidden>‹ Edition</button>
   <div id="proj-title" class="proj-title"></div>
   <div class="spacer"></div>
   <label class="tb-select" title="Default layout of the folios">Layout <select id="sel-layout"></select></label>
@@ -96,7 +97,8 @@
 </main>
 
 <div id="start">
-  <div class="start-card">
+  <div id="edition-view" class="start-card edition-card" hidden></div>
+  <div id="start-home" class="start-card">
     <div class="start-head">
       <img class="logo big" src="img/logo.png" alt="">
       <div>
@@ -107,6 +109,12 @@
     <div class="start-actions">
       <button id="btn-new" class="btn primary big">＋ New transcription</button>
       <button id="btn-import" class="btn big">Import project file…</button>
+    </div>
+    <h2>Your editions</h2>
+    <div id="edition-list" class="project-list"></div>
+    <div class="btn-row">
+      <button id="btn-new-edition" class="btn small">＋ New edition</button>
+      <button id="btn-import-edition" class="btn small">Import edition package…</button>
     </div>
     <h2>Your transcriptions</h2>
     <div id="project-list" class="project-list"></div>
@@ -121,6 +129,7 @@
 <script src="js/store.js"></script>
 <script src="js/model.js"></script>
 <script src="js/foliolayout.js"></script>
+<script src="js/zip.js"></script>
 <script src="js/spans.js"></script>
 <script src="js/importxml.js"></script>
 <script src="js/ui.js"></script>
@@ -131,6 +140,7 @@
 <script src="js/exporthtml.js"></script>
 <script src="js/teischema.js"></script>
 <script src="js/tagsummary.js"></script>
+<script src="js/edition.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

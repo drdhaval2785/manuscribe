@@ -25,6 +25,7 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Cited works and quotations](#cited-works-and-quotations)
 - [Checking tags and attributes](#checking-tags-and-attributes)
+- [Editions: many witnesses of one text](#editions-many-witnesses-of-one-text)
 - [Exporting](#exporting)
 - [Bringing in an existing transcription](#bringing-in-an-existing-transcription)
 - [Folio numbering and missing folios](#folio-numbering-and-missing-folios)
@@ -388,6 +389,29 @@ correct file. So does `<quote>`, which the guide does not mention.
 
 The summary does not change by itself while you type. Press **Refresh** after correcting something.
 
+## Editions: many witnesses of one text
+
+An edition brings together several transcriptions of a text. Each witness stays an ordinary
+transcription that you can open and type in, and the edition adds what holds them together. Start with
+**＋ New edition** on the start screen. You can add witnesses from this browser, from XML files or from
+backup files.
+
+- **Witnesses:** a table of sigla, groups, library, date, script, language, folio sides and whether the PDF
+  is in this browser. Each witness needs its own siglum. Clicking a title opens that witness, and
+  **‹ Edition** in the top bar brings you back.
+- **Works:** which work each part of a witness carries. Two manuscripts' commentaries are compared only if
+  they are the same work here, so a second commentary gets a work of its own.
+- **Citation IDs:** witnesses are compared by the `xml:id` of their paragraphs and verses. The list shows
+  duplicate IDs, automatic IDs, lines outside any paragraph or verse, and IDs a witness lacks, with links to
+  the place. In the grid, click an empty cell to explain the gap: lacuna, not yet transcribed, or outside
+  that witness's scope.
+- **Export package** saves a ZIP of plain files, for backup and for moving between computers or editors;
+  **Import edition package** reads it back. The edition reminds you when it has never been exported, or when
+  the last export is 7 days old and the work has changed. PDFs are never in the package: each is recorded
+  by name, size and SHA-256, and **Relink PDFs…** matches your files to their witnesses by content.
+- **Export for Saktumiva** saves one TEI file per witness of the chosen work, to collate in
+  [Saktumiva](https://chchch.github.io/saktumiva/).
+
 ## Exporting
 
 ### TEI XML
@@ -532,6 +556,8 @@ app/js/
   foliolayout.js        sizing and measuring a folio (also copied into the HTML export)
   spans.js              tags over several lines and folios
   importxml.js          the tolerant XML reader, for paste and import
+  zip.js                ZIP files, using the browser's own compression
+  edition.js            editions: witnesses, citation IDs, packages
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor
