@@ -27,6 +27,8 @@
     await Store.putEdition(ed);
   }
 
+  Edition.save = saveEdition;
+
   /* ---------- the witnesses of an edition ---------- */
 
   async function loadWitnesses(ed) {
@@ -166,6 +168,7 @@ An edition package made with Manuscribe (https://github.com/drdhaval2785/manuscr
 edition.json                  the edition: witnesses, groups, works, coverage
 witnesses/<siglum>/project.json   a witness, as Manuscribe holds it
 witnesses/<siglum>/images.json    its PDF, by name, size and SHA-256; the PDF itself is not included
+profiles/<name>.json          the normalisation rules in force, for the record
 output/tei/<siglum>.xml       TEI of each witness, made from the above and safe to regenerate
 
 To open it, use Import edition package on Manuscribe's start screen.
@@ -184,6 +187,8 @@ To open it, use Import edition package on Manuscribe's start screen.
     });
     files.push({ name: 'edition.json', data: canonical(head) });
     files.push({ name: 'README.txt', data: README(ed) });
+    const rules = ME.Norm.describe(ed.norm);
+    files.push({ name: 'profiles/' + rules.profile + '.json', data: canonical(rules) });
     const missing = [];
     for (const { w, p } of list) {
       if (!p) { missing.push(w.siglum); continue; }
@@ -572,7 +577,9 @@ To open it, use Import edition package on Manuscribe's start screen.
       streamTable(ed, list, redraw) || U.el('p', { class: 'help' }, 'Appears when the edition has witnesses.'),
       U.el('h2', null, 'Citation IDs'),
       problemsList(reg, ed),
-      coverageGrid(ed, reg, redraw));
+      coverageGrid(ed, reg, redraw),
+      U.el('h2', null, 'Normalisation'),
+      ME.NormView.section(ed, list, redraw));
     scroller.scrollTop = top;
   };
 

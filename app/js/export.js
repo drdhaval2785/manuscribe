@@ -519,5 +519,7 @@
     }
   };
 
+  Export.lineEnd = lineEnd;
+
   ME.Export = Export;
 })(window.ME);

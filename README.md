@@ -412,6 +412,32 @@ backup files.
 - **Export for Saktumiva** saves one TEI file per witness of the chosen work, to collate in
   [Saktumiva](https://chchch.github.io/saktumiva/).
 
+### Normalisation
+
+Before witnesses can be compared, Manuscribe has to know what counts as the same reading. The
+**Normalisation** part of the edition screen sets this. It works on a copy: your transcriptions never
+change, and every normalised letter knows its place in the manuscript.
+
+- **Profiles:** Classical Sanskrit, Epic Sanskrit, Vedic (minimal), Jain Prakrit and Old Gujarati. The last
+  two are provisional and have not been checked against published editions.
+- **Rules:** switch any rule on or off for this edition. The Sanskrit rules come from Charles Li's
+  Saktumiva 2.0.
+- **What each witness is known to do:** for example, that one manuscript writes b and v alike. This applies
+  to that witness alone.
+- **Marked text that is not compared:** `<surplus>`, `<pc>` and similar stay in the transcription, but
+  comparison passes over them.
+- **Preview on your text…** shows one citation block, witness by witness: the text as written with each
+  change marked, what it is compared as, how far apart the witnesses are before and after the rules, and
+  what each rule did. Point at any part to see the reason and the folio, block and line.
+
+A witness has two states where it has corrections: before (`ac`, with `<del>`, without `<add>`) and after
+(`pc`, the reverse). Marginal notes are kept apart from the running text. Text you supplied as editor
+(`<supplied>`, `<corr>`, editorial notes) is not part of a witness. `<gap>` counts as lost text, not as an
+omission. Only text inside a paragraph or verse with an `xml:id` is compared.
+
+Sandhi rules read word spaces, as they do in Saktumiva. If a scribe's space falls inside a word, as in
+`त्र यो दश`, the rule sees a word ending in *o* and treats it as *-aḥ*. The preview shows where this happens.
+
 ## Exporting
 
 ### TEI XML
@@ -558,6 +584,9 @@ app/js/
   importxml.js          the tolerant XML reader, for paste and import
   zip.js                ZIP files, using the browser's own compression
   edition.js            editions: witnesses, citation IDs, packages
+  normalize.js          normalisation: writing, rules, profiles, offset map, tokens
+  tokens.js             from stored lines to witness layers and tokens with source pointers
+  normview.js           the Normalisation part of the edition screen, and its preview
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor
