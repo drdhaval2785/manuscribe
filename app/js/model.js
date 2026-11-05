@@ -41,7 +41,7 @@
       created: now,
       modified: now,
       meta: Object.assign({
-        title: '', author: '', siglum: '', shelfmark: '', repository: '', settlement: '', country: '',
+        title: '', author: '', siglum: '', language: 'Sanskrit', shelfmark: '', repository: '', settlement: '', country: '',
         scribe: '', date: '', transcriber: '', script: 'sa-Deva', textLang: 'sa-Latn', form: 'pothi', material: '', notes: '',
       }, opts.meta || {}),
       layout: { type: opts.layoutType || 'linear', lines: Object.assign({}, DEFAULT_LINES, opts.lines || {}), regions: {} },

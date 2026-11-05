@@ -38,7 +38,7 @@
           r.onerror = () => reject(r.error);
           r.onblocked = () => reject(new Error('blocked'));
         });
-        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+        if (navigator.storage && navigator.storage.persist) Store.persistAsked = navigator.storage.persist().catch(() => false);
       } catch (e) {
         console.warn('IndexedDB unavailable, using localStorage', e);
         fallback = true;
@@ -102,6 +102,19 @@
       } catch (e) { console.warn('backup failed', e); }
     },
     _lastBackup: {},
+
+    // what the browser promises about this data, for showing to the user
+    async status() {
+      const out = { limited: fallback, persisted: false, usedMB: null, quotaMB: null };
+      if (!navigator.storage) return out;
+      await Store.persistAsked;
+      if (navigator.storage.persisted) out.persisted = await navigator.storage.persisted().catch(() => false);
+      if (navigator.storage.estimate) {
+        const e = await navigator.storage.estimate().catch(() => ({}));
+        if (e.quota) { out.usedMB = Math.round(e.usage / 1048576); out.quotaMB = Math.round(e.quota / 1048576); }
+      }
+      return out;
+    },
 
     // whatever the time since the last one; false if this browser cannot keep backups
     async backupNow(p) {

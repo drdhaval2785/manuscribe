@@ -900,6 +900,7 @@
       { n: 'date', label: 'Date of copying', type: 'text', placeholder: 'e.g. VS 1745' },
       { n: 'material', label: 'Material', type: 'combo', options: ['paper', 'palm leaf', 'birch bark'] },
       { n: 'form', label: 'Form', type: 'select', options: ['pothi', 'codex', 'book'] },
+      { n: 'language', label: 'Language of the text', type: 'combo', options: ['Sanskrit', 'Prakrit', 'Apabhraṃśa', 'Old Gujarati', 'Gujarati', 'Hindi'] },
       { n: 'script', label: 'Script of the manuscript', type: 'combo', options: ['sa-Deva', 'sa-Shrd', 'sa-Newa', 'sa-Beng', 'sa-Gujr', 'sa-Mlym', 'sa-Telu', 'sa-Knda', 'sa-Taml', 'sa-Gran', 'sa-Orya', 'sa-Sidd'], help: 'Written as textLang/@mainLang in the header.' },
       { n: 'textLang', label: 'Script of your transcription', type: 'select', options: ['sa-Latn', 'sa-Deva'], labels: ['IAST (sa-Latn) — recommended for Saktumiva', 'Devanagari (sa-Deva)'] },
       { n: 'transcriber', label: 'Transcribed by', type: 'text' },
@@ -950,6 +951,12 @@
       App.changed();
       App.go(Math.min(App.idx, App.entries.length - 1), { noFocus: true });
     });
+    const storageNote = U.el('p', { class: 'help' });
+    Store.status().then((st) => {
+      const used = st.usedMB === null ? '' : st.usedMB + ' MB of ' + st.quotaMB + ' MB used in this browser. ';
+      storageNote.textContent = st.limited ? 'This browser only allows limited storage here, and the PDF is not kept: use Backup regularly.'
+        : used + (st.persisted ? 'The browser has agreed to keep this data.' : 'The browser has not promised to keep this data and may clear it, so keep a backup file.');
+    });
     host.append(
       U.el('h4', null, 'Manuscript & text'), f.el,
       U.el('h4', null, 'Default layout'), U.el('p', { class: 'help' }, Model.LAYOUTS[p.layout.type].label + ' (change it in the top bar). Usual lines per folio side:'), lines.el,
@@ -963,6 +970,7 @@
       U.el('h4', null, 'Tags and attributes'),
       ME.TagSummary.panel(p, () => App.flush(), App.goPlace),
       U.el('h4', null, 'Project file'),
+      storageNote,
       U.el('p', { class: 'help' }, 'Everything is saved automatically in this browser. Keep a backup file as well (Ctrl+S), especially before clearing browser data or moving to another computer.'),
       U.el('div', { class: 'btn-row' },
         U.el('button', { class: 'btn small', onclick: () => App.saveToFile() }, 'Save backup file'),

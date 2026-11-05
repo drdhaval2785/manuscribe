@@ -11,6 +11,8 @@
   const ELEMENT_ONLY = new Set(['TEI', 'teiHeader', 'fileDesc', 'titleStmt', 'publicationStmt', 'notesStmt', 'sourceDesc', 'msDesc', 'msIdentifier', 'msContents', 'msItem',
     'physDesc', 'objectDesc', 'layoutDesc', 'handDesc', 'history', 'origin', 'listBibl', 'respStmt', 'revisionDesc', 'text', 'body', 'div', 'lg', 'supportDesc']);
 
+  const LANG_CODE = { Sanskrit: 'sa', Prakrit: 'pra', Gujarati: 'gu', 'Old Gujarati': 'gu', Hindi: 'hi' };
+
   const node = (name, attrs, children) => ({ name, attrs: attrs || {}, children: children || [] });
 
   // x-* attributes are internal to the editor
@@ -280,7 +282,10 @@
 
     const msItem = node('msItem', {}, [node('title', {}, [m.title || 'Untitled'])]);
     if (m.author) msItem.children.push(node('author', {}, [m.author]));
-    msItem.children.push(node('textLang', { mainLang: m.script || 'sa-Deva' }, ['Sanskrit']));
+    const language = m.language || 'Sanskrit';
+    const code = LANG_CODE[language];
+    const mainLang = m.script || 'sa-Deva';
+    msItem.children.push(node('textLang', { mainLang: code ? mainLang.replace(/^[a-z]+/, code) : mainLang }, [language]));
 
     const types = new Set(Object.keys(project.pages).map((l) => Model.pageLayout(project, l)));
     types.add(project.layout.type);

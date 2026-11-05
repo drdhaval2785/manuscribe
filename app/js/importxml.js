@@ -77,7 +77,7 @@
       else if (k.name === 'origDate') res.meta.date = textOf();
       else if (k.name === 'objectDesc' && k.attrs.form) res.meta.form = k.attrs.form;
       else if (k.name === 'supportDesc' && k.attrs.material) res.meta.material = k.attrs.material;
-      else if (k.name === 'textLang' && k.attrs.mainLang) res.meta.script = k.attrs.mainLang;
+      else if (k.name === 'textLang') { if (k.attrs.mainLang) res.meta.script = k.attrs.mainLang; res.meta.language = textOf(); }
       else if (k.name === 'handNote' && k.attrs.scribe) res.meta.scribe = k.attrs.scribe.replace(/_/g, ' ');
       else if (k.name === 'layout') {
         // "Lines per folio side: main text 8, top 5." as the export writes it
@@ -356,7 +356,7 @@
     Importer.resolveSources(project, res);
     const m = res.meta;
     for (const k of ['title', 'author', 'siglum', 'country', 'settlement', 'repository', 'shelfmark', 'scribe', 'date', 'material', 'transcriber', 'notes']) if (m[k] && !project.meta[k]) project.meta[k] = m[k];
-    if (opts && opts.fresh) for (const k of ['form', 'script', 'textLang']) if (m[k]) project.meta[k] = m[k];
+    if (opts && opts.fresh) for (const k of ['form', 'script', 'textLang', 'language']) if (m[k]) project.meta[k] = m[k];
     if (res.pbWidth) project.folios.pbWidth = res.pbWidth;
     const needs = {};
     for (const l of res.lines) { const label = l.page || fallbackLabel; (needs[label] = needs[label] || []).push(l); }
