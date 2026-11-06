@@ -674,6 +674,13 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
   An introduction to a chapter or to the text (`c2.0-1`, `c0-1`) hangs on the first base block there. The cases of
   the DHARMA guide that an ID cannot say (a commentary passing over a verse, a base that is absent) are still set
   by hand in **Links to the base text…**, and win over the ID.
+- **The text with all its layers.** With **All layers** chosen, *Edited text and apparatus…* and **Export** (the PDF
+  in any script, the print page and the reader) give the edition as it is read: each base block with the
+  introductions to it before it, then each commentary on it in the order of the Layers list, each followed by the
+  commentaries on it, to any depth. Each deeper layer is set in further and a little smaller, and every commentary
+  block begins with its abbreviation, as `[Ś]`. The front matter lists the abbreviations, and at the foot of each
+  page each commentary's notes stand apart under its [abbreviation]. A block whose parent no witness has follows its
+  base verse.
 
 #### Commentaries, evidence and indices
 

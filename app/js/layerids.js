@@ -79,6 +79,57 @@
     return ids.map((id) => own.get(id) || { work: workId, unit: id, base: LI.parentsAmong(id, parentIds), kind: 'comments', fromId: true }).filter((l) => l.base.length || l.kind !== 'comments');
   };
 
+  /* ---------- the text with all its layers, in reading order ---------- */
+
+  /* The blocks of every layer as one text: each base block, with before it the introductions to it (-0, and to a
+     chapter or the text), and after it each commentary on it in the order of the register, each followed by the
+     commentaries on it, to any depth. works: [{work, built}] (Release.works). -> the built blocks in that order,
+     each with layer: {code, depth, abbr, name}. A block whose parent no witness has follows its base verse, or
+     comes at the end. */
+  LI.weave = function (ed, works) {
+    const byCode = new Map();
+    for (const w of works) { const code = LI.codeOf(w.work.id); if (code) byCode.set(code, w.built); }
+    const nodes = new Map();
+    const key = (code, id) => code + '|' + id;
+    for (const [code, built] of byCode) for (const b of built) nodes.set(key(code, b.table.unit), { code, id: b.table.unit, b, pre: [], post: [], lead: false });
+    const idsOf = (code) => (byCode.get(code) || []).map((b) => b.table.unit);
+    const loose = [];
+    for (const [code, built] of byCode) {
+      if (code === LI.BASE) continue;
+      for (const b of built) {
+        const me = nodes.get(key(code, b.table.unit));
+        const x = LI.parse(me.id);
+        if (!x) { loose.push(me); continue; }
+        const par = LI.parentOf(x);
+        let found = LI.parentsAmong(me.id, idsOf(par.code));
+        let before = x.own === 0, at = par.code;
+        // before a chapter, or the whole text
+        if (par.code === LI.BASE && found.length && !idsOf(LI.BASE).includes(LI.BASE + x.loci[0])) { before = true; me.lead = true; }
+        // its parent is not there: it follows its base verse
+        if (!found.length && idsOf(LI.BASE).includes(LI.BASE + x.loci[0])) { found = [LI.BASE + x.loci[0]]; at = LI.BASE; before = false; }
+        if (!found.length) { loose.push(me); continue; }
+        const host = nodes.get(key(at, before ? found[0] : found[found.length - 1]));
+        (before ? host.pre : host.post).push(me);
+      }
+    }
+    const ownOf = (n) => { const x = LI.parse(n.id); return x && x.own !== null ? x.own : 0; };
+    const sort = (arr) => arr.slice().sort((p, q) => (q.lead - p.lead) || LI.order(ed, p.code, q.code) || ownOf(p) - ownOf(q) || (p.id < q.id ? -1 : 1));
+    const out = [];
+    const emit = (n) => {
+      for (const c of sort(n.pre)) emit(c);
+      const depth = n.code === LI.BASE ? 0 : n.code.length;
+      out.push(Object.assign({}, n.b, { layer: { code: n.code, depth, abbr: depth ? LI.abbr(ed, n.code) : '', name: LI.name(ed, n.code) } }));
+      for (const c of sort(n.post)) emit(c);
+    };
+    for (const b of byCode.get(LI.BASE) || []) emit(nodes.get(key(LI.BASE, b.table.unit)));
+    for (const n of loose) emit(n);
+    return out;
+  };
+
+  // The layers in the order they are shown, for a legend: [{code, depth, abbr, name}]
+  LI.legend = (ed) => ((ed && ed.layers) || []).slice().sort((x, y) => (x.code === LI.BASE ? -1 : y.code === LI.BASE ? 1 : LI.order(ed, x.code, y.code)))
+    .map((l) => ({ code: l.code, depth: l.code === LI.BASE ? 0 : l.code.length, abbr: l.code === LI.BASE ? '' : LI.abbr(ed, l.code), name: LI.name(ed, l.code) }));
+
   /* ---------- the register of layers: what each letter stands for ---------- */
 
   LI.layered = (ed) => !!(ed && ed.layers && ed.layers.length);

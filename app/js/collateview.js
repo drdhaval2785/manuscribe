@@ -430,9 +430,33 @@
 
   CollateView.printSettings = (ed, redraw) => printSettings(ed, redraw);
 
+  /* A layered edition's text with all its layers, as it is read: each commentary after what it comments on, set in
+     by its depth, with its [abbreviation]; and under each block its apparatus. */
+  CollateView.layeredView = function (ed, woven) {
+    const A = ME.Apparatus, LI = ME.LayerIds;
+    const plain = (s) => String(s).replace(/<\/?sup>/g, '');
+    const legend = U.el('p', { class: 'lw-legend' }, LI.legend(ed).filter((l) => l.depth).map((l) => U.el('span', { style: 'margin-inline-start: ' + ((l.depth - 1) * 1.2) + 'em' }, U.el('b', null, '[' + l.abbr + ']'), ' ' + l.name)));
+    const blocks = woven.map((b) => {
+      const L = b.layer;
+      const entries = b.entries.filter((e) => e.kind !== 'orthographic');
+      return U.el('section', { class: 'lw-block lw-d' + Math.min(L.depth, 6), dataset: { layer: L.code, unit: b.table.unit }, style: 'margin-inline-start: ' + (L.depth * 1.6) + 'em' },
+        U.el('div', { class: 'lw-id' }, b.table.unit),
+        U.el('p', { class: 'lw-text' }, L.depth ? U.el('span', { class: 'lw-abbr', title: L.name }, '[' + L.abbr + ']') : null, L.depth ? ' ' : null, b.text.trim()),
+        entries.length ? U.el('ol', { class: 'lw-app' }, entries.map((e) => U.el('li', null, plain(A.format(ed, e))))) : null);
+    });
+    return U.el('div', { class: 'lw' }, legend, blocks);
+  };
+
   CollateView.workApparatus = async function (ed, list, workId) {
     // the languages of these witnesses decide which language features are offered
     if (list) ME.Features.setContext(ME.Features.langsOf(list));
+    if (workId === CollateView.ALL) {
+      const works = (await ME.Release.works(ed, list)).filter((w) => ME.LayerIds.codeOf(w.work.id));
+      if (!works.length) { U.toast('Collate first', 'warn'); return; }
+      const body = U.el('div', { class: 'cv-view' }, CollateView.layeredView(ed, ME.LayerIds.weave(ed, works)));
+      await UI.modal({ title: 'Edited text with all its layers', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }] });
+      return;
+    }
     const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId);
     const order = Edition.register(ed, list)[workId];
     const ids = order ? order.order : [];

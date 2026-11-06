@@ -22,6 +22,13 @@
     }
     const workId = ctx.workId || (ctx.tables && ctx.tables[0] && ctx.tables[0].work);
     const works = await ME.Release.works(ed, ctx.list || []);
+    // every layer of a layered edition, as one text in reading order
+    if (ME.CollateView && workId === ME.CollateView.ALL) {
+      const layers = works.filter((x) => ME.LayerIds.codeOf(x.work.id));
+      if (!layers.length) throw new Error('Collate first: there is nothing to export yet');
+      const base = layers.find((x) => x.work.id === ME.LayerIds.workId(ME.LayerIds.BASE)) || layers[0];
+      return { built: ME.LayerIds.weave(ed, layers), work: { id: ME.CollateView.ALL, title: ed.title || 'All layers', base: base.work }, tables: layers.flatMap((x) => x.recs.map((r) => r.table)), layered: layers };
+    }
     const w = works.find((x) => x.work.id === workId) || works[0];
     if (!w) throw new Error('Collate first: there is nothing to export yet');
     return { built: w.built, work: w.work, tables: w.recs.map((r) => r.table) };

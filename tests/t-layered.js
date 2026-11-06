@@ -100,6 +100,53 @@ const { launch, sleep, checks } = require('./h');
   await page.evaluate(async () => { ME.CollateView.workApparatus(ME.Edition.current, await Promise.all(ME.Edition.current.witnesses.map(async (w) => ({ w, p: ME.Model.upgrade(await ME.Store.getProject(w.projectId)) }))), 'L-ca'); await new Promise((r) => setTimeout(r, 800)); });
   T.check('Edited text and apparatus of a sub-commentary shows above each block what it comments on', await page.evaluate(() => { const q = document.querySelector('.modal .ap-base'); return !!q && /व्याख्यानम्/.test(q.textContent); }));
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  // all the layers as one text
+  const ALL = '*layers';
+  const woven = await page.evaluate(async () => {
+    const ed = ME.Edition.current;
+    const list = await Promise.all(ed.witnesses.map(async (w) => ({ w, p: ME.Model.upgrade(await ME.Store.getProject(w.projectId)) })));
+    const works = (await ME.Release.works(ed, list)).filter((w) => ME.LayerIds.codeOf(w.work.id));
+    window.__list = list;
+    return ME.LayerIds.weave(ed, works).map((b) => b.table.unit + ':' + b.layer.depth + ':' + b.layer.abbr);
+  });
+  // r was put before c, so on b1: c's introduction, the verse, r, then c with ca under it; ca2-5-1, whose parent no
+  // witness has, follows its verse
+  T.check('woven in reading order: the introduction before the verse, each commentary after it with its sub-commentary under it, in the register’s order', woven.join(' ') === 'c1-0:1:Ś b1:0: r1-1:1:R c1-1:1:Ś ca1-1-1:2:CA b2:0: c2-1:1:Ś ca2-5-1:2:CA', woven);
+  await page.evaluate(async (ALL) => { ME.CollateView.workApparatus(ME.Edition.current, window.__list, ALL); await new Promise((r) => setTimeout(r, 900)); }, ALL);
+  const view = await page.evaluate(() => [...document.querySelectorAll('.modal .lw-block')].map((x) => ({ id: x.dataset.unit, indent: parseFloat(x.style.marginInlineStart) || 0, abbr: (x.querySelector('.lw-abbr') || {}).textContent || '' })));
+  T.check('Edited text and apparatus of All layers shows them woven, each set in by its depth, with its [abbreviation]', view.length === 8 && view[0].abbr === '[Ś]' && view[1].abbr === '' && view[4].id === 'ca1-1-1' && view[4].indent > view[3].indent && view[3].indent > view[1].indent, view);
+  await page.evaluate(() => { const b = document.querySelector('.modal-foot .btn'); if (b) b.click(); });
+  await sleep(300);
+  const print = await page.evaluate(async (ALL) => {
+    const ed = ME.Edition.current;
+    const f = await ME.ExportView.make('print-page', { kind: 'edition', ed, list: window.__list, workId: ALL });
+    const html = typeof f.data === 'string' ? f.data : await new Response(f.data).text();
+    const json = JSON.parse(html.match(/<script type="application\/json" id="edition-data">([\s\S]*?)<\/script>/)[1].replace(/\\u003c/g, '<'));
+    return { blocks: json.blocks.map((b) => b.id + ':' + b.depth + ':' + b.abbr), first: json.blocks[0].html.slice(0, 60), layers: json.layers.map((l) => l.abbr + ' ' + l.name), html };
+  }, ALL);
+  T.check('the print page has all the layers in reading order, each commentary block with [abbreviation] first', print.blocks.join(' ') === 'c1-0:1:Ś b1:0: r1-1:1:R c1-1:1:Ś ca1-1-1:2:CA b2:0: c2-1:1:Ś ca2-5-1:2:CA' && /^<span class="labl"[^>]*>\[Ś\]<\/span>/.test(print.first), print.blocks);
+  T.check('and lists the commentaries and their abbreviations', print.layers.includes('Ś Śaṅkara, Bhāṣya') && print.layers.includes('CA Sub-commentary ca (on c)'), print.layers);
+  // lay it out: the deeper layers are set in further
+  const laid = await (async () => {
+    const p2 = await browser.newPage();
+    await p2.setContent(print.html, { waitUntil: 'load' });
+    for (let k = 0; k < 40 && !(await p2.evaluate(() => !!window.__paginated)); k++) await sleep(200);
+    const r = await p2.evaluate(() => {
+      const at = (id) => { const p = document.querySelector('.body p.txt[data-block="' + id + '"]'); return p ? p.getBoundingClientRect().left : null; };
+      return { b1: at('b1'), c11: at('c1-1'), ca: at('ca1-1-1'), foot: [...document.querySelectorAll('.foot .ser-layer .labl')].map((x) => x.textContent) };
+    });
+    await p2.close();
+    return r;
+  })();
+  T.check('on the page, a commentary is set in from the verse, and its sub-commentary further', laid.b1 !== null && laid.c11 > laid.b1 && laid.ca > laid.c11, laid);
+  T.check('and each commentary’s notes are under its [abbreviation] at the foot (only ca differs here, by a visarga)', laid.foot.includes('[CA]') && laid.foot.every((x) => /^\[(Ś|R|CA)\]$/.test(x)), laid.foot);
+  const reader = await page.evaluate(async (ALL) => {
+    const f = await ME.ExportView.make('reader', { kind: 'edition', ed: ME.Edition.current, list: window.__list, workId: ALL });
+    const html = typeof f.data === 'string' ? f.data : await new Response(f.data).text();
+    return html;
+  }, ALL);
+  const readerOk = await (async () => { const p3 = await browser.newPage(); await p3.setContent(reader, { waitUntil: 'load' }); await sleep(300); const r = await p3.evaluate(() => [...document.querySelectorAll('section.block')].map((x) => x.id.slice(2) + ((x.querySelector('.labl') || {}).textContent || ''))); await p3.close(); return r; })();
+  T.check('the reader has them in the same order, with the abbreviations', readerOk.join(' ') === 'c1-0[Ś] b1 r1-1[R] c1-1[Ś] ca1-1-1[CA] b2 c2-1[Ś] ca2-5-1[CA]', readerOk);
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

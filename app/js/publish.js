@@ -155,6 +155,7 @@
         const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
         return {
           id: b.table.unit,
+          layer: b.layer && b.layer.depth ? { depth: b.layer.depth, abbr: b.layer.abbr, name: b.layer.name } : null,
           base: linkOf(b.table.unit) ? linkOf(b.table.unit).base.map((x) => [x, layered.texts[x] || '']).filter((x) => x[1]) : [],
           units: b.proposal.units.map((u) => { const i = byFrom.get(u.fromId); return i === undefined ? [u.text] : [u.text, i]; }),
           entries: b.entries.map((e) => ({
@@ -219,7 +220,11 @@
           return '<li data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '"><span class="ref">' + esc(e.ref) + '</span> ' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
         }).join('');
         const mula = b.base && b.base.length ? '<blockquote class="mula" title="' + esc(D.base.title + ' ' + b.base.map((x) => x[0]).join(', ')) + '"><span class="ref">' + esc(D.base.title + ' ' + b.base.map((x) => x[0]).join(', ')) + '</span> ' + esc(b.base.map((x) => x[1]).join(' ')) + '</blockquote>' : '';
-        html += '<section class="block" id="b-' + esc(b.id) + '"><h2>' + esc(b.id) + '</h2>' + mula + '<p class="txt">' + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
+        // a commentary of a layered edition: set in by its depth, with its [abbreviation] first
+        const L = b.layer;
+        const lay = L ? ' style="margin-inline-start:' + (L.depth * 1.6) + 'em;font-size:' + Math.max(0.78, 1 - L.depth * 0.07).toFixed(2) + 'em"' : '';
+        const abbr = L ? '<b class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</b> ' : '';
+        html += '<section class="block' + (L ? ' layer' : '') + '" id="b-' + esc(b.id) + '"' + lay + '><h2>' + esc(b.id) + '</h2>' + mula + '<p class="txt">' + abbr + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
       });
       main.innerHTML = html;
     };
@@ -277,6 +282,8 @@ ol.app { list-style: none; margin: 0 0 12px; padding: 0; font-size: 15px; }
 ol.app li { padding: 2px 4px; border-radius: 4px; }
 ol.app li.orth { color: var(--muted); } ol.app li.single { font-style: italic; }
 ol.app li.testis, .testis { color: #5b4a8a; }
+.labl { color: #8c2a17; }
+.block.layer { border-inline-start: 2px solid var(--line); padding-inline-start: 10px; }
 blockquote.mula { margin: 4px 0 8px; padding: 4px 12px; border-left: 3px solid var(--line); font-size: 17px; color: #4a3f30; }
 .indices ul { columns: 3 220px; list-style: none; padding: 0; font-size: 15px; } .indices li { break-inside: avoid; }
 .ref { font: 12px system-ui, sans-serif; color: var(--muted); margin-right: 4px; }

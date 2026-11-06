@@ -53,13 +53,18 @@
         }
         notes.push({ k: markers.get(i), by });
       });
-      return { id: b.table.unit, html: html.replace(/\s+/g, ' ').trim(), notes };
+      // a layer of a layered edition: set in by its depth, with its [abbreviation] first
+      const L = b.layer;
+      const lead = L && L.depth ? '<span class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</span> ' : '';
+      return { id: b.table.unit, html: lead + html.replace(/\s+/g, ' ').trim(), notes, depth: L ? L.depth : 0, layer: L && L.depth ? L.code : '', abbr: L && L.depth ? L.abbr : '' };
     });
+    const layered = blocks.some((b) => b.depth);
     const s = P.settings(ed);
     return {
       title: ed.title || 'Edition', editor: ed.editor || '', citation: ME.Publish.citation(ed), lang: langOf(list),
       conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, r.script].filter(Boolean).join('; ') })),
       principles: ME.Publish.declaration(ed, built), byMarkers, blocks,
+      layers: layered ? ME.LayerIds.legend(ed) : [],
       stars: built.flatMap((b) => b.stars).map((x) => ({ id: x.id, wits: x.wits.join(' '), text: x.text })),
       labels: { B: 'Testimonia:', C: 'Singular readings:', D: 'Spelling:', E: 'Decisions:' },
       paper: P.PAPER[s.paper] || P.PAPER.a4, size: s.size,
@@ -92,14 +97,19 @@
     };
     const SER = ['A', 'B', 'C', 'D', 'E'];
     let textDir = '';
+    // in a layered edition, each layer's notes apart, the base first, each commentary's under its [abbreviation]
+    const layerRank = new Map([''].concat(D.layers.filter((l) => l.depth).map((l) => l.code)).map((c, i) => [c, i]));
+    const abbrOf = new Map(D.layers.map((l) => [l.code, l.abbr]));
     function drawNotes(pg) {
       pg.foot.innerHTML = '';
       // the notes run in the direction of the text, right to left for Arabic or Hebrew
       if (textDir) pg.foot.dir = textDir;
-      for (const s of SER) {
-        const here = pg.notes.filter((n) => n.note.by[s]);
+      const layersHere = [...new Set(pg.notes.map((n) => n.layer || ''))].sort((a, b) => (layerRank.get(a) || 0) - (layerRank.get(b) || 0));
+      for (const ly of layersHere) for (const s of SER) {
+        const here = pg.notes.filter((n) => (n.layer || '') === ly && n.note.by[s]);
         if (!here.length) continue;
-        const p = el('p', 'ser ser-' + s);
+        const p = el('p', 'ser ser-' + s + (ly ? ' ser-layer' : ''));
+        if (ly) p.appendChild(el('span', 'labl', '[' + abbrOf.get(ly) + ']'));
         if (D.labels[s]) p.appendChild(el('span', 'lab', D.labels[s]));
         let last = null;
         for (const n of here) {
@@ -121,6 +131,12 @@
     { const x = el('p', 'cite'); x.textContent = D.citation; front(x); }
     front(el('h2', null, 'Conspectus siglorum'));
     { const t = el('table', 'consp'); for (const r of D.conspectus) { const tr = el('tr'); const a = el('td', 'sig'); a.textContent = r.siglum; const b = el('td'); b.textContent = r.desc; tr.append(a, b); t.appendChild(tr); } front(t); }
+    if (D.layers.some((l) => l.depth)) {
+      front(el('h2', null, 'The commentaries'));
+      const t = el('table', 'consp');
+      for (const l of D.layers.filter((x) => x.depth)) { const tr = el('tr'); const a = el('td', 'sig'); a.textContent = '[' + l.abbr + ']'; const b = el('td'); b.textContent = l.name; b.style.paddingInlineStart = ((l.depth - 1) * 1.2) + 'em'; tr.append(a, b); t.appendChild(tr); }
+      front(t);
+    }
     front(el('h2', null, 'Editorial principles'));
     for (const text of D.principles) { const x = el('p', 'pr'); x.textContent = text; front(x); }
     // ---- the edition ----
@@ -131,7 +147,8 @@
       const page0 = pg.el;
       measure.style.width = pg.body.getBoundingClientRect().width + 'px';
       page0.appendChild(measure);
-      const full = el('p', 'txt');
+      const depthCls = b.depth ? ' d' + Math.min(b.depth, 6) : '';
+      const full = el('p', 'txt' + depthCls);
       full.lang = D.lang; full.dir = 'auto';
       full.innerHTML = b.html;
       measure.innerHTML = '';
@@ -164,7 +181,7 @@
       const lineOfAnchor = new Map(items.filter((x) => x.anchor).map((x) => [x.anchor, x.line + 1]));
       // a fragment of the block: lines a..z, as a paragraph of its own
       const fragment = (a, z) => {
-        const p = el('p', 'txt' + (z < nLines - 1 ? ' cont' : ''));
+        const p = el('p', 'txt' + depthCls + (z < nLines - 1 ? ' cont' : ''));
         p.lang = D.lang; p.dir = 'auto';
         let un = null;
         for (const it of items) {
@@ -175,9 +192,9 @@
         p.dataset.from = a; p.dataset.block = b.id;
         return p;
       };
-      const notesIn = (a, z) => items.filter((x) => x.anchor && x.line >= a && x.line <= z).map((x) => ({ block: b.id, note: noteOf(x.anchor), line: x.line + 1 })).filter((n) => n.note);
+      const notesIn = (a, z) => items.filter((x) => x.anchor && x.line >= a && x.line <= z).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: x.line + 1 })).filter((n) => n.note);
       // place it: on each page, as many lines as fit with their notes; the heading only with its first line
-      const head = el('div', 'bid');
+      const head = el('div', 'bid' + depthCls);
       head.textContent = b.id;
       head.dir = textDir;
       let a = 0;
@@ -274,6 +291,12 @@ body { font-family: var(--font); color: #1d1a16; }
 .txt { margin: 0 0 0.4em; text-align: justify; hyphens: auto; }
 .txt.cont { text-align-last: justify; }
 .bid { font-size: calc(var(--size) * 0.72); color: #6b5a3e; margin-top: 0.7em; }
+/* the layers of a layered edition: each deeper one set in further, and smaller */
+.d1 { margin-inline-start: calc(var(--size) * 1.4); } .d2 { margin-inline-start: calc(var(--size) * 2.8); } .d3 { margin-inline-start: calc(var(--size) * 4.2); }
+.d4 { margin-inline-start: calc(var(--size) * 5.4); } .d5 { margin-inline-start: calc(var(--size) * 6.4); } .d6 { margin-inline-start: calc(var(--size) * 7.2); }
+.txt.d1 { font-size: 0.93em; } .txt.d2 { font-size: 0.87em; } .txt.d3 { font-size: 0.82em; } .txt.d4, .txt.d5, .txt.d6 { font-size: 0.78em; }
+.labl { font-weight: 600; color: #8c2a17; }
+.ser-layer .labl { margin-inline-end: 0.4em; }
 .an sup, .nk { color: #8c2a17; }
 .an sup { font-size: 0.6em; line-height: 0; }
 .unsure { text-decoration: underline dotted; text-underline-offset: 0.25em; }

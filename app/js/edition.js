@@ -353,7 +353,8 @@ To open it, use Import edition package on Manuscribe's start screen.
     const files = [];
     for (const { w, p } of list) {
       if (!p) continue;
-      const streams = Export.streamsUsed(p).filter((s) => workOf(w, s) === workId);
+      // a layered edition's IDs say the layers: every part of the page goes, as Saktumiva reads it
+      const streams = ME.LayerIds.codeOf(workId) || (ME.CollateView && workId === ME.CollateView.ALL) ? Export.streamsUsed(p) : Export.streamsUsed(p).filter((s) => workOf(w, s) === workId);
       if (!streams.length) continue;
       const named = Object.assign({}, p, { meta: Object.assign({}, p.meta, { siglum: w.siglum }) });
       files.push({ name: safeName(w.siglum) + '.xml', data: Export.build(named, { streams }).xml });

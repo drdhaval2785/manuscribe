@@ -738,3 +738,12 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .ly-table input.ly-abbr { width: 4.5em; min-width: 0; }
 .ly-code code { font-size: 12.5px; }
 .ly-abbr-tag { color: #8c2a17; font-weight: 600; white-space: nowrap; }
+/* a layered edition's text with all its layers */
+.lw-legend { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted, #6b5a3e); margin: 0 0 12px; }
+.lw-legend b, .lw-abbr { color: #8c2a17; font-weight: 600; }
+.lw-block { border-inline-start: 2px solid transparent; padding-inline-start: 8px; margin-bottom: 8px; }
+.lw-block:not(.lw-d0) { border-inline-start-color: #e6dccb; }
+.lw-id { font: 600 11.5px var(--ui); color: #8a7a60; }
+.lw-text { margin: 2px 0; font: 19px/1.6 var(--script); }
+.lw-d1 .lw-text { font-size: 17.5px; } .lw-d2 .lw-text { font-size: 16.5px; } .lw-d3 .lw-text, .lw-d4 .lw-text, .lw-d5 .lw-text, .lw-d6 .lw-text { font-size: 15.5px; }
+.lw-app { margin: 2px 0 0; padding-inline-start: 1.2em; font-size: 13px; color: #4a3f30; }
