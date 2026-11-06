@@ -605,4 +605,6 @@ body.no-project #topbar, body.no-project #main { visibility: hidden; }
 .ap-entries li.ap-flash { background: #f6c7a8; }
 .ap-problems { list-style: none; margin: 4px 0; padding: 0; font-size: 13px; max-height: 220px; overflow: auto; }
 .ap-pick { display: inline-flex; flex-wrap: wrap; gap: 2px 10px; }
+.ap-publish { border-top: 1px solid var(--line); margin-top: 10px; }
+.ap-publish h3 { font: 650 14px var(--ui); margin: 10px 0 2px; }
 

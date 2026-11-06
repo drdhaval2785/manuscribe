@@ -524,6 +524,22 @@ the edition screen shows the whole work.
   as `<note>`. Spelling variants are kept even where they are not printed, so that each witness can be read back out of
   the file. **Save as text** writes the edited text with its apparatus under it.
 
+#### Publishing
+
+Under **Publish**, at the foot of the apparatus, give the editor's name and a version (left empty, the edition is a dated
+draft). Every output then carries the same citation line.
+
+- **Reader (one HTML file):** the edited text with its apparatus, the conspectus siglorum and the editorial principles,
+  in one file that opens from disk and needs no network. Point at a word or an entry to link them; click a reading in an
+  entry to read it in the text; **Read** shows the text of any one witness instead; switches show or hide spelling
+  variants, singular readings and readings before correction, and colour the words by how much the witnesses differ.
+  **Print a draft** prints, or saves as PDF, with the apparatus in two columns: a draft, not a typeset edition.
+- **Print edition (LaTeX):** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
+  variants, B singular readings, C spelling variants if listed, and D the reasons for your decisions; uncertain places
+  get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
+  or upload the folder to Overleaf and choose XeLaTeX. Notes are only ever attached at the start of a whole akṣara, so
+  that they cannot break a conjunct.
+
 #### Correcting the letters
 
 Select a cell by clicking it or with the arrow keys; Shift selects several. Everything can be undone, including
@@ -717,6 +733,7 @@ app/js/
   collateedit.js        correcting a table: the operation log, locks, places to check, aligning around locks
   collateview.js        the Collation part of the edition screen, and the table
   apparatus.js          the edited text and apparatus: entries, conventions, checks, search, TEI
+  publish.js            the reader file and the reledmac edition, with conspectus, principles and citation
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor

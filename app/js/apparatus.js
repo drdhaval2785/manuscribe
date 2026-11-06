@@ -22,6 +22,8 @@
 
   const WHY = { lac: 'lac', illeg: 'illeg', na: 'lac', ambig: 'illeg', transposed: 'transp' };
   const trim = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  // two spellings differ only if their letters do: spacing and punctuation are not spelling
+  const letters = (s) => String(s || '').replace(/[\s।॥|.,;:!?()[\]"“”‘’-]/g, '');
 
   /* Entries for one table. trust: sigla, most trusted first. -> {entries, text, stars, unitsOfText, proposal} */
   App_.entries = function (ed, table) {
@@ -41,7 +43,7 @@
       if (trim(u.text).replace(/[।॥|.,;:]/g, '')) word += trim(u.text).split(' ').length;
       const differs = u.differs || (u.decision && u.decision.type !== 'selectio') || u.review;
       // spellings that differ where the witnesses agree: kept, for the TEI and an orthographica tier
-      const spelled = !differs && !u.missing.length && u.groups.some((g) => new Set(g.members.filter((m) => m.votes).map((m) => trim(m.text))).size > 1);
+      const spelled = !differs && !u.missing.length && u.groups.some((g) => new Set(g.members.filter((m) => m.votes).map((m) => letters(m.text))).size > 1);
       if (!differs && !u.missing.length && !spelled) { prevText = lemma || prevText; return; }
       const sig = (m) => m.siglum;
       const lemGroup = u.winner;
@@ -63,8 +65,8 @@
       const orth = [];
       for (const g of u.groups) {
         const forms = new Map();
-        for (const m of g.members.filter((x) => x.votes)) { const f = trim(m.text); if (!forms.has(f)) forms.set(f, []); forms.get(f).push(m.siglum); }
-        if (forms.size > 1) for (const [f, w] of forms) if (f !== trim(g.form.text)) orth.push({ text: f, wits: w, of: trim(g.form.text) });
+        for (const m of g.members.filter((x) => x.votes)) { const k = letters(m.text); if (!forms.has(k)) forms.set(k, { text: trim(m.text), wits: [] }); forms.get(k).wits.push(m.siglum); }
+        if (forms.size > 1) for (const [k, f] of forms) if (k !== letters(g.form.text)) orth.push({ text: f.text, wits: f.wits, of: trim(g.form.text) });
       }
       const missing = u.missing.filter((m) => m.layer !== 'ac').map((m) => ({ wit: m.siglum, why: WHY[m.why] || m.why, label: m.label, text: trim(m.text) })).filter((m, i, arr) => arr.findIndex((x) => x.wit === m.wit) === i);
       const kind = spelled ? 'orthographic' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
@@ -131,6 +133,10 @@
     const lemWho = d && (d.type === 'emendatio' || d.type === 'conjecture') ? (d.type === 'conjecture' ? ab.conj : ab.em) + (d.source ? ' ' + d.source : '') : sig(e.lemWits);
     // negative leaves out who reads the lemma, unless few do
     const negative = s.polarity === 'negative' || (s.polarity === 'auto' && e.lemWits.length * 2 > present.length && !(d && (d.type === 'emendatio' || d.type === 'conjecture')));
+    if (e.kind === 'orthographic') {
+      // spelling only: the forms, each with its witnesses
+      return lem + ' ] ' + e.orth.map((o) => hy(o.text) + ' ' + sig(o.wits)).join('; ');
+    }
     if (e.kind === 'addition') {
       for (const r of e.readings) bits.push(ab.post + ' ' + (shorten(e.prev).split(' ').pop() || '…') + ' ' + ab.add + ' ' + (r.star ? r.star : r.text) + ' ' + sig(r.wits));
     } else {
@@ -275,7 +281,7 @@
     const norm = ME.Norm.describe(ed.norm);
     return '<?xml version="1.0" encoding="UTF-8"?>\n<TEI xmlns="http://www.tei-c.org/ns/1.0">\n<teiHeader>\n<fileDesc>\n<titleStmt><title>' + x(ed.title || 'Edition') + (work ? ': ' + x(work.title) : '') + '</title>' +
       '<respStmt xml:id="editor"><resp>edited by</resp><name>The editor</name></respStmt></titleStmt>\n' +
-      '<publicationStmt><p>Made with Manuscribe (https://github.com/drdhaval2785/manuscribe).</p></publicationStmt>\n' +
+      '<publicationStmt><p>' + x(ME.Publish ? ME.Publish.citation(ed) : 'Made with Manuscribe.') + '</p><date when="' + new Date().toISOString().slice(0, 10) + '"/></publicationStmt>\n' +
       '<sourceDesc><listWit>' + listWit.join('') + '</listWit></sourceDesc>\n</fileDesc>\n' +
       '<encodingDesc><variantEncoding method="parallel-segmentation" location="internal"/>' +
       '<editorialDecl><normalization><p>Readings were compared after normalisation by the ' + x(norm.name) + ' profile (' + x(norm.profile) + ' version ' + x(norm.version) + '), whose rules are: ' + x(norm.rules.map((r) => r.name).join('; ')) + '.</p></normalization>' +
@@ -326,7 +332,7 @@
 
   /* The apparatus as plain text, block by block, and the starred passages after it. */
   App_.text = function (ed, built) {
-    const out = [];
+    const out = [ME.Publish ? ME.Publish.citation(ed) + '\n' : ''];
     const stars = [];
     for (const b of built) {
       out.push(b.table.unit + '\n' + b.text.trim() + '\n');

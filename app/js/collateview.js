@@ -238,7 +238,7 @@
   /* ---------- the apparatus ---------- */
 
   // Settings, the apparatus itself, its checks and the search. tables: one or all of a work's tables.
-  CollateView.apparatusView = function (ed, tables, redraw, goRef) {
+  CollateView.apparatusView = function (ed, tables, redraw, goRef, witnesses) {
     const A = ME.Apparatus;
     const s = A.settings(ed);
     const built = tables.map((t) => Object.assign({ table: t }, A.entries(ed, t)));
@@ -315,10 +315,21 @@
           const res = A.agreements(ed, built, w, g);
           found.append(U.el('li', { class: 'help' }, res.length + ' place(s). Places where any of them is lost are left out.'), ...res.map((r) => U.el('li', null, U.el('button', { class: 'link', onclick: () => goRef && goRef(r.entry) }, r.ref), ' ', r.reading || '(omits)', ' — ' + A.format(ed, r.entry).replace(/<\/?sup>/g, ''))));
         } }, 'Find')), found);
+    const version = U.el('input', { type: 'text', value: ed.version || '', placeholder: 'e.g. 1.0, or empty for a dated draft', 'aria-label': 'Version of the edition', onchange: async () => { ed.version = version.value.trim() || undefined; await Edition.save(ed); redraw(); } });
+    const editor = U.el('input', { type: 'text', value: ed.editor || '', placeholder: 'your name', 'aria-label': 'Editor', onchange: async () => { ed.editor = editor.value.trim() || undefined; await Edition.save(ed); redraw(); } });
+    const base = fileSafe(ed.title || 'edition');
+    const publish = U.el('div', { class: 'ap-publish' },
+      U.el('h3', null, 'Publish'),
+      U.el('p', { class: 'help' }, 'Every output carries this citation: ', U.el('em', null, ME.Publish.citation(ed))),
+      U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
+      U.el('div', { class: 'nv-head' },
+        U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built), 'text/html') }, 'Reader (one HTML file)'),
+        U.el('button', { class: 'btn small primary', title: 'A reledmac file for XeLaTeX, with its font, to typeset on your computer or on Overleaf', onclick: async () => download(base + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ed, witnesses || [], built)), 'application/zip') }, 'Print edition (LaTeX)')),
+      U.el('p', { class: 'help' }, 'The print edition is a folder for XeLaTeX with reledmac: run xelatex three times, or upload it to Overleaf with the XeLaTeX compiler. The reader’s “Print a draft” is quicker, but it is not typeset.'));
     const exports = U.el('div', { class: 'nv-head' },
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'));
-    return U.el('div', null, settings, checks, list, search, exports);
+    return U.el('div', null, settings, checks, list, search, exports, publish);
   };
 
   CollateView.workApparatus = async function (ed, list, workId) {
@@ -328,7 +339,7 @@
     recs.sort((a, b) => ids.indexOf(a.unit) - ids.indexOf(b.unit));
     if (!recs.length) { U.toast('Collate first', 'warn'); return; }
     const body = U.el('div', { class: 'cv-view' });
-    const draw = () => { body.innerHTML = ''; body.append(CollateView.apparatusView(ed, recs.map((r) => ME.CollateEdit.ensure(r.table)), draw, null)); };
+    const draw = () => { body.innerHTML = ''; body.append(CollateView.apparatusView(ed, recs.map((r) => ME.CollateEdit.ensure(r.table)), draw, null, list)); };
     draw();
     await UI.modal({ title: 'Edited text and apparatus', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }] });
   };
@@ -973,7 +984,7 @@
         setMode('text');
         const i = text.proposal.units.findIndex((x) => x.fromId === entry.fromId);
         if (i >= 0) text.choose(i);
-      }));
+      }, list));
     };
     const textPane = U.el('div', { class: 'ct-pane' },
       U.el('div', { class: 'nv-head' },
