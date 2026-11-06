@@ -1323,7 +1323,31 @@
 
   /* ---------- clipboard ---------- */
 
+  /* A selection over several lines is Manuscribe's own, not the browser's, so it is copied here: as plain text,
+     one line to a line, and, for pasting back into Manuscribe, as the TEI of each line. A tag that runs over
+     several lines comes out as one piece on each line. */
+  function copyMulti(e, cut) {
+    const ranges = multiRanges();
+    if (!ranges.length) return false;
+    e.preventDefault();
+    const texts = [], teis = [];
+    for (const r of ranges) {
+      const tmp = document.createElement('div');
+      tmp.appendChild(r.cloneContents());
+      texts.push(tmp.textContent.replace(/\u200B/g, ''));
+      teis.push(TEI.fromHtml(tmp).replace(/ x-span="[^"]*"/g, ''));
+    }
+    // a line that does not end a word continues on the next, as <lb break="no"/> says in the export
+    const brk = texts.map((t, k) => k > 0 && !/[\s|।॥]$/.test(texts[k - 1]) && texts[k - 1] !== '');
+    e.clipboardData.setData('text/plain', texts.join('\n'));
+    e.clipboardData.setData('application/x-manuscribe-lines', JSON.stringify({ lines: teis, brk }));
+    if (cut) Editor.deleteMulti();
+    else U.toast('Copied ' + ranges.length + ' lines');
+    return true;
+  }
+
   function onCopy(e, cut) {
+    if (Editor.multi && copyMulti(e, cut)) return;
     const line = e.target.closest && e.target.closest('.line');
     if (!line) return;
     const r = selectionInfo(line);
@@ -1358,7 +1382,16 @@
     e.preventDefault();
     tlReset();
     const custom = e.clipboardData.getData('application/x-manuscribe-tei');
+    const several = e.clipboardData.getData('application/x-manuscribe-lines');
     Editor.capture('edit');
+    if (several && !isM(line)) {
+      let data = null;
+      try { data = JSON.parse(several); } catch (err) { data = null; }
+      if (data && Array.isArray(data.lines) && data.lines.length) {
+        placeLines(line, data.lines.map((tei, k) => ({ tei, lb: k ? { brk: !!(data.brk && data.brk[k]) } : null })), '');
+        return;
+      }
+    }
     if (custom) { Editor.insertFragmentAtCaret(line, custom); Editor.commit(line); return; }
     const text = (e.clipboardData.getData('text/plain') || '').replace(/\r/g, '');
     if (isM(line)) { // a note stays one flowing text
@@ -1377,6 +1410,14 @@
     ME.Importer.resolveSources(Editor.project, res);
     const parts = res.lines;
     if (!parts.length) return;
+    // the reader drops spaces at the start of a line; here the text may continue a line
+    const lead = !parts[0].lb && Spans.units(line) && /^[ \t]/.test(text) ? ' ' : '';
+    placeLines(line, parts, lead);
+    if (res.pages.length) U.toast('The folio breaks (<pb>) in the pasted text were left out. To bring in several folios use Import transcription XML (Manuscript tab).', 'warn', 6000);
+  }
+
+  // The first part goes in at the caret; each later part starts the line after.
+  function placeLines(line, parts, lead) {
     const { box, i } = posOf(line);
     const label = Editor.entry.label;
     const pg = Model.page(Editor.project, label);
@@ -1389,11 +1430,8 @@
         Editor.refreshLine(box, i - 1);
       }
     }
-    // the reader drops spaces at the start of a line; here the text may continue a line
-    const lead = !parts[0].lb && Spans.units(line) && /^[ \t]/.test(text) ? ' ' : '';
     Editor.insertFragmentAtCaret(line, lead + parts[0].tei);
     Editor.commit(line);
-    if (res.pages.length) U.toast('The folio breaks (<pb>) in the pasted text were left out. To bring in several folios use Import transcription XML (Manuscript tab).', 'warn', 6000);
     if (parts.length > 1) {
       for (let k = 1; k < parts.length; k++) {
         arr[i + k] = parts[k].tei + (arr[i + k] || '');
