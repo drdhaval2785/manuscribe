@@ -25,6 +25,7 @@
       const present = new Set(Object.values(b.table.states).map((st) => st.siglum));
       for (const e of b.entries) {
         if (e.kind === 'orthographic' && !s.orthographic) continue;
+        if (e.kind === 'testimonium') continue;
         const states = [];
         const cells = new Array(taxa.length).fill(-1);
         const put = (text, wits) => {

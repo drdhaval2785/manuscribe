@@ -145,7 +145,8 @@
         go, again,
         U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'),
         U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'The edited text of the whole work, its apparatus, checks, search, and TEI', onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
-        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Agreement, trees, your stemma and what contradicts it', onclick: () => ME.StemmaView.open(ed, list, workId) }, 'Stemmatics…')),
+        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Agreement, trees, your stemma and what contradicts it', onclick: () => ME.StemmaView.open(ed, list, workId) }, 'Stemmatics…'),
+        ed.works.length > 1 ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: () => ME.LayersView.links(ed, list, workId) }, 'Links to the base text…') : null),
       trustLine,
       progress,
       ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
@@ -239,7 +240,7 @@
   /* ---------- the apparatus ---------- */
 
   // Settings, the apparatus itself, its checks and the search. tables: one or all of a work's tables.
-  CollateView.apparatusView = function (ed, tables, redraw, goRef, witnesses) {
+  CollateView.apparatusView = function (ed, tables, redraw, goRef, witnesses, layered) {
     const A = ME.Apparatus;
     const s = A.settings(ed);
     const built = tables.map((t) => Object.assign({ table: t }, A.entries(ed, t)));
@@ -259,9 +260,9 @@
       U.el('p', { class: 'help' }, 'Groups are the Group of each witness in the witness list. A group siglum stands for a group only where all its witnesses that can be read agree.'));
     const list = U.el('div', { class: 'ap-list' });
     for (const b of built) {
-      const { variants, singular, orthographica } = A.tiers(ed, b.entries);
+      const { variants, singular, orthographica, testimonia } = A.tiers(ed, b.entries);
       // the edited text, with each word that has an entry linked to it
-      const shown = new Set([...variants, ...singular, ...orthographica]);
+      const shown = new Set([...variants, ...singular, ...orthographica, ...testimonia]);
       const linkOf = (e) => b.table.unit + '|' + e.fromId;
       const byFrom = new Map(b.entries.filter((e) => shown.has(e)).map((e) => [e.fromId, e]));
       let html = '';
@@ -273,11 +274,15 @@
         const core = u.text.trim() ? U.escXml(u.text.trim()) : '<span class="ct-om">⌀</span>';
         html += U.escXml(lead) + '<span class="ap-u" data-link="' + U.escAttr(linkOf(e)) + '" title="' + U.escAttr(e.ref) + '">' + core + '</span>' + U.escXml(tail);
       }
-      list.append(U.el('h3', null, b.table.unit), U.el('p', { class: 'ap-text', html: html.trim() }));
+      // the base text this block comments on
+      const link = layered && layered.links.find((l) => l.unit === b.table.unit);
+      const baseText = link ? link.base.map((x) => layered.texts[x]).filter(Boolean) : [];
+      list.append(U.el('h3', null, b.table.unit), baseText.length ? U.el('blockquote', { class: 'ap-base', title: layered.title + ' ' + link.base.join(', ') }, baseText.join(' ')) : null, U.el('p', { class: 'ap-text', html: html.trim() }));
       const entry = (e) => U.el('li', { class: e.review ? 'ap-bad' : e.decision ? 'ap-decided' : '', dataset: { link: linkOf(e) } }, U.el('button', { class: 'link', title: 'Show this place', onclick: () => goRef && goRef(e) }, e.ref), ' ', U.el('span', { class: 'ap-entry', html: U.escXml(A.format(ed, e)).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>') }));
       if (variants.length) list.append(U.el('ul', { class: 'ap-entries' }, variants.map(entry)));
       if (singular.length) list.append(U.el('div', { class: 'ap-tier' }, 'Singular readings'), U.el('ul', { class: 'ap-entries' }, singular.map(entry)));
       if (orthographica.length) list.append(U.el('div', { class: 'ap-tier' }, 'Spelling variants'), U.el('ul', { class: 'ap-entries' }, orthographica.map((e) => U.el('li', { dataset: { link: linkOf(e) } }, e.ref + ' ' + e.lemma + ' ] ' + e.orth.map((o) => o.text + ' ' + o.wits.join(' ')).join('; ')))));
+      if (testimonia.length) list.append(U.el('div', { class: 'ap-tier' }, 'Testimonia'), U.el('ul', { class: 'ap-entries' }, testimonia.map((e) => U.el('li', { dataset: { link: linkOf(e) } }, e.ref + ' ' + (e.lemma || '⌀') + ' ] ' + e.testimonia.map(ME.Layers.formatEvidence).join('; ')))));
       if (b.stars.length) list.append(U.el('div', { class: 'ap-tier' }, 'Additional passages'), U.el('ul', { class: 'ap-entries' }, b.stars.map((x) => U.el('li', null, x.id + ' (' + x.wits.join(' ') + '): ' + x.text))));
     }
     // pointing at a word lights up its entry, and pointing at an entry lights up its words
@@ -324,13 +329,13 @@
       U.el('p', { class: 'help' }, 'Every output carries this citation: ', U.el('em', null, ME.Publish.citation(ed))),
       U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
       U.el('div', { class: 'nv-head' },
-        U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built), 'text/html') }, 'Reader (one HTML file)'),
+        U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built, layered), 'text/html') }, 'Reader (one HTML file)'),
         U.el('button', { class: 'btn small primary', title: 'A reledmac file for XeLaTeX, with its font, to typeset on your computer or on Overleaf', onclick: async () => download(base + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ed, witnesses || [], built)), 'application/zip') }, 'Print edition (LaTeX)')),
       U.el('p', { class: 'help' }, 'The print edition is a folder for XeLaTeX with reledmac: run xelatex three times, or upload it to Overleaf with the XeLaTeX compiler. The reader’s “Print a draft” is quicker, but it is not typeset.'));
     const exports = U.el('div', { class: 'nv-head' },
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'));
-    return U.el('div', null, settings, checks, list, search, exports, publish);
+    return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), exports, publish);
   };
 
   CollateView.workApparatus = async function (ed, list, workId) {
@@ -340,7 +345,8 @@
     recs.sort((a, b) => ids.indexOf(a.unit) - ids.indexOf(b.unit));
     if (!recs.length) { U.toast('Collate first', 'warn'); return; }
     const body = U.el('div', { class: 'cv-view' });
-    const draw = () => { body.innerHTML = ''; body.append(CollateView.apparatusView(ed, recs.map((r) => ME.CollateEdit.ensure(r.table)), draw, null, list)); };
+    const layered = ME.LayersView ? await ME.LayersView.baseTexts(ed, workId) : null;
+    const draw = () => { body.innerHTML = ''; body.append(CollateView.apparatusView(ed, recs.map((r) => ME.CollateEdit.ensure(r.table)), draw, null, list, layered)); };
     draw();
     await UI.modal({ title: 'Edited text and apparatus', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }] });
   };
@@ -854,13 +860,27 @@
         if (el) { el.classList.add('sel'); if (!quiet) el.scrollIntoView({ block: 'nearest' }); }
         textPanel.innerHTML = '';
         const winners = u.winner;
+        // how each reading sits in the metre of the verse, if the block is verse
+        const metreOf = (() => {
+          if (!ME.Metre) return null;
+          const whole = ME.Metre.identify(text.proposal.text);
+          if (!whole.metre) return null;
+          const fit = (reading) => ME.Metre.faultsIn(text.proposal.units.map((x, j) => (j === i ? reading : x.text)).join(''), whole.metre);
+          return { metre: whole.metre, fit };
+        })();
+        const evs = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
+        const support = ME.Layers ? ME.Layers.supportOf(evs) : { for: new Map(), other: [] };
         const rows = u.groups.map((g, gi) => {
+          const n = metreOf ? metreOf.fit(g.form.text) : null;
+          const backing = support.for.get(g.form.text.trim()) || [];
           const isWinner = g === winners;
           const members = g.members.map((m) => U.el('button', { class: 'link ct-wit', title: 'See this line in the scan', onclick: () => text.showScanOf(m) }, m.label + (m.layer === 'ac' ? ' (before correction)' : '')));
           return U.el('li', { class: isWinner ? 'win' : '' },
             U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && u.decided === 'chosen', onclick: () => text.decide(u, { type: 'selectio', label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
             ' ', U.el('span', { class: 'ct-reading' }, g.form.text.trim() || '(omits)'), ' ',
-            U.el('span', { class: 'help' }, g.votes ? g.votes + ' vote' + (g.votes > 1 ? 's' : '') + ': ' : 'no vote: '), members);
+            U.el('span', { class: 'help' }, g.votes ? g.votes + ' vote' + (g.votes > 1 ? 's' : '') + ': ' : 'no vote: '), members,
+            metreOf ? U.el('span', { class: 'ct-metre ' + (n === 0 ? 'ok' : 'bad'), title: 'The verse with this reading, in ' + metreOf.metre }, n === 0 ? ' metre ✓' : n === Infinity ? ' out of metre' : ' metre: ' + n + ' fault' + (n > 1 ? 's' : '')) : null,
+            backing.length ? U.el('span', { class: 'ct-backing', title: backing.map(ME.Layers.formatEvidence).join('\n') }, ' + ' + backing.map((x) => x.source.label + ' (' + ME.Layers.EVIDENCE[x.type].label + ')').join(', ')) : null);
         });
         const missing = u.missing.map((m) => U.el('li', { class: 'muted' }, m.label + ': ' + ({ lac: 'text lost', illeg: 'illegible', na: 'outside its coverage', ambig: 'uncertain', transposed: 'has this elsewhere' }[m.why] || m.why) + ', so no vote'));
         const d = u.decision;
@@ -892,6 +912,7 @@
             U.el('button', { class: 'btn small', title: 'The text is lost here in every witness', onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
             confidence),
           U.el('div', { class: 'ct-reasons' }, U.el('span', { class: 'help' }, 'Why (optional): '), chips, note),
+          ME.Layers ? evidenceBox(u, evs) : null,
           history.length ? U.el('details', { class: 'ct-history' }, U.el('summary', null, history.length + ' earlier decision(s) here'), U.el('ul', null, history.map((h) => U.el('li', null, h.id + ': ' + (h.type === 'selectio' ? h.label : h.type + ' ' + (h.text || '')) + (h.reasons ? ' · ' + h.reasons.join(', ') : '') + ' · ' + h.status + (h.why ? ' (' + h.why + ')' : ''))))) : null,
           U.el('div', { class: 'nv-head' },
             d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, 'Follow the votes again') : null,
@@ -901,6 +922,33 @@
         if (first) text.showScanOf(first); else textScan.innerHTML = '';
       },
     };
+    // evidence from outside the witnesses for this place: only what you record here counts
+    function evidenceBox(u, evs) {
+      const L = ME.Layers;
+      const readings = [...new Set(u.groups.map((g) => g.form.text.trim()))];
+      const type = U.el('select', { 'aria-label': 'Kind of evidence' }, Object.entries(L.EVIDENCE).map(([k, v]) => U.el('option', { value: k, title: v.desc }, v.label + ' — ' + v.desc)));
+      const reading = U.el('select', { 'aria-label': 'For which reading' }, readings.map((r) => U.el('option', { value: r }, r || '(omits)')), U.el('option', { value: '\u0000' }, 'another reading…'));
+      const other = U.el('input', { type: 'text', placeholder: 'the reading it has', 'aria-label': 'Its reading', hidden: true });
+      reading.addEventListener('change', () => { other.hidden = reading.value !== '\u0000'; });
+      const sources = [...new Set(L.evidence(ed).map((x) => x.source.label))];
+      const label = U.el('input', { type: 'text', placeholder: 'source, e.g. Comm. or Bhaṭṭotpala', 'aria-label': 'Source of the evidence', list: 'ct-ev-sources' });
+      const locus = U.el('input', { type: 'text', placeholder: 'where in it (optional)', 'aria-label': 'Where in the source' });
+      const quote = U.el('input', { type: 'text', placeholder: 'its words (optional)', 'aria-label': 'Quotation' });
+      const add = U.el('button', { class: 'btn small', onclick: async () => {
+        try {
+          L.addEvidence(ed, { work: table.work, unit: table.unit, key: u.key, ref: table.unit + ' ' + (u.text.trim() || '⌀'), reading: reading.value === '\u0000' ? other.value.trim() : reading.value, type: type.value, source: { label: label.value.trim(), locus: locus.value.trim() || undefined }, quote: quote.value.trim() || undefined });
+        } catch (err) { U.toast(err.message, 'warn'); return; }
+        await Edition.save(ed);
+        text.render();
+      } }, 'Add');
+      return U.el('details', { class: 'ct-evidence', open: evs.length > 0 },
+        U.el('summary', null, evs.length ? 'Evidence beyond the witnesses (' + evs.length + ')' : 'Evidence beyond the witnesses'),
+        U.el('p', { class: 'help' }, 'What a commentary or a testimonium says of this place. A source that says nothing here is not counted for any reading.'),
+        U.el('ul', null, evs.map((x) => U.el('li', null, L.formatEvidence(x), ' ', U.el('button', { class: 'btn small', onclick: async () => { L.removeEvidence(ed, x.id); await Edition.save(ed); text.render(); } }, 'Remove')))),
+        U.el('datalist', { id: 'ct-ev-sources' }, sources.map((x) => U.el('option', { value: x }))),
+        U.el('div', { class: 'nv-head' }, label, locus, type, reading, other, quote, add));
+    }
+
     textBox.addEventListener('click', (e) => {
       const el = e.target.closest('.ct-u');
       if (el) text.choose(+el.dataset.u, true);

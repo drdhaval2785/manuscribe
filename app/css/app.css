@@ -623,3 +623,17 @@ body.no-project #topbar, body.no-project #main { visibility: hidden; }
 .sv-dottext { font: 13px var(--mono); width: 100%; min-height: 150px; }
 .ap-publish h3 { font: 650 14px var(--ui); margin: 10px 0 2px; }
 
+
+/* layered texts: the base text, evidence, metre, indices */
+.ap-base { margin: 2px 0 6px; padding: 4px 12px; border-left: 3px solid var(--line); color: var(--muted); font-size: 17px; }
+.ct-metre { font-size: 12px; margin-left: 6px; }
+.ct-metre.ok { color: #2b7a3a; } .ct-metre.bad { color: #a14a12; }
+.ct-backing { font-size: 12px; color: #5b4a8a; margin-left: 6px; }
+.ct-evidence { margin: 6px 0; }
+.ct-evidence summary { cursor: pointer; font-size: 13px; }
+.ct-evidence input[type=text] { min-width: 9em; }
+.lv-query { min-width: 18em; }
+.lv-index ul { columns: 3 220px; list-style: none; padding: 0; margin: 4px 0 10px; }
+.lv-index li { break-inside: avoid; }
+.lv-index h4 { margin: 8px 0 2px; }
+.lv td input[type=text] { width: 14em; }

@@ -44,7 +44,8 @@
       const differs = u.differs || (u.decision && u.decision.type !== 'selectio') || u.review;
       // spellings that differ where the witnesses agree: kept, for the TEI and an orthographica tier
       const spelled = !differs && !u.missing.length && u.groups.some((g) => new Set(g.members.filter((m) => m.votes).map((m) => letters(m.text))).size > 1);
-      if (!differs && !u.missing.length && !spelled) { prevText = lemma || prevText; return; }
+      const hasEvidence = ME.Layers && ME.Layers.evidenceAt(ed, table.work, table.unit, u.key).length > 0;
+      if (!differs && !u.missing.length && !spelled && !hasEvidence) { prevText = lemma || prevText; return; }
       const sig = (m) => m.siglum;
       const lemGroup = u.winner;
       const lemWits = lemGroup ? [...new Set(lemGroup.members.filter((m) => m.votes).map(sig))] : [];
@@ -69,10 +70,11 @@
         if (forms.size > 1) for (const [k, f] of forms) if (k !== letters(g.form.text)) orth.push({ text: f.text, wits: f.wits, of: trim(g.form.text) });
       }
       const missing = u.missing.filter((m) => m.layer !== 'ac').map((m) => ({ wit: m.siglum, why: WHY[m.why] || m.why, label: m.label, text: trim(m.text) })).filter((m, i, arr) => arr.findIndex((x) => x.wit === m.wit) === i);
-      const kind = spelled ? 'orthographic' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
+      const kind = spelled && !hasEvidence ? 'orthographic' : !differs && !spelled && !u.missing.length ? 'testimonium' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
       // inside a word: printed with hyphens, as -यांशज्या-
       const inside = { left: ui > 0 && !ends(before), right: after && !ends(u.text) };
-      const entry = { unit: table.unit, ref, lemma, lemWits, inside, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId };
+      const testimonia = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
+      const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId };
       // a long addition in few witnesses goes to an appendix, as a starred passage
       if (kind === 'addition') {
         for (const r of readings) {
@@ -133,6 +135,7 @@
     const lemWho = d && (d.type === 'emendatio' || d.type === 'conjecture') ? (d.type === 'conjecture' ? ab.conj : ab.em) + (d.source ? ' ' + d.source : '') : sig(e.lemWits);
     // negative leaves out who reads the lemma, unless few do
     const negative = s.polarity === 'negative' || (s.polarity === 'auto' && e.lemWits.length * 2 > present.length && !(d && (d.type === 'emendatio' || d.type === 'conjecture')));
+    if (e.kind === 'testimonium') return lem + ' ]' + (e.testimonia || []).map((t) => ' ' + ME.Layers.formatEvidence(t)).join(';');
     if (e.kind === 'orthographic') {
       // spelling only: the forms, each with its witnesses
       return lem + ' ] ' + e.orth.map((o) => hy(o.text) + ' ' + sig(o.wits)).join('; ');
@@ -164,10 +167,12 @@
     const variants = [], singular = [], orthographica = [];
     for (const e of entries) {
       if (e.kind === 'orthographic') { if (s.orthographica) orthographica.push(e); continue; }
+      if (e.kind === 'testimonium') continue;
       const single = s.singular && e.readings.length && e.readings.every((r) => r.wits.length === 1) && !e.decision;
       (single ? singular : variants).push(e);
     }
-    return { variants, singular, orthographica };
+    const testimonia = entries.filter((e) => e.testimonia && e.testimonia.length);
+    return { variants, singular, orthographica, testimonia };
   };
 
   /* ---------- checks ---------- */
@@ -204,13 +209,17 @@
       // a witness lost here cannot also be cited for a reading
       for (const m of e.missing) if (e.lemWits.includes(m.wit) || e.readings.some((r) => r.wits.includes(m.wit))) say('error', e, m.wit + ' is cited, but its text is lost here');
       if (e.review) say('error', e, 'A decision needs review: ' + e.review.why);
-      if (e.kind === 'orthographic') continue;
+      if (e.kind === 'orthographic' || e.kind === 'testimonium') continue;
       if (e.decided === 'trust' && !e.decision) say('warn', e, 'A tie, settled only by your trust order');
       if (e.decided === 'plurality' && !e.decision) say('warn', e, 'Most votes, but not most witnesses');
       if (e.decision && e.decision.confidence === 'low') say('warn', e, 'Marked as uncertain');
     }
     for (const rv of table.review || []) say('error', null, 'To review: ' + rv.why);
     for (const k of b.proposal.orphaned) say('error', null, 'A choice no longer fits a word (columns ' + k + ')');
+    if (ME.Layers) {
+      const live = new Set(b.proposal.units.map((u) => u.key));
+      for (const ev of ME.Layers.evidence(ed)) if (ev.work === table.work && ev.unit === table.unit && !live.has(ev.key)) say('error', null, 'Evidence from ' + ev.source.label + ' no longer fits a word (' + (ev.ref || ev.key) + '): place it again');
+    }
     return out;
   };
 
@@ -264,7 +273,7 @@
         let lemText = x(e.lemma);
         if (d && d.crux) lemText = '<seg type="crux">' + lemText + '</seg>';
         if (d && d.type === 'lacuna') lemText = '<gap reason="lost"/>';
-        let app = '<app' + (e.kind !== 'variant' ? ' type="' + e.kind + '"' : '') + '><lem' + lemAttrs + '>' + lemText + '</lem>';
+        let app = '<app' + (e.kind !== 'variant' ? ' type="' + (e.kind === 'testimonium' ? 'testimony' : e.kind) + '"' : '') + '><lem' + lemAttrs + '>' + lemText + '</lem>';
         for (const r of e.readings) app += '<rdg wit="' + wit(r.wits) + '">' + x(r.text) + '</rdg>';
         for (const c of e.ac) app += '<rdg wit="#' + a(idOf(c.wit)) + '" type="ac" varSeq="1">' + x(c.text) + '</rdg>';
         for (const o of e.orth) app += '<rdg wit="' + wit(o.wits) + '" type="orthographic">' + x(o.text) + '</rdg>';
@@ -272,6 +281,7 @@
         // what survives of a partly lost reading is kept, with the loss marked
         for (const m of lost) if (m.text) app += '<rdg wit="#' + a(idOf(m.wit)) + '" type="lacunose">' + x(m.text).replace(/‡/g, '<gap reason="lost"/>') + '</rdg>';
         if (lost.length) app += '<witDetail wit="' + wit(lost.map((m) => m.wit)) + '" type="' + (lost[0].why === 'illeg' ? 'illegible' : 'lacuna') + '"/>';
+        for (const t of e.testimonia || []) app += '<note type="testimonium" subtype="' + a(t.type) + '">' + x(ME.Layers.formatEvidence(t)) + '</note>';
         if (d && (d.reasons || d.note)) app += '<note type="reason">' + x([...(d.reasons || []), d.note].filter(Boolean).join('; ')) + '</note>';
         app += '</app>';
         body += app + tail;
@@ -339,7 +349,8 @@
       const { variants, singular } = App_.tiers(ed, b.entries);
       if (variants.length) out.push(variants.map((e) => e.ref + ' ' + App_.format(ed, e).replace(/<\/?sup>/g, '')).join('  •  ') + '\n');
       if (singular.length) out.push('Singular readings: ' + singular.map((e) => e.ref + ' ' + App_.format(ed, e).replace(/<\/?sup>/g, '')).join('  •  ') + '\n');
-      const orth = App_.tiers(ed, b.entries).orthographica;
+      const { orthographica: orth, testimonia } = App_.tiers(ed, b.entries);
+      if (testimonia.length) out.push('Testimonia: ' + testimonia.map((e) => e.ref + ' ' + e.lemma + ' ] ' + e.testimonia.map(ME.Layers.formatEvidence).join('; ')).join('  •  ') + '\n');
       if (orth.length) out.push('Orthographica: ' + orth.map((e) => e.ref + ' ' + e.lemma + ' ] ' + e.orth.map((o) => o.text + ' ' + o.wits.join(' ')).join('; ')).join('  •  ') + '\n');
       stars.push(...b.stars);
     }

@@ -49,20 +49,21 @@
   const tex = (s) => String(s).replace(/[\\{}$&#^_%~]/g, (c) => ({ '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', $: '\\$', '&': '\\&', '#': '\\#', '^': '\\textasciicircum{}', _: '\\_', '%': '\\%', '~': '\\textasciitilde{}' }[c])).replace(/‡/g, '[…]').normalize('NFC');
   const texEntry = (html) => tex(html.replace(/<sup>([^<]*)<\/sup>/g, '\u0001$1\u0002')).replace(/\u0001([^\u0002]*)\u0002/g, '\\textsuperscript{$1}');
 
-  /* -> string. Series A variants; B singular readings; C spelling variants; D the editor's reasons. */
+  /* -> string. Series A variants; B testimonia; C singular readings; D spelling variants; E the editor's reasons. */
   Publish.tex = function (ed, list, built) {
     const s = A.settings(ed);
     const rows = Publish.conspectus(ed, list);
     const blocks = built.map((b) => {
       const { singular, orthographica } = A.tiers(ed, b.entries);
-      const tierOf = (e) => (e.kind === 'orthographic' ? (orthographica.includes(e) ? 'C' : null) : singular.includes(e) ? 'B' : 'A');
+      const tierOf = (e) => (e.kind === 'testimonium' ? null : e.kind === 'orthographic' ? (orthographica.includes(e) ? 'D' : null) : singular.includes(e) ? 'C' : 'A');
+      const testis = (e) => (e && e.testimonia && e.testimonia.length ? '\\Bfootnote{' + tex(e.testimonia.map(ME.Layers.formatEvidence).join('; ')) + '}' : '');
       const byFrom = new Map(b.entries.map((e) => [e.fromId, e]));
       const pieces = []; // {text, notes: [tex]}
       for (const u of b.proposal.units) {
         const e = byFrom.get(u.fromId);
         const tier = e && tierOf(e);
         const d = e && e.decision;
-        const reason = d && (d.reasons || d.note || d.source) ? '\\Dfootnote{' + tex([d.type === 'selectio' ? 'chosen' : d.type, d.source, ...(d.reasons || []), d.note].filter(Boolean).join('; ')) + '}' : '';
+        const reason = d && (d.reasons || d.note || d.source) ? '\\Efootnote{' + tex([d.type === 'selectio' ? 'chosen' : d.type, d.source, ...(d.reasons || []), d.note].filter(Boolean).join('; ')) + '}' : '';
         if (e && tier && e.kind === 'addition' && pieces.length) {
           // an addition is noted on the word before it
           const printed = A.format(ed, e);
@@ -74,8 +75,8 @@
         if (e && tier) {
           const printed = A.format(ed, e);
           const cut = printed.indexOf(' ]');
-          piece.notes.push({ lemma: cut >= 0 ? printed.slice(0, cut) : '', note: '\\' + tier + 'footnote{' + texEntry(cut >= 0 ? printed.slice(cut + 2).trim() : printed) + '}' + reason });
-        }
+          piece.notes.push({ lemma: cut >= 0 ? printed.slice(0, cut) : '', note: '\\' + tier + 'footnote{' + texEntry(cut >= 0 ? printed.slice(cut + 2).trim() : printed) + '}' + reason + testis(e) });
+        } else if (testis(e)) piece.notes.push({ lemma: '', note: testis(e) });
         pieces.push(piece);
       }
       const body = pieces.map((p) => {
@@ -99,11 +100,11 @@
       + '\\setmainfont{TiroDevanagariSanskrit-Regular.ttf}[Path=fonts/, Script=Devanagari, AutoFakeSlant=0.15, AutoFakeBold=1.5]\n'
       + '\\usepackage[normalem]{ulem}\n'
       + '\\usepackage{reledmac}\n'
-      + '\\Xarrangement[A]{paragraph}\\Xarrangement[B]{paragraph}\\Xarrangement[C]{paragraph}\\Xarrangement[D]{paragraph}\n'
-      + '\\Xnumberonlyfirstinline[A]\\Xnumberonlyfirstinline[B]\\Xnumberonlyfirstinline[C]\n'
+      + '\\Xarrangement[A]{paragraph}\\Xarrangement[B]{paragraph}\\Xarrangement[C]{paragraph}\\Xarrangement[D]{paragraph}\\Xarrangement[E]{paragraph}\n'
+      + '\\Xnumberonlyfirstinline[A]\\Xnumberonlyfirstinline[B]\\Xnumberonlyfirstinline[C]\\Xnumberonlyfirstinline[D]\n'
       + '\\Xsymlinenum[A]{$|$}\n'
       + '\\firstlinenum{5}\\linenumincrement{5}\n'
-      + '\\Xbhooknote[B]{\\textit{Singular readings:} }\\Xbhooknote[C]{\\textit{Spelling:} }\\Xbhooknote[D]{\\textit{Decisions:} }\n'
+      + '\\Xbhooknote[B]{\\textit{Testimonia:} }\\Xbhooknote[C]{\\textit{Singular readings:} }\\Xbhooknote[D]{\\textit{Spelling:} }\\Xbhooknote[E]{\\textit{Decisions:} }\n'
       + '\\begin{document}\n'
       + '\\begin{center}{\\Large ' + tex(ed.title || 'Edition') + '}\\\\[4pt]\\small ' + tex(Publish.citation(ed)) + '\\end{center}\n\n'
       + '\\section*{Conspectus siglorum}\n\\begin{tabular}{lllll}\n\\textbf{Siglum} & \\textbf{Manuscript} & \\textbf{Date} & \\textbf{Script} & \\textbf{Folio sides}\\\\\n'
@@ -138,8 +139,11 @@
   /* ---------- reading: one HTML file ---------- */
 
   // What the reader needs, and nothing of the editing: the text, the entries, the witnesses.
-  Publish.readerData = function (ed, list, built) {
+  Publish.readerData = function (ed, list, built, layered) {
+    const linkOf = (unit) => (layered ? layered.links.find((l) => l.unit === unit) : null);
     return {
+      base: layered ? { title: layered.title } : null,
+      indices: ME.Concord ? { words: ME.Concord.wordIndex(built).map((w) => [w.word, w.refs]), padas: ME.Concord.padaIndex(built).map((p) => [p.pada, p.ref]) } : null,
       title: ed.title || 'Edition', citation: Publish.citation(ed), principles: Publish.declaration(ed, built), conspectus: Publish.conspectus(ed, list),
       sigla: ed.witnesses.map((w) => w.siglum),
       blocks: built.map((b) => {
@@ -147,9 +151,11 @@
         const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
         return {
           id: b.table.unit,
+          base: linkOf(b.table.unit) ? linkOf(b.table.unit).base.map((x) => [x, layered.texts[x] || '']).filter((x) => x[1]) : [],
           units: b.proposal.units.map((u) => { const i = byFrom.get(u.fromId); return i === undefined ? [u.text] : [u.text, i]; }),
           entries: b.entries.map((e) => ({
             ref: e.ref, kind: e.kind, singular: singular.includes(e), printed: A.format(ed, e), lemma: e.lemma, lemWits: e.lemWits,
+            testimonia: (e.testimonia || []).map(ME.Layers.formatEvidence),
             readings: e.readings.map((r) => ({ text: r.text, wits: r.wits })), orth: e.orth.map((o) => ({ text: o.text, wits: o.wits })),
             ac: e.ac.map((c) => ({ text: c.text, wit: c.wit })), missing: e.missing.map((m) => ({ wit: m.wit, why: m.why, text: m.text || '' })),
             decision: e.decision ? { type: e.decision.type, confidence: e.decision.confidence || null, crux: !!e.decision.crux, reasons: e.decision.reasons || [], note: e.decision.note || '', source: e.decision.source || '' } : null,
@@ -204,9 +210,12 @@
           // each reading can be put into the text, to read it there
           const swaps = [e.lemma, ...e.readings.map((r) => r.text), ...e.orth.map((o) => o.text)].map((r, ri) => '<button class="swap" data-k="' + bi + ':' + i + '" data-r="' + ri + '" title="Read this in the text">' + (r ? esc(r) : '(omits)') + '</button>').join(' ');
           const why = e.decision && (e.decision.reasons.length || e.decision.note) ? '<span class="why">' + esc([e.decision.source, ...e.decision.reasons, e.decision.note].filter(Boolean).join('; ')) + '</span>' : '';
-          return '<li data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '"><span class="ref">' + esc(e.ref) + '</span> ' + p + why + '<span class="swaps">' + swaps + '</span></li>';
+          if (e.kind === 'testimonium') return '<li data-k="' + bi + ':' + i + '" class="testis"><span class="ref">' + esc(e.ref) + '</span> ' + p + '</li>';
+          const testis = e.testimonia && e.testimonia.length ? '<span class="testis"> Testimonia: ' + esc(e.testimonia.join('; ')) + '</span>' : '';
+          return '<li data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '"><span class="ref">' + esc(e.ref) + '</span> ' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
         }).join('');
-        html += '<section class="block" id="b-' + esc(b.id) + '"><h2>' + esc(b.id) + '</h2><p class="txt">' + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
+        const mula = b.base && b.base.length ? '<blockquote class="mula" title="' + esc(D.base.title + ' ' + b.base.map((x) => x[0]).join(', ')) + '"><span class="ref">' + esc(D.base.title + ' ' + b.base.map((x) => x[0]).join(', ')) + '</span> ' + esc(b.base.map((x) => x[1]).join(' ')) + '</blockquote>' : '';
+        html += '<section class="block" id="b-' + esc(b.id) + '"><h2>' + esc(b.id) + '</h2>' + mula + '<p class="txt">' + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
       });
       main.innerHTML = html;
     };
@@ -263,6 +272,9 @@ main, .front { max-width: 980px; margin: 0 auto; padding: 0 16px; }
 ol.app { list-style: none; margin: 0 0 12px; padding: 0; font-size: 15px; }
 ol.app li { padding: 2px 4px; border-radius: 4px; }
 ol.app li.orth { color: var(--muted); } ol.app li.single { font-style: italic; }
+ol.app li.testis, .testis { color: #5b4a8a; }
+blockquote.mula { margin: 4px 0 8px; padding: 4px 12px; border-left: 3px solid var(--line); font-size: 17px; color: #4a3f30; }
+.indices ul { columns: 3 220px; list-style: none; padding: 0; font-size: 15px; } .indices li { break-inside: avoid; }
 .ref { font: 12px system-ui, sans-serif; color: var(--muted); margin-right: 4px; }
 .why { font: 12px system-ui, sans-serif; color: #1e6b22; margin-left: 8px; }
 .swaps { display: none; margin-left: 8px; } li:hover .swaps, li.hl .swaps { display: inline; }
@@ -282,9 +294,9 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
 }
 `;
 
-  Publish.reader = async function (ed, list, built) {
+  Publish.reader = async function (ed, list, built, layered) {
     const font = await Publish.font();
-    const data = Publish.readerData(ed, list, built);
+    const data = Publish.readerData(ed, list, built, layered);
     const esc = (s) => U.escXml(String(s));
     const options = ['<option value="edited">the edited text</option>', ...data.sigla.map((s) => '<option value="' + U.escAttr(s) + '">the text of ' + esc(s) + '</option>')].join('');
     const consp = '<table><tr><th>Siglum</th><th>Manuscript</th><th>Date</th><th>Script</th><th>Folio sides</th></tr>' + data.conspectus.map((r) => '<tr><td>' + esc(r.siglum) + (r.group ? ' (' + esc(r.group) + ')' : '') + '</td><td>' + esc([r.place, r.shelfmark || r.title].filter(Boolean).join(', ') || '—') + '</td><td>' + esc(r.date || '—') + '</td><td>' + esc(r.script || '—') + '</td><td>' + r.folios + '</td></tr>').join('') + '</table>';
@@ -307,6 +319,9 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + '<p class="cite">Point at a word to see its entry, and at an entry to see its words. Click a reading in an entry to read it in the text.</p></div>\n'
       + '<main id="text"></main>\n'
       + (stars.length ? '<div class="front"><h2>Additional passages</h2>' + stars.map((x) => '<p><b>' + esc(x.id) + '</b> (' + esc(x.wits.join(' ')) + '): ' + esc(x.text) + '</p>').join('') + '</div>\n' : '')
+      + (data.indices && data.indices.words.length ? '<div class="front indices"><details><summary>Indices</summary>'
+        + (data.indices.padas.length ? '<h2>Pādas</h2><ul>' + data.indices.padas.map(([p, r]) => '<li>' + esc(p) + ' <span class="ref">' + esc(r) + '</span></li>').join('') + '</ul>' : '')
+        + '<h2>Words</h2><ul>' + data.indices.words.map(([w, r]) => '<li>' + esc(w) + ' <span class="ref">' + esc(r.join(', ')) + '</span></li>').join('') + '</ul></details></div>\n' : '')
       + '<footer class="cite">' + esc(data.citation) + '</footer>\n'
       + '<script type="application/json" id="edition-data">' + json + '</script>\n'
       + '<script>(' + reader.toString().replace(/<\/script/gi, '<\\/script') + ')();</' + 'script>\n</body>\n</html>\n';

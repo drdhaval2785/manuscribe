@@ -535,7 +535,7 @@ draft). Every output then carries the same citation line.
   variants, singular readings and readings before correction, and colour the words by how much the witnesses differ.
   **Print a draft** prints, or saves as PDF, with the apparatus in two columns: a draft, not a typeset edition.
 - **Print edition (LaTeX):** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
-  variants, B singular readings, C spelling variants if listed, and D the reasons for your decisions; uncertain places
+  variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
   or upload the folder to Overleaf and choose XeLaTeX. Notes are only ever attached at the start of a whole akṣara, so
   that they cannot break a conjunct.
@@ -565,6 +565,36 @@ can judge. A witness whose text is lost at a variant is missing there, and never
   stemma leaves the choice open; and the variants that do not fit it.
 - **For other programs:** NEXUS for PAUP* and SplitsTree (variants with more than 32 readings are left out and
   named), the tree as DOT, and the TEI apparatus for teiphy and open-cbgm.
+
+#### Commentaries, evidence and indices
+
+A commentary is a work of its own, with its own witnesses, collation and apparatus. **Links to the base text…** on
+the edition screen says which work it comments on (the main text, unless you say otherwise; a gloss may comment on
+the commentary) and which of its blocks comments on which base blocks. **Propose links where the numbers agree**
+suggests `c2.1` for `2.1`, and sets nothing until you accept. A block may comment on several base blocks, or be marked
+as having its base text absent, passing over part of it, having none, implying one not known otherwise, or letting it
+be reconstructed: the cases of the DHARMA guide for critical editions, §4. The screen also names the witnesses that
+carry both texts. Where blocks are linked, the apparatus window and the reader show the base text above each block.
+
+- **Evidence beyond the witnesses:** in the text view, under a place where the witnesses differ, record what a
+  commentary or a testimonium says of it: it quotes the reading as its lemma (pratīka), explains it, quotes it (a
+  testimonium), reports it as found elsewhere (kvacit), rejects it (apapāṭha), or proposes it (yukta). Each piece names
+  its source and, if you like, where in it and its words. Only the first three speak for a reading. **A source that
+  says nothing about a place is not counted for any reading of it**: nothing is inferred from the commentary's text.
+  Evidence is printed in a testimonia tier, in TEI as `<note type="testimonium">`, and in print as series B. If the
+  place it was recorded for is lost after a recollation, the apparatus checks say so.
+- **Metre:** where a block is verse, each reading in the text view shows whether the verse with that reading fits its
+  metre, or how many faults it has. Manuscribe recognises the śloka with its vipulās, the āryā by morae, upajāti and
+  nineteen even metres from Indravajrā to Sragdharā. It only ever flags; it never changes a reading.
+- **Testimonia and parallels:** a register of passages elsewhere that quote this text or run parallel to it, under
+  the apparatus.
+- **Concordance:** looks for words in your own witnesses and in texts you bring in, after this edition's
+  normalisation and without regard to spaces, so that a passage written across two lines is found too. Nothing comes
+  with Manuscribe: bring in plain text (one passage a line, or reference, tab, text), TEI (each `<l>`, `<p>` or `<ab>`)
+  or JSON (`[{"ref": …, "text": …}]`), and give its licence, which is shown with every passage found in it. A passage
+  found can be added to the parallels. Texts brought in stay in this browser and are not put in the edition package.
+- **Indices:** every word of the edited text and every pāda of its verses, in the order of the Sanskrit alphabet, with
+  block and word or verse and pāda. They save as text and are in the reader.
 
 #### Correcting the letters
 
@@ -762,6 +792,10 @@ app/js/
   publish.js            the reader file and the reledmac edition, with conspectus, principles and citation
   stemma.js             stemmatics: agreement, distance, trees, parsimony, copies, reconstruction, NEXUS and DOT
   stemmaview.js         the stemmatic workbench and its drawings
+  metre.js              syllable weight, and which metre a verse is in
+  layers.js             links between a commentary and its base text, evidence, testimonia and parallels
+  concord.js            the concordance over witnesses and brought-in texts, and the word and pāda indices
+  layersview.js         the screens for links, the registers, the concordance and the indices
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor

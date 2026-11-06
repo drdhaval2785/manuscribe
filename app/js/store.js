@@ -6,7 +6,7 @@
   // The name the project had when these stores were first made. It must stay: changing it would
   // leave everything people have already saved in this browser out of reach.
   const DB_NAME = 'lipikara';
-  const DB_VERSION = 3;
+  const DB_VERSION = 4;
   const BACKUP_EVERY_MS = 20 * 60 * 1000;
   const BACKUPS_KEPT = 25;
   let db = null;
@@ -34,6 +34,7 @@
               b.createIndex('project', 'project');
             }
             if (!d.objectStoreNames.contains('editions')) d.createObjectStore('editions', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('packs')) d.createObjectStore('packs', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('collations')) {
               const c = d.createObjectStore('collations', { keyPath: 'key' });
               c.createIndex('edition', 'edition');
@@ -114,6 +115,11 @@
       await req(tx('editions', 'readwrite').delete(id));
       await Store.deleteCollations(id);
     },
+
+    // Text packs for the concordance: {id, name, licence, source, lines}
+    async listPacks() { if (fallback) return []; return req(tx('packs').getAll()); },
+    async putPack(pk) { if (fallback) return false; await req(tx('packs', 'readwrite').put(pk)); return true; },
+    async deletePack(id) { if (fallback) return; await req(tx('packs', 'readwrite').delete(id)); },
 
     // Collation tables, one per citation block of a work. Without IndexedDB they do not fit: browsers
     // give localStorage a few MB, and a table can always be made again.
