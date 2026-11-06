@@ -681,6 +681,13 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
   block begins with its abbreviation, as `[Ś]`. The front matter lists the abbreviations, and at the foot of each
   page each commentary's notes stand apart under its [abbreviation]. A block whose parent no witness has follows its
   base verse.
+- **TEI.** **Export › TEI apparatus** of All layers has every layer in reading order. Each block names its layer
+  with `@ana="#layer-c"`, a category of a taxonomy of layers in the header (nested as the layers comment on one
+  another, each with its `<abbr>`), and each commentary block points to the blocks it comments on with
+  `@corresp="#w-b2.47"`. The same links are in `<standOff><linkGrp type="commentary">`, and the header has a title for
+  each layer (`subtype="base-text"` or `"commentary"`, as in the DHARMA guide) and says what the attributes mean. TEI
+  sets no rule for commentaries; this follows its linking attributes and the DHARMA guide. **Export › TEI for
+  Saktumiva** keeps the IDs as they are, every part of the page included.
 
 #### Commentaries, evidence and indices
 

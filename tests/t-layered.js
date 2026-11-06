@@ -147,6 +147,38 @@ const { launch, sleep, checks } = require('./h');
   }, ALL);
   const readerOk = await (async () => { const p3 = await browser.newPage(); await p3.setContent(reader, { waitUntil: 'load' }); await sleep(300); const r = await p3.evaluate(() => [...document.querySelectorAll('section.block')].map((x) => x.id.slice(2) + ((x.querySelector('.labl') || {}).textContent || ''))); await p3.close(); return r; })();
   T.check('the reader has them in the same order, with the abbreviations', readerOk.join(' ') === 'c1-0[Ś] b1 r1-1[R] c1-1[Ś] ca1-1-1[CA] b2 c2-1[Ś] ca2-5-1[CA]', readerOk);
+  // TEI: each block names its layer, each commentary block points to what it comments on
+  const tei = await page.evaluate(async (ALL) => {
+    const f = await ME.ExportView.make('tei', { kind: 'edition', ed: ME.Edition.current, list: window.__list, workId: ALL });
+    const xml = typeof f.data === 'string' ? f.data : await new Response(f.data).text();
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const NS = 'http://www.tei-c.org/ns/1.0';
+    const ab = (id) => [...doc.getElementsByTagNameNS(NS, 'ab')].find((x) => x.getAttribute('n') === id);
+    const S = ME.TEI_SCHEMA, global = new Set(S.global.split(' '));
+    const bad = [];
+    for (const el of doc.getElementsByTagNameNS(NS, '*')) {
+      if (!(el.localName in S.elements)) { bad.push('<' + el.localName + '>'); continue; }
+      const own = new Set(S.lists[S.elements[el.localName]].split(' '));
+      for (const at of el.attributes) if (at.name !== 'xmlns' && !global.has(at.name) && !own.has(at.name)) bad.push(el.localName + '@' + at.name);
+    }
+    const cat = (code) => doc.querySelector('category[n="' + code + '"]');
+    return {
+      ok: !doc.getElementsByTagName('parsererror').length,
+      c11: ab('c1-1') && [ab('c1-1').getAttribute('ana'), ab('c1-1').getAttribute('corresp')],
+      ca: ab('ca1-1-1') && ab('ca1-1-1').getAttribute('corresp'),
+      b1: ab('b1') && [ab('b1').getAttribute('ana'), ab('b1').getAttribute('corresp')],
+      nested: !!(cat('ca') && cat('ca').parentNode === cat('c') && cat('c').parentNode === cat('b')),
+      abbr: cat('c') && cat('c').querySelector('abbr').textContent,
+      links: doc.querySelectorAll('standOff linkGrp[type="commentary"] link').length,
+      titles: [...doc.querySelectorAll('titleStmt title[subtype]')].map((t) => t.getAttribute('subtype') + ':' + t.textContent),
+      bad: [...new Set(bad)],
+      back: Object.keys(ME.Apparatus.readBack(xml)).length,
+    };
+  }, ALL);
+  T.check('the TEI of all layers is well-formed, and every element and attribute is TEI P5', tei.ok && tei.bad.length === 0, tei.bad);
+  T.check('each block names its layer; a commentary block points to the block it comments on', tei.c11 && tei.c11[0] === '#layer-c' && tei.c11[1] === '#w-b1' && tei.ca === '#w-c1-1' && tei.b1[0] === '#layer-b' && tei.b1[1] === null, tei);
+  T.check('the header has the layers nested as they comment on one another, with their abbreviations', tei.nested && tei.abbr === 'Ś' && tei.titles.includes('commentary:Śaṅkara, Bhāṣya') && tei.titles.some((t) => /^base-text:/.test(t)), tei);
+  T.check('and standOff has the same links, one for each commentary block that has a parent here (not ca2-5-1)', tei.links === 5 && tei.back === 3, tei);
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

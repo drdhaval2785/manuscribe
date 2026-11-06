@@ -300,7 +300,26 @@
     }
     for (const w of ed.witnesses) if (!inGroup.has(w.siglum)) listWit.push(witness(ed, w.siglum));
     const wit = (list) => list.map((w) => '#' + idOf(w)).join(' ');
-    const blocks = built.map(({ table, entries, proposal }) => {
+    /* A layered edition: each block names its layer (@ana, a category of the taxonomy of layers in the header), and
+       a commentary block points to what it comments on (@corresp), worked out from its ID, as the links in
+       <standOff> do too. */
+    const LI = ME.LayerIds;
+    const layered = !!(LI && LI.layered(ed));
+    const codeOfBlock = (b) => (b.layer ? b.layer.code : layered ? LI.codeOf(b.table.work) : null);
+    const here = new Map();
+    for (const b of built) { const c = codeOfBlock(b); if (c) { if (!here.has(c)) here.set(c, []); here.get(c).push(b.table.unit); } }
+    const parentsOf = (b) => {
+      const code = codeOfBlock(b);
+      if (!code || code === LI.BASE) return [];
+      const among = here.get(LI.parentCode(code));
+      if (among) { const l = LI.links(ed, LI.workId(code), [b.table.unit], among)[0]; return l ? l.base : []; }
+      // the parent layer is in another file: the blocks the ID names
+      const par = LI.parentOf(LI.parse(b.table.unit));
+      return par && par.ids ? par.ids : [];
+    };
+    const links = [];
+    const blocks = built.map((b) => {
+      const { table, entries, proposal } = b;
       let body = '';
       const byKey = new Map(entries.map((e) => [e.fromId + ':' + e.toId, e]));
       for (const u of proposal.units) {
@@ -328,17 +347,33 @@
         app += '</app>';
         body += app + tail;
       }
-      return '<ab xml:id="' + a(idOf(table.unit)) + '" n="' + a(table.unit) + '">' + body.trim() + '</ab>';
+      const code = codeOfBlock(b);
+      const ps = parentsOf(b);
+      if (ps.length) links.push('<link type="comments" target="#' + a(idOf(table.unit)) + ' ' + ps.map((q) => '#' + a(idOf(q))).join(' ') + '"/>');
+      const lay = code ? ' ana="#layer-' + a(code) + '"' + (ps.length ? ' corresp="' + ps.map((q) => '#' + a(idOf(q))).join(' ') + '"' : '') : '';
+      return '<ab xml:id="' + a(idOf(table.unit)) + '" n="' + a(table.unit) + '"' + lay + '>' + body.trim() + '</ab>';
     });
+    // the layers, nested as they comment on one another, each with its abbreviation
+    const taxonomy = (() => {
+      if (!layered || !here.size) return '';
+      const all = LI.legend(ed);
+      const cat = (l) => '<category xml:id="layer-' + a(l.code) + '" n="' + a(l.code) + '"><catDesc>' + (l.abbr ? '<abbr>' + x(l.abbr) + '</abbr> ' : '') + '<title>' + x(l.name) + '</title></catDesc>'
+        + all.filter((k) => k.code !== LI.BASE && LI.parentCode(k.code) === l.code).map(cat).join('') + '</category>';
+      return '<classDecl><taxonomy xml:id="layers"><desc>The base text and the commentaries on it. A commentary nests under the text it comments on; its abbreviation is printed in [ ] before its blocks.</desc>'
+        + all.filter((k) => k.code === LI.BASE).map(cat).join('') + all.filter((k) => k.code !== LI.BASE && LI.parentCode(k.code) === LI.BASE && !LI.layer(ed, LI.BASE)).map(cat).join('') + '</taxonomy></classDecl>';
+    })();
+    const layerTitles = layered && here.size ? LI.legend(ed).filter((l) => here.has(l.code)).map((l) => '<title type="sub" subtype="' + (l.code === LI.BASE ? 'base-text' : 'commentary') + '" n="' + a(l.code) + '">' + x(l.name) + '</title>').join('') : '';
+    const linking = layered && here.size ? '<projectDesc><p>Each block names its layer with @ana, a category of the taxonomy of layers. On a block of a commentary, @corresp points to the blocks it comments on, as worked out from the citation IDs: b is the base, each commentary has a letter of its own, and a commentary on a commentary adds one; the last -n is the block\'s own paragraph, and any before it the paragraph of its parent. The same links are in the linkGrp of standOff.</p></projectDesc>' : '';
+    const standOff = links.length ? '<standOff><linkGrp type="commentary">' + links.join('') + '</linkGrp></standOff>\n' : '';
     const norm = ME.Norm.describe(ed.norm);
-    return '<?xml version="1.0" encoding="UTF-8"?>\n<TEI xmlns="http://www.tei-c.org/ns/1.0">\n<teiHeader>\n<fileDesc>\n<titleStmt><title>' + x(ed.title || 'Edition') + (work ? ': ' + x(work.title) : '') + '</title>' +
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<TEI xmlns="http://www.tei-c.org/ns/1.0">\n<teiHeader>\n<fileDesc>\n<titleStmt><title>' + x(ed.title || 'Edition') + (work && !(ME.CollateView && work.id === ME.CollateView.ALL) ? ': ' + x(work.title) : '') + '</title>' + layerTitles +
       '<respStmt xml:id="editor"><resp>edited by</resp><name>The editor</name></respStmt></titleStmt>\n' +
       '<publicationStmt><p>' + x(ME.Publish ? ME.Publish.citation(ed) : 'Made with Manuscribe.') + '</p><date when="' + new Date().toISOString().slice(0, 10) + '"/></publicationStmt>\n' +
       '<sourceDesc><listWit>' + listWit.join('') + '</listWit></sourceDesc>\n</fileDesc>\n' +
-      '<encodingDesc><variantEncoding method="parallel-segmentation" location="internal"/>' +
+      '<encodingDesc>' + linking + '<variantEncoding method="parallel-segmentation" location="internal"/>' +
       '<editorialDecl><normalization><p>Readings were compared after normalisation by the ' + x(norm.name) + ' profile (' + x(norm.profile) + ' version ' + x(norm.version) + '), whose rules are: ' + x(norm.rules.map((r) => r.name).join('; ')) + '.</p></normalization>' +
-      '<correction><p>Where the witnesses differ, the reading of most witnesses is proposed, and a tie goes to the more trusted witness, in this order: ' + x(Collate.trustOrder(ed).join(', ')) + '. The editor\'s decisions take precedence.</p></correction></editorialDecl></encodingDesc>\n' +
-      '</teiHeader>\n<text><body>\n<div type="edition">\n' + blocks.join('\n') + '\n</div>\n</body></text>\n</TEI>\n';
+      '<correction><p>Where the witnesses differ, the reading of most witnesses is proposed, and a tie goes to the more trusted witness, in this order: ' + x(Collate.trustOrder(ed).join(', ')) + '. The editor\'s decisions take precedence.</p></correction></editorialDecl>' + taxonomy + '</encodingDesc>\n' +
+      '</teiHeader>\n' + standOff + '<text><body>\n<div type="edition">\n' + blocks.join('\n') + '\n</div>\n</body></text>\n</TEI>\n';
   };
 
   function idOf(s) { return 'w-' + String(s).replace(/[^A-Za-z0-9._-]/g, '_'); }
