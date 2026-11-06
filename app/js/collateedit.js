@@ -295,6 +295,27 @@
       const key = o.from + ':' + o.to;
       const prev = t.decisions.find((d) => d.key === key && d.status === 'accepted');
       if (prev) prev.status = 'superseded';
+      /* several words made one place (o.joins: the columns where the later words begin): the boundaries go, the
+         decisions and choices on the words inside give way to this one, and what each witness reads is taken
+         over the whole place. Withdrawing it puts the boundaries back. */
+      let joined = prev && prev.joined && o.type !== 'votes' ? prev.joined : null;
+      if (o.joins && o.joins.length) {
+        // only the boundaries this takes away come back when it is withdrawn, not those joined by hand before
+        joined = (joined || []).concat(o.joins.filter((id) => !t.cuts.remove[id]));
+        for (const id of o.joins) { if (!at.has(id)) throw new Error('No such column'); delete t.cuts.add[id]; t.cuts.remove[id] = 1; }
+        const inside = (id) => { const c = at.get(id); return c !== undefined && c >= a && c <= b; };
+        for (const d of t.decisions) if (d.status === 'accepted' && d.key !== key && inside(d.from) && inside(d.to)) { d.status = 'superseded'; d.within = key; }
+        for (const k of Object.keys(t.picks)) { const [f, z] = k.split(':'); if (inside(f) && inside(z)) delete t.picks[k]; }
+        const u = Edit.proposal(t, []).units.find((x) => x.key === key);
+        if (!u) throw new Error('These words cannot be made one place');
+        o.quote = {};
+        for (const g of u.groups) for (const m of g.members) o.quote[m.label] = m.text;
+        for (const m of u.missing) if (m.text) o.quote[m.label] = m.text;
+      }
+      if (o.type === 'votes' && prev && prev.joined) {
+        for (const id of prev.joined) delete t.cuts.remove[id];
+        for (const d of t.decisions) if (d.within === key && d.status === 'superseded') { d.status = 'accepted'; delete d.within; }
+      }
       // deciding again settles a conflict between two copies of the edition
       const rivals = t.decisions.filter((d) => d.key === key && d.status === 'conflict');
       for (const r of rivals) r.status = 'superseded';
@@ -305,6 +326,7 @@
       for (const k of ['label', 'text', 'source', 'note', 'confidence', 'quote', 'resp']) if (o[k] !== undefined && o[k] !== '' && o[k] !== null) d[k] = o[k];
       if (o.reasons && o.reasons.length) d.reasons = o.reasons.slice();
       if (o.crux) d.crux = true;
+      if (joined && joined.length) d.joined = joined;
       if (prev) d.supersedes = prev.id;
       if (rivals.length) d.settles = rivals.map((r) => r.id);
       t.decisions.push(d);

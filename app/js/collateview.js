@@ -655,8 +655,17 @@
 
   const placeLine = (s) => s.folio + ' · ' + (s.box === 'main' ? 'main text' : s.box) + ' · line ' + (s.line + 1);
 
+  /* How the editor's own text is typed in an edition: as set for it, else as the first witness typed with a scheme
+     is typed. */
+  CollateView.typingOf = function (ed, list) {
+    if (ed.typing) return ed.typing;
+    const p = (list || []).map((x) => x.p).find((x) => x && x.settings && x.settings.translit && x.settings.translit !== 'off');
+    return p ? { translit: p.settings.translit, geminate: !!p.settings.geminate } : { translit: 'off' };
+  };
+
   CollateView.open = async function (ed, list, workId, unit, redraw) {
     if (list) ME.Features.setContext(ME.Features.langsOf(list));
+    CollateView.typing = CollateView.typingOf(ed, list);
     const E = ME.CollateEdit;
     const rec = await Store.getCollation(Collate.keyOf(ed.id, workId, unit));
     if (!rec) { U.toast('That table is no longer here', 'warn'); return; }
@@ -903,7 +912,10 @@
           h += '<span class="' + cls + '" data-u="' + i + '">' + inner + '</span>';
         });
         textBox.innerHTML = h;
-        if (text.sel) {
+        if (text.range) {
+          const lo = P.units.findIndex((u) => u.fromId === text.range.from), hi = P.units.findIndex((u) => u.fromId === text.range.to);
+          if (lo >= 0 && hi >= 0) text.chooseRange(lo, hi, true); else { text.range = null; textPanel.innerHTML = ''; }
+        } else if (text.sel) {
           const again = P.units.findIndex((u) => u.fromId === text.sel.fromId);
           if (again >= 0) text.choose(again, true); else { text.sel = null; textPanel.innerHTML = ''; }
         }
@@ -944,6 +956,8 @@
       choose(i, quiet) {
         const u = text.proposal.units[i];
         text.sel = u;
+        text.range = null;
+        delete textBox.dataset.escape;
         for (const el of textBox.querySelectorAll('.ct-u.sel')) el.classList.remove('sel');
         const el = textBox.querySelector('[data-u="' + i + '"]');
         if (el) { el.classList.add('sel'); if (!quiet) el.scrollIntoView({ block: 'nearest' }); }
@@ -974,9 +988,10 @@
         });
         const missing = u.missing.map((m) => U.el('li', { class: 'muted' }, m.label + ': ' + ({ lac: 'text lost', illeg: 'illegible', na: 'outside its coverage', ambig: 'uncertain', transposed: 'has this elsewhere' }[m.why] || m.why) + ', so no vote'));
         // the editor's own text, a crux, doubt and reasons: all optional, all one step
-        const emendText = U.el('input', { type: 'text', class: 'ct-emend', value: d && d.text ? d.text : '', placeholder: 'your text for this place', 'aria-label': 'Emended text' });
-        const emendKind = U.el('select', { 'aria-label': 'Kind of correction' }, U.el('option', { value: 'emendatio' }, 'emendation'), U.el('option', { value: 'conjecture', selected: d && d.type === 'conjecture' }, 'conjecture'));
-        const source = U.el('input', { type: 'text', value: d && d.source ? d.source : '', placeholder: 'whose, if not yours (e.g. Kielhorn)', 'aria-label': 'Source of the emendation' });
+        const emended = !!(d && (d.type === 'emendatio' || d.type === 'conjecture'));
+        const fields = emendFields(d, (x) => text.decide(u, x));
+        const source = fields.source;
+        if (emended) source.addEventListener('change', () => text.decide(u, { type: d.type, text: d.text, source: source.value.trim() || undefined }));
         const confidence = U.el('select', { 'aria-label': 'How sure', onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, confidence: confidence.value || undefined }) },
           U.el('option', { value: '' }, 'How sure? —'), U.el('option', { value: 'high', selected: d && d.confidence === 'high' }, 'certain'), U.el('option', { value: 'medium', selected: d && d.confidence === 'medium' }, 'probable'), U.el('option', { value: 'low', selected: d && d.confidence === 'low' }, 'uncertain (marked in the text)'));
         const REASONS = ['lectio difficilior', 'usus scribendi', 'metre', 'stemma', 'sense', 'parallel or testimonium', 'grammar'];
@@ -991,34 +1006,95 @@
         const note = U.el('input', { type: 'text', class: 'ct-note', value: d && d.note ? d.note : '', placeholder: 'a note on the reason (optional)', 'aria-label': 'Note', onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, note: note.value.trim() }) });
         const history = table.decisions.filter((x) => x.key === u.key && x.status !== 'accepted');
         // the everyday decision in view; emending behind Emend…; the rest under More
-        const emendGroup = U.el('span', { class: 'ct-group', hidden: !(d && (d.type === 'emendatio' || d.type === 'conjecture')) }, emendText, emendKind, source, U.el('button', { class: 'btn small', onclick: () => text.decide(u, { type: emendKind.value, text: emendText.value, source: source.value.trim() }) }, 'Use my text'));
-        const emendBtn = U.el('button', { class: 'btn small' + (!u.differs && !d ? ' primary' : ''), title: 'Your own text for this place: an emendation or a conjecture (E)', dataset: { action: 'emend' }, onclick: () => { emendGroup.hidden = !emendGroup.hidden; if (!emendGroup.hidden) emendText.focus(); } }, 'Emend…');
+        const emendGroup = fields.group;
+        emendGroup.hidden = !emended;
+        const emendBtn = U.el('button', { class: 'btn small' + (!u.differs && !d ? ' primary' : ''), title: 'Your own text for this place: an emendation or a conjecture (E)', dataset: { action: 'emend' }, onclick: () => { emendGroup.hidden = !emendGroup.hidden; emendBtn.classList.remove('primary'); if (!emendGroup.hidden) fields.input.focus(); } }, 'Emend…');
+        // taking a decision back: the place goes back to what the witnesses propose
+        const withdraw = d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', title: 'Take your decision back: the place follows the witnesses again (Delete)', dataset: { action: 'withdraw' }, onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, emended ? 'Withdraw emendation' : 'Withdraw decision') : null;
+        text.withdraw = withdraw ? () => withdraw.click() : null;
         const said = !!(d && (d.crux || (d.reasons && d.reasons.length) || d.note || d.confidence || d.type === 'lacuna'));
         const more = U.el('details', { class: 'ct-more', open: said || evs.length > 0 || !!CollateView.moreOpen }, U.el('summary', null, 'More: crux, lacuna, certainty, reasons' + (ME.Features.on('evidence') ? ', evidence' : '')),
           U.el('div', { class: 'ct-decide' },
             U.el('button', { class: 'btn small' + (d && d.crux ? ' on' : ''), title: 'Mark this place as corrupt, between daggers', onclick: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, crux: !(d && d.crux) }) }, '† crux'),
             U.el('button', { class: 'btn small', title: 'The text is lost here in every witness', onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
             confidence),
+          U.el('label', { class: 'ct-source' }, U.el('span', { class: 'help' }, 'Whose emendation, if not yours: '), source),
           U.el('div', { class: 'ct-reasons' }, U.el('span', { class: 'help' }, 'Why (optional): '), chips, note),
           ME.Layers && (ME.Features.on('evidence') || evs.length) ? evidenceBox(u, evs) : null,
           history.length ? U.el('details', { class: 'ct-history' }, U.el('summary', null, history.length + ' earlier decision(s) here'), U.el('ul', null, history.map((h) => U.el('li', null, h.id + ': ' + (h.type === 'selectio' ? h.label : h.type + ' ' + (h.text || '')) + (h.reasons ? ' · ' + h.reasons.join(', ') : '') + ' · ' + h.status + (h.why ? ' (' + h.why + ')' : ''))))) : null,
           U.el('div', { class: 'nv-head' },
-            d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, u.differs ? 'Follow the votes again' : 'Back to the witnesses’ text') : null,
             i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: 'This and the next word are one unit of variation', onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
             ME.Features.on('letters') ? U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'Correct the alignment here') : null));
         more.addEventListener('toggle', () => { CollateView.moreOpen = more.open; });
         textPanel.append(...[
-          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : (SETTLED[u.decided] || '') + (!u.differs ? ' If they are all wrong here, Emend… gives your own text; to emend several words at once, More › Join with the next word first.' : ''), !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
+          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : (SETTLED[u.decided] || '') + (!u.differs ? ' If they are all wrong here, Emend… gives your own text; to emend several words as one, drag across them or Shift+click the last.' : ''), !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
           u.review && u.review.conflict ? conflictBox(u) : u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
           U.el('ol', { class: 'ct-readings' }, rows, missing),
           U.el('div', { class: 'ct-decide' },
             !d && u.differs ? U.el('button', { class: 'btn small primary', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept') : null,
-            emendBtn, emendGroup),
+            withdraw, emendBtn, emendGroup),
           more].filter(Boolean));
         const first = (winners && winners.members.find((m) => m.votes)) || (winners && winners.members[0]);
         if (first) text.showScanOf(first); else textScan.innerHTML = '';
       },
+      /* Several words, to be emended as one place: what each witness reads over the whole stretch, and a field for
+         your text. The boundaries inside go; withdrawing the emendation puts them back. */
+      chooseRange(i1, i2, quiet) {
+        const lo = Math.min(i1, i2), hi = Math.max(i1, i2);
+        if (lo === hi) { text.choose(lo, quiet); return; }
+        const units = text.proposal.units.slice(lo, hi + 1);
+        text.sel = null;
+        text.withdraw = null;
+        text.range = { from: units[0].fromId, to: units[units.length - 1].fromId };
+        textBox.dataset.escape = 'own'; // Esc leaves the stretch, not the window
+        for (const el of textBox.querySelectorAll('.ct-u.sel')) el.classList.remove('sel');
+        for (let k = lo; k <= hi; k++) { const el = textBox.querySelector('[data-u="' + k + '"]'); if (el) el.classList.add('sel'); }
+        const reads = new Map();
+        const addTo = (label, t) => reads.set(label, (reads.get(label) || '') + t);
+        for (const u of units) {
+          for (const g of u.groups) for (const m of g.members) addTo(m.label, m.text);
+          for (const m of u.missing) addTo(m.label, m.text || '[…] ');
+        }
+        const byText = new Map();
+        for (const [label, t] of reads) { const k = t.trim(); if (!byText.has(k)) byText.set(k, []); byText.get(k).push(label); }
+        const decided = units.filter((u) => u.decision).length;
+        const proposed = units.map((u) => u.text).join('').replace(/[\s।॥|]+$/, '').trim();
+        const apply = (x) => {
+          text.range = null;
+          text.sel = { fromId: units[0].fromId };
+          if (!act(Object.assign({ op: 'decide', from: units[0].fromId, to: units[units.length - 1].toId, joins: units.slice(1).map((u) => u.fromId), resp: ed.editor || undefined }, x))) { text.sel = null; text.chooseRange(lo, hi, true); }
+        };
+        const fields = emendFields(null, apply);
+        fields.input.value = proposed;
+        textPanel.innerHTML = '';
+        textPanel.append(...[
+          U.el('div', { class: 'ct-settled' }, units.length + ' words chosen, to be emended as one place. Drag, or Shift+click, to change the stretch; Esc to leave it.'),
+          decided ? U.el('div', { class: 'nv-warn' }, 'Your decisions on ' + decided + ' of these words give way to this one; withdrawing it brings them back.') : null,
+          U.el('ol', { class: 'ct-readings' }, [...byText].map(([t, labels]) => U.el('li', null, U.el('span', { class: 'ct-reading' }, t || '(omits)'), ' ', U.el('span', { class: 'help' }, labels.join(' '))))),
+          U.el('div', { class: 'ct-decide' }, fields.group),
+          U.el('details', { class: 'ct-more' }, U.el('summary', null, 'More: whose emendation'), U.el('label', { class: 'ct-source' }, U.el('span', { class: 'help' }, 'Whose emendation, if not yours: '), fields.source)),
+        ].filter(Boolean));
+        if (!quiet) fields.input.focus();
+      },
     };
+    /* The field for your own text: typed with the edition's typing scheme, as the witnesses are, with the kind of
+       correction; Use my text is the one button to press. Whose it is waits under More. */
+    function emendFields(d, apply) {
+      const input = U.el('input', { type: 'text', class: 'ct-emend', value: d && d.text ? d.text : '', placeholder: 'your text for this place', 'aria-label': 'Emended text', dataset: { translit: '1' } });
+      const kind = U.el('select', { 'aria-label': 'Kind of correction' }, U.el('option', { value: 'emendatio' }, 'emendation'), U.el('option', { value: 'conjecture', selected: !!(d && d.type === 'conjecture') }, 'conjecture'));
+      const source = U.el('input', { type: 'text', value: d && d.source ? d.source : '', placeholder: 'e.g. Kielhorn', 'aria-label': 'Whose emendation, if not yours' });
+      const use = () => apply({ type: kind.value, text: input.value, source: source.value.trim() || undefined });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); use(); } });
+      const S = ME.Translit && ME.Translit.SCHEMES;
+      const typing = S && ME.Features.on('translit') ? U.el('select', { class: 'ct-typing', 'aria-label': 'Typing', title: 'How your text is typed here, as in a transcription', onchange: async () => {
+        ed.typing = Object.assign({}, CollateView.typing, { translit: typing.value });
+        CollateView.typing = ed.typing;
+        await Edition.save(ed);
+        input.focus();
+      } }, Object.entries(S).map(([k, v]) => U.el('option', { value: k, selected: k === (CollateView.typing.translit || 'off') }, k === 'off' ? 'Typing: Unicode' : 'Typing: ' + (v.short || v.label)))) : null;
+      const group = U.el('span', { class: 'ct-group no-enter', dataset: { typing: 'edition' } }, input, typing, kind, U.el('button', { class: 'btn small primary', title: 'Put your text in the edition here (Enter)', dataset: { action: 'use-emend' }, onclick: use }, 'Use my text'));
+      return { group, input, source };
+    }
     // two copies of the edition decided this place differently: each, side by side, to keep one or decide anew
     function conflictBox(u) {
       const say = (c) => (c.type === 'selectio' ? 'reads ' + (((u.groups.find((g) => g.members.some((m) => m.label === c.label)) || {}).form || {}).text || c.label).trim() + ' (as ' + c.label + ')' : c.type === 'lacuna' ? 'marks a lacuna' : (c.type === 'conjecture' ? 'conjectures ' : 'emends to ') + c.text);
@@ -1056,9 +1132,28 @@
         U.el('div', { class: 'nv-head' }, label, locus, type, reading, other, quote, add));
     }
 
+    // a word, or several: drag across them, or Shift+click the last
+    const anchorIndex = () => { if (!text.proposal) return -1; const id = text.range ? text.range.from : text.sel ? text.sel.fromId : null; return id ? text.proposal.units.findIndex((u) => u.fromId === id) : -1; };
+    textBox.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); });
+    textBox.addEventListener('mouseup', () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !textBox.contains(sel.anchorNode) || !textBox.contains(sel.focusNode)) return;
+      const spanOf = (n) => { const el = n.nodeType === 1 ? n : n.parentElement; return el && el.closest('.ct-u'); };
+      const a = spanOf(sel.anchorNode), b = spanOf(sel.focusNode);
+      if (!a || !b || a === b) return;
+      sel.removeAllRanges();
+      // the click that follows a drag is not a new choice; if none follows, the next one is
+      text.dragged = true;
+      setTimeout(() => { text.dragged = false; }, 0);
+      text.chooseRange(+a.dataset.u, +b.dataset.u);
+    });
     textBox.addEventListener('click', (e) => {
+      if (text.dragged) { text.dragged = false; return; }
       const el = e.target.closest('.ct-u');
-      if (el) text.choose(+el.dataset.u, true);
+      if (!el) return;
+      const from = anchorIndex();
+      if (e.shiftKey && from >= 0) text.chooseRange(from, +el.dataset.u);
+      else text.choose(+el.dataset.u, true);
     });
     textBox.addEventListener('keydown', (e) => {
       const mod = e.metaKey || e.ctrlKey;
@@ -1072,6 +1167,8 @@
         const g = text.sel.groups[+k - 1];
         if (g) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: g.form.label }); }
       } else if (k === 'e' && text.sel) { const b = textPanel.querySelector('[data-action="emend"]'); if (b) { e.preventDefault(); b.click(); }
+      } else if ((k === 'delete' || k === 'backspace') && text.sel && text.withdraw) { e.preventDefault(); text.withdraw();
+      } else if (k === 'escape' && text.range) { e.preventDefault(); e.stopPropagation(); text.range = null; delete textBox.dataset.escape; textPanel.innerHTML = ''; for (const el of textBox.querySelectorAll('.ct-u.sel')) el.classList.remove('sel');
       } else if (k === 'a' && text.sel && !text.sel.decision && text.sel.differs && text.sel.form) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: text.sel.form }); }
     });
 
@@ -1137,7 +1234,7 @@
         U.el('label', null, 'Go through ', filterSel),
         U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) { text.render(); showStatus(); } } }, 'Trust order…'),
         U.el('button', { class: 'btn small', title: 'Undo (Ctrl or Cmd+Z)', onclick: () => ui.undo() }, 'Undo')),
-      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words differ between witnesses: click one to see the readings, or press N. Click any other word to emend it, where every witness is wrong. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
+      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words differ between witnesses: click one to see the readings, or press N. Click any other word to emend it, where every witness is wrong; drag across several words, or Shift+click, to emend them as one. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
       textBox, textPanel, textScan,
       U.el('p', { class: 'nv-legend' }, U.el('span', { class: 'ct-u d-majority' }, 'most witnesses'), ' ', U.el('span', { class: 'ct-u d-plurality' }, 'most votes, not most witnesses'), ' ', U.el('span', { class: 'ct-u d-trust' }, 'a tie, settled by trust'), ' ', U.el('span', { class: 'ct-u d-chosen' }, 'your choice'), ' ', U.el('span', { class: 'ct-u d-lost' }, 'a witness cannot be read here'), ' · ⌀ the proposed reading omits the word'));
     const letterPane = U.el('div', { class: 'cv-letters', hidden: true });

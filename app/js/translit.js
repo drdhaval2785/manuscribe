@@ -179,7 +179,7 @@
     document.addEventListener('beforeinput', (e) => {
       const el = e.target;
       if (!isBox(el) || e.isComposing) return;
-      const s = getSettings();
+      const s = getSettings(el);
       // with the caret inside an akṣara the browser would act on the whole akṣara: do it by hand
       {
         const v = el.value, a = el.selectionStart;

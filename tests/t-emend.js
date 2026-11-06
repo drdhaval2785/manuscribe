@@ -1,6 +1,6 @@
-// Emending where every witness is wrong: a word all the witnesses agree on can be chosen in the table window and
-// given the editor's own text, alone or joined with the next word; it reaches the edited text and the apparatus as
-// an emendation, passes the checks, and can be taken back.
+// Emending where every witness is wrong: any word, or a stretch of several, chosen by Shift+click or by dragging,
+// given the editor's own text, typed with the typing schemes of a transcription; it reaches the edited text and the
+// apparatus as an emendation, passes the checks, and is taken back with Withdraw, as an accepted reading is.
 const { launch, sleep, checks } = require('./h');
 
 (async () => {
@@ -33,7 +33,7 @@ const { launch, sleep, checks } = require('./h');
     ME.CollateView.open(ed, list, 'main', 'm1', () => {});
   });
   await sleep(900);
-  const word = (w) => page.evaluate((w) => { const el = [...document.querySelectorAll('.ct-text .ct-u')].find((x) => x.textContent.trim() === w); if (!el) return null; el.click(); return el.className; }, w);
+  const word = (w) => page.evaluate((w) => { const el = [...document.querySelectorAll('.ct-text .ct-u')].find((x) => x.textContent.trim().replace(/\s*[।॥]$/, '') === w); if (!el) return null; el.click(); return el.className; }, w);
   const cls = await word('कुरुक्षेत्रे');
   T.check('a word every witness agrees on can be chosen, and is not marked as a difference', !!cls && /d-same/.test(cls), cls);
   const panel = await page.evaluate(() => { const p = document.querySelector('.ct-panel'); return { text: p.innerText, buttons: [...p.querySelectorAll('.ct-decide > .btn')].map((b) => b.textContent) }; });
@@ -58,21 +58,69 @@ const { launch, sleep, checks } = require('./h');
   T.check('the edited text has the emendation', /कुरुक्षेत्रेऽस्मिन्/.test(built.text), built.text);
   T.check('the apparatus gives it as an emendation, with what the witnesses read', !!built.entry && /कुरुक्षेत्रेऽस्मिन्/.test(built.entry) && /em\./.test(built.entry) && /कुरुक्षेत्रे/.test(built.entry.replace('कुरुक्षेत्रेऽस्मिन्', '')), built.entry);
   T.check('and the apparatus passes its checks', built.errors.length === 0, built.errors);
-  // two words at once: join, then emend
+  T.check('Use my text is the button to press, and whose emendation it is waits under More', await page.evaluate(() => { const b = document.querySelector('.ct-panel [data-action="use-emend"]'); const src = document.querySelector('.ct-panel [aria-label="Whose emendation, if not yours"]'); return !!b && b.classList.contains('primary') && !!src && !!src.closest('.ct-more'); }));
+  // several words as one place: click the first, Shift+click the last
+  const count = () => page.evaluate(() => document.querySelector('.cv-count').textContent);
   await word('समवेता');
-  await page.evaluate(() => { document.querySelector('.ct-panel .ct-more').open = true; [...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Join with the next word').click(); });
-  await sleep(500);
-  const joined = await page.evaluate(() => { const el = document.querySelector('.ct-text .ct-u.sel'); return el ? el.textContent.trim() : null; });
-  T.check('Join with the next word makes one place of two words, here a difference', !!joined && /समवेता\s+युयुत्सव/.test(joined), joined);
-  await page.evaluate(() => { [...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Emend…').click(); const i = document.querySelector('.ct-panel .ct-emend'); i.value = 'समवेता युयुत्सवः'; [...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Use my text').click(); });
-  await sleep(500);
-  const two = await page.evaluate(() => ({ count: document.querySelector('.cv-count').textContent, settled: (document.querySelector('.ct-panel .ct-settled') || {}).textContent, text: document.querySelector('.ct-text').innerText }));
-  T.check('and it can be emended as one', /2 decision/.test(two.count) && /Your emendation/.test(two.settled), two);
-  // back to the witnesses
+  await page.evaluate(() => { const el = [...document.querySelectorAll('.ct-text .ct-u')].find((x) => /युयुत्सव/.test(x.textContent)); el.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })); });
+  await sleep(200);
+  const range = await page.evaluate(() => ({ sel: [...document.querySelectorAll('.ct-text .ct-u.sel')].map((x) => x.textContent.trim()), panel: document.querySelector('.ct-panel').innerText, value: document.querySelector('.ct-panel .ct-emend').value }));
+  T.check('Shift+click chooses a stretch of words, with what each witness reads over all of it', range.sel.length === 2 && /2 words chosen/.test(range.panel) && /समवेता युयुत्सवः/.test(range.panel) && /समवेता युयुत्सवाः/.test(range.panel), range);
+  T.check('and offers the proposed text to correct', /^समवेता युयुत्सवः$/.test(range.value), range.value);
+  // typed as a transcription is: Harvard-Kyoto into Devanagari
+  const typing = await page.evaluate(() => { const t = document.querySelector('.ct-panel .ct-typing'); if (!t) return null; t.value = 'hk-deva'; t.dispatchEvent(new Event('change')); return true; });
+  T.check('the field has the typing schemes of the transcription', !!typing);
+  await sleep(200);
+  await page.evaluate(() => { const i = document.querySelector('.ct-panel .ct-emend'); i.value = ''; i.focus(); });
+  await page.keyboard.type('samavetAyuyutsavaH');
+  const typed = await page.evaluate(() => document.querySelector('.ct-panel .ct-emend').value);
+  T.check('and types Harvard-Kyoto as Devanagari', typed === 'समवेतायुयुत्सवः', typed);
+  await page.keyboard.press('Enter');
+  await sleep(1000);
+  const joined = await page.evaluate(() => ({ text: document.querySelector('.ct-text').innerText, sel: (document.querySelector('.ct-text .ct-u.sel') || {}).textContent, settled: (document.querySelector('.ct-panel .ct-settled') || {}).textContent }));
+  T.check('Enter puts the text in as one place, an emendation', /समवेतायुयुत्सवः/.test(joined.text) && /समवेतायुयुत्सवः/.test(joined.sel || '') && /Your emendation/.test(joined.settled), joined);
+  T.check('two decisions now', /2 decision/.test(await count()), await count());
+  const app2 = await page.evaluate(async () => {
+    const works = await ME.Release.works(window.ed, window.list);
+    const b = works[0].built[0];
+    const e = b.entries.find((x) => x.decision && x.lemma && /समवेतायुयुत्सवः/.test(x.lemma));
+    return { text: b.text, entry: e ? ME.Apparatus.format(window.ed, e).replace(/<[^>]+>/g, '') : null, errors: ME.Apparatus.validate(window.ed, b.table, b).filter((p) => p.level === 'error').map((p) => p.text) };
+  });
+  T.check('the apparatus has one entry for the stretch, with each witness’s reading of it', !!app2.entry && /समवेता युयुत्सवः/.test(app2.entry) && /समवेता युयुत्सवाः/.test(app2.entry) && app2.errors.length === 0, app2);
+  // dragging across words chooses them too, and says what gives way
+  const drag = await page.evaluate(() => {
+    const us = [...document.querySelectorAll('.ct-text .ct-u')];
+    const a = us.find((x) => /धर्मक्षेत्रे/.test(x.textContent)), b = us.find((x) => /कुरुक्षेत्रेऽस्मिन्/.test(x.textContent));
+    const r = document.createRange(); r.setStart(a.firstChild, 1); r.setEnd(b.firstChild, 2);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    document.querySelector('.ct-text').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    return { sel: document.querySelectorAll('.ct-text .ct-u.sel').length, panel: document.querySelector('.ct-panel').innerText };
+  });
+  T.check('dragging across words chooses them, and says which decisions would give way', drag.sel === 2 && /2 words chosen/.test(drag.panel) && /Your decisions on 1 of these words give way/.test(drag.panel), drag);
+  await page.evaluate(() => document.querySelector('.ct-text').focus());
+  await page.keyboard.press('Escape'); await sleep(150);
+  T.check('Esc leaves the stretch', await page.evaluate(() => !document.querySelector('.ct-text .ct-u.sel') && !!document.querySelector('.modal')));
+  // withdrawing: the stretch comes apart again
+  await word('समवेतायुयुत्सवः');
+  await page.evaluate(() => document.querySelector('.ct-text').focus());
+  await page.keyboard.press('Delete'); await sleep(600);
+  const apart = await page.evaluate(() => [...document.querySelectorAll('.ct-text .ct-u')].map((x) => x.textContent.trim()));
+  T.check('Delete withdraws it, and the words are separate places again', apart.includes('समवेता') && apart.some((x) => /^युयुत्सवः/.test(x)) && /1 decision/.test(await count()), apart);
+  // withdrawing an accepted reading
+  await page.evaluate(() => [...document.querySelectorAll('.ct-text .ct-u')].find((x) => /^युयुत्सवः/.test(x.textContent.trim())).click());
+  await page.evaluate(() => [...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Accept').click());
+  await sleep(400);
+  const accepted = await count();
+  const w = await page.evaluate(() => { const b = document.querySelector('.ct-panel [data-action="withdraw"]'); return b && !b.closest('details') ? b.textContent : null; });
+  T.check('an accepted reading shows Withdraw decision beside the readings', /2 decision/.test(accepted) && w === 'Withdraw decision', { accepted, w });
+  await page.evaluate(() => document.querySelector('.ct-panel [data-action="withdraw"]').click());
+  await sleep(400);
+  T.check('which takes the approval back', /1 decision/.test(await count()) && await page.evaluate(() => !![...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Accept')), await count());
+  // and the first emendation
   await word('कुरुक्षेत्रेऽस्मिन्');
-  await page.evaluate(() => { document.querySelector('.ct-panel .ct-more').open = true; [...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Back to the witnesses’ text').click(); });
+  await page.evaluate(() => [...document.querySelectorAll('.ct-panel .btn')].find((b) => b.textContent === 'Withdraw emendation').click());
   await sleep(500);
-  T.check('Back to the witnesses’ text takes the emendation back', await page.evaluate(() => !/कुरुक्षेत्रेऽस्मिन्/.test(document.querySelector('.ct-text').innerText) && /1 decision/.test(document.querySelector('.cv-count').textContent)));
+  T.check('Withdraw emendation takes an emendation back', await page.evaluate(() => !/कुरुक्षेत्रेऽस्मिन्/.test(document.querySelector('.ct-text').innerText) && !/decision/.test(document.querySelector('.cv-count').textContent.replace(/0 decision/, ''))), await count());
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   T.done(page);
   await browser.close();

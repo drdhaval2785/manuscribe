@@ -39,7 +39,8 @@
         resolve(v);
       }
       function onKey(e) {
-        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(null); }
+        // a part of the dialog that has something of its own to leave first says so: data-escape="own"
+        if (e.key === 'Escape') { if (e.target.closest && e.target.closest('[data-escape="own"]')) return; e.preventDefault(); e.stopPropagation(); close(null); }
         else if (e.key === 'Enter' && primary && !e.shiftKey && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && !e.target.closest('.no-enter')) {
           e.preventDefault(); e.stopPropagation(); primary.click();
         }

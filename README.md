@@ -512,10 +512,18 @@ line up, so if a word's readings look wrong, **See the letters** opens the lette
 In **Text**, every place where the witnesses differ can carry your decision. All of it is optional except the
 choice itself, and each part is one click. **Where every witness is wrong,** click any word, even one they all agree
 on, and **Emend…** (or E) gives your own text for it; it is printed as an emendation, with what the witnesses read.
-To emend several words as one, **More › Join with the next word** first.
+**Several words as one:** drag across them, or click the first and Shift+click the last. The panel shows what each
+witness reads over the whole stretch, and your text replaces all of it as one place, with one apparatus entry; this is
+how words a scribe split, or ran together, are put right. Decisions on words inside the stretch give way to it, and
+come back if you withdraw it. Esc leaves the stretch.
 
-- **Choose a reading** with its button or the keys 1 to 9; **Accept** (A) makes the proposed one yours. **Emend…** opens a field for your own text; the crux, lacuna, certainty, reasons, evidence and history are under **More**. **‹ Block** and **Block ›**, or [ and ], go through the blocks of the work without closing the window.
-- **Use my text** for an emendation or a conjecture, with whose it is if not yours.
+- **Choose a reading** with its button or the keys 1 to 9; **Accept** (A) makes the proposed one yours, and
+  **Withdraw decision** (Delete) takes it back, so that the place follows the witnesses again. **Emend…** opens a field
+  for your own text; the crux, lacuna, certainty, reasons, evidence and history are under **More**. **‹ Block** and **Block ›**, or [ and ], go through the blocks of the work without closing the window.
+- **Use my text** (or Enter) puts in an emendation or a conjecture; **More** says whose it is, if not yours. The field
+  types as a transcription does: with the South Asian pack, a **Typing** menu beside it chooses Harvard-Kyoto, ITRANS
+  or SLP1 into Devanagari or IAST, as the first witness typed with a scheme does unless you choose otherwise for the
+  edition; any keyboard or input method of your own works too. **Withdraw emendation** takes it back.
 - **† crux** marks a corrupt place; **Lacuna** says the text is lost in every witness; **How sure?** sets certain,
   probable or uncertain, and uncertain places get a wavy line in the text.
 - **Why** takes any of lectio difficilior, usus scribendi, metre, stemma, sense, parallel or testimonium, grammar,

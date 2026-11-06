@@ -23,8 +23,8 @@
   App.boot = async function () {
     await Store.open();
     TEI.workLabel = Commands.workLabel;
-    // dialog text boxes for manuscript text type with the same scheme as the folio
-    Translit.attachToInputs(() => App.project && App.project.settings);
+    // dialog text boxes for manuscript text type with the same scheme as the folio; in an edition, with the edition's
+    Translit.attachToInputs((el) => (el && el.closest && el.closest('[data-typing="edition"]') && ME.CollateView.typing ? ME.CollateView.typing : App.project && App.project.settings));
     UI.translitBadge = () => {
       const tl = App.project && App.project.settings.translit;
       return tl && tl !== 'off' ? Translit.SCHEMES[tl].short : '';
