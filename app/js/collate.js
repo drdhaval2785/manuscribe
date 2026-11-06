@@ -216,6 +216,7 @@
   };
   Collate.saveTable = async function (ed, rec) {
     rec.table.variants = countVariants(rec.table);
+    if (ed.issued && !ed.issued.changed && (rec.table.ops || []).some((o) => o.when > ed.issued.when)) { ed.issued.changed = true; await Store.putEdition(ed); }
     await save(ed.id, rec);
   };
   async function save(edId, rec) {

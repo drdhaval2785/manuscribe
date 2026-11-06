@@ -2,6 +2,8 @@
 /* Small DOM + string helpers shared by every module. Everything hangs off window.ME
    because classic <script> tags are used (ES modules do not load from file://). */
 window.ME = window.ME || {};
+// The version of Manuscribe, named in every output and release.
+ME.VERSION = '0.9.0';
 (function (ME) {
   const U = {};
 

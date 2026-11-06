@@ -850,7 +850,7 @@
         for (const m of u.missing) if (m.text) quote[m.label] = m.text;
         const cur = u.decision || {};
         const keep = extra.type === 'votes' ? {} : { reasons: cur.reasons, note: cur.note, confidence: cur.confidence, crux: cur.crux };
-        return act(Object.assign({ op: 'decide', from: u.fromId, to: u.toId, quote }, keep, extra));
+        return act(Object.assign({ op: 'decide', from: u.fromId, to: u.toId, quote, resp: ed.editor || undefined }, keep, extra));
       },
       choose(i, quiet) {
         const u = text.proposal.units[i];
@@ -903,7 +903,7 @@
         const history = table.decisions.filter((x) => x.key === u.key && x.status !== 'accepted');
         textPanel.append(...[
           U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : SETTLED[u.decided] || '', !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
-          u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
+          u.review && u.review.conflict ? conflictBox(u) : u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
           U.el('ol', { class: 'ct-readings' }, rows, missing),
           U.el('div', { class: 'ct-decide' },
             !d ? U.el('button', { class: 'btn small', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept the proposal') : null,
@@ -922,6 +922,16 @@
         if (first) text.showScanOf(first); else textScan.innerHTML = '';
       },
     };
+    // two copies of the edition decided this place differently: each, side by side, to keep one or decide anew
+    function conflictBox(u) {
+      const say = (c) => (c.type === 'selectio' ? 'reads ' + (((u.groups.find((g) => g.members.some((m) => m.label === c.label)) || {}).form || {}).text || c.label).trim() + ' (as ' + c.label + ')' : c.type === 'lacuna' ? 'marks a lacuna' : (c.type === 'conjecture' ? 'conjectures ' : 'emends to ') + c.text);
+      return U.el('div', { class: 'nv-warn ct-conflict' },
+        U.el('strong', null, 'Two copies of the edition decide this place differently.'), ' Keep one, or decide anew: either settles it, and both stay in the history.',
+        U.el('ul', null, u.review.conflict.map((c) => U.el('li', null,
+          U.el('button', { class: 'btn small', onclick: () => text.decide(u, { type: c.type, label: c.label, text: c.text, source: c.source, reasons: c.reasons, note: c.note, confidence: c.confidence, crux: c.crux }) }, 'Keep this'), ' ',
+          (c.resp || 'unnamed editor') + (c.when ? ', ' + new Date(c.when).toLocaleDateString() : '') + ': ' + say(c) + (c.reasons ? ' · ' + c.reasons.join(', ') : '') + (c.note ? ' · ' + c.note : '')))));
+    }
+
     // evidence from outside the witnesses for this place: only what you record here counts
     function evidenceBox(u, evs) {
       const L = ME.Layers;

@@ -295,6 +295,9 @@
       const key = o.from + ':' + o.to;
       const prev = t.decisions.find((d) => d.key === key && d.status === 'accepted');
       if (prev) prev.status = 'superseded';
+      // deciding again settles a conflict between two copies of the edition
+      const rivals = t.decisions.filter((d) => d.key === key && d.status === 'conflict');
+      for (const r of rivals) r.status = 'superseded';
       delete t.picks[key];
       if (o.type === 'votes') { addLock(t, a, b, 'edit'); return; }
       t.decisionSeq = (t.decisionSeq || 0) + 1;
@@ -303,6 +306,7 @@
       if (o.reasons && o.reasons.length) d.reasons = o.reasons.slice();
       if (o.crux) d.crux = true;
       if (prev) d.supersedes = prev.id;
+      if (rivals.length) d.settles = rivals.map((r) => r.id);
       t.decisions.push(d);
       addLock(t, a, b, 'edit');
     },
@@ -322,6 +326,8 @@
     Edit.ensure(t);
     const was = snapshot(t);
     const checkedWas = t.checked, linkWas = t.linkSeq;
+    // the time goes in first, so that what the operation makes, such as a decision, carries it too
+    op = Object.assign({}, op, { when: op.when || now || Date.now() });
     try {
       APPLY[op.op](t, op);
     } catch (e) {
@@ -330,7 +336,7 @@
       throw e;
     }
     if (!t.base) t.base = Object.assign(was, { checked: checkedWas || false, linkSeq: linkWas || 0 });
-    t.ops.push(Object.assign({}, op, { when: now || Date.now() }));
+    t.ops.push(op);
     t.redo = [];
     return t;
   };
@@ -542,6 +548,8 @@
     starts.sort((x, y) => x - y);
 
     const active = new Map(t.decisions.filter((d) => d.status === 'accepted').map((d) => [d.key, d]));
+    const rivalsOf = new Map();
+    for (const d of t.decisions) if (d.status === 'conflict') { if (!rivalsOf.has(d.key)) rivalsOf.set(d.key, []); rivalsOf.get(d.key).push(d); }
     const units = [];
     const lowerK = (cols, v) => { let lo = 0, hi = cols.length; while (lo < hi) { const m = (lo + hi) >> 1; if (cols[m] < v) lo = m + 1; else hi = m; } return lo; };
     starts.forEach((a, i) => {
@@ -602,6 +610,9 @@
           } else decided = d.type;
         }
       }
+      // two copies of the edition that decided this place differently: shown for the editor to settle
+      const rivals = rivalsOf.get(key);
+      if (rivals) review = { decision: d || rivals[0], why: 'two copies of the edition decide this place differently', conflict: [d, ...rivals].filter(Boolean) };
       const others = voting.length > 1 || (voting.length === 1 && groups.length > 1) || missing.length > 0 || !!decision;
       let text = winner ? winner.form.text : '';
       if (decision && (decision.type === 'emendatio' || decision.type === 'conjecture')) {

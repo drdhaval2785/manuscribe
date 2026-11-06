@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Manuscribe in your work, please cite it as below."
+type: software
+title: "Manuscribe"
+abstract: "A browser workbench for transcribing Sanskrit manuscripts into TEI and making critical editions from them: collation, decisions, apparatus, stemmatics, layered texts, and release."
+authors:
+  - given-names: Dhaval
+    family-names: Patel
+version: 0.9.0
+license: GPL-3.0
+repository-code: "https://github.com/drdhaval2785/manuscribe"
+keywords:
+  - critical edition
+  - manuscripts
+  - Sanskrit
+  - TEI
+  - collation

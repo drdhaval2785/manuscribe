@@ -33,6 +33,7 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 - [Saving and backups](#saving-and-backups)
 - [Troubleshooting](#troubleshooting)
 - [For developers](#for-developers)
+- [Citing Manuscribe](#citing-manuscribe)
 - [Credits and licences](#credits-and-licences)
 
 ## Features
@@ -527,7 +528,8 @@ the edition screen shows the whole work.
 #### Publishing
 
 Under **Publish**, at the foot of the apparatus, give the editor's name and a version (left empty, the edition is a dated
-draft). Every output then carries the same citation line.
+draft). Every output then carries the same citation line. To release a version, use **Issue edition…** (see
+[Sharing and releasing](#sharing-and-releasing)): until a version is issued, its outputs say that they are a draft.
 
 - **Reader (one HTML file):** the edited text with its apparatus, the conspectus siglorum and the editorial principles,
   in one file that opens from disk and needs no network. Point at a word or an entry to link them; click a reading in an
@@ -636,6 +638,44 @@ after closing and reopening.
 
 Tables go into the edition package, in `collation/<work>/<id>.json`, with their settings, a hash of their input, your
 corrections and their log. The table also saves as CSV.
+
+### Sharing and releasing
+
+Editors working on one edition each keep a copy and exchange packages, by email, a shared drive or GitHub. One
+transcriber to a witness avoids most clashes; the rest Manuscribe shows, and never settles by itself.
+
+- **Compare and merge…** on the edition screen reads a package from another editor, or an older one of your own, and
+  shows what differs: transcriptions, with the lines that differ; alignments and decisions, block by block; evidence
+  and registers; and settings changed on both sides. Every package carries `manifest.json`, the SHA-256 of each of its
+  files, and the edition remembers what both copies had at the last exchange. So a change made in one copy only is
+  taken from that copy, and only what both changed is yours to choose, keeping your own unless you choose theirs.
+  Without that record (a package made before this), every difference is shown as made on both sides.
+- **Decisions are never chosen between.** Both logs are kept whole. Where the two copies decide one place differently,
+  both decisions stay, the place is marked, the apparatus checks list it, and the text view shows the two side by side,
+  each with who made it and when: **Keep this**, or decide anew, settles it, and both stay in the history. A decision
+  whose columns are not in the alignment it is brought into goes to review.
+- A transcription changed in both copies cannot be combined line by line: keep one. Where both copies corrected the
+  alignment of a block, yours is kept, with all decisions of both. **Nothing is lost:** before every merge both
+  copies are kept whole in this browser, until you delete them under **Kept copies**, where each downloads as an
+  ordinary package.
+- **GitHub…** keeps the package in a repository: give the owner, repository, branch and folder, and paste a
+  fine-grained personal access token for that repository with *Contents: read and write*. The token is forgotten when
+  the page closes, unless you ask for it to be remembered on this computer. **Send** makes one commit of what has
+  changed; it is refused if the repository has changes this copy has not seen, and then **Fetch and merge** brings
+  them in, through the same comparison, before you send. PDFs are never sent, and any found in the repository are
+  left there and named. This works from a page opened from disk, as from the web.
+- **Issue edition…** releases a version. Give the editor, the licence of the edition, the version, and for each
+  witness where its images are and what rights there are in them; a DOI too, if you have one. A self-check, after the
+  criteria of the Institut für Dokumentologie und Editorik (IDE) for reviewing scholarly digital editions, lists what
+  a reviewer would look for and Manuscribe can see; a failure (no title, editor or licence, a problem in the
+  apparatus, such as a conflict not settled) stops the issue. **Issue this version** then makes every output at
+  once, each with the version, its date and the citation: the package; for each work the reader, the print edition
+  for LaTeX, the apparatus in TEI and as text, and the indices; `CITATION.cff`; `.zenodo.json`; and `RELEASE.txt`
+  with the self-check. A version is issued once. Anything changed afterwards makes the citation read *draft after
+  version 1.0* until the next one.
+- **A DOI:** at [Zenodo](https://zenodo.org), start a new upload and choose *Reserve DOI*, give that DOI under
+  **Issue edition…**, issue, and upload the ZIP to the reserved record. The images of the manuscripts are not in the
+  release; their holders' terms decide where they may go.
 
 ## Exporting
 
@@ -802,6 +842,10 @@ app/js/
   layers.js             links between a commentary and its base text, evidence, testimonia and parallels
   concord.js            the concordance over witnesses and brought-in texts, and the word and pāda indices
   layersview.js         the screens for links, the registers, the concordance and the indices
+  exchange.js           comparing two copies of an edition, and merging them three ways
+  github.js             the edition in a GitHub repository, through the REST API
+  release.js            issuing a version: the self-check, and every output at once
+  exchangeview.js       the screens for comparing, GitHub, kept copies and issuing
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor
@@ -836,6 +880,13 @@ app/fonts/              Tiro Devanagari Sanskrit; tiro-regular.base64.js is the 
 **Regenerating `teischema.js`.** It is generated from the official `p5subset.xml`
 (<https://www.tei-c.org/release/xml/tei/odd/p5subset.xml>) by resolving each element's attribute classes.
 It lists 588 elements from TEI P5 4.12.0.
+
+## Citing Manuscribe
+
+`CITATION.cff` says how to cite Manuscribe itself; GitHub shows it as *Cite this repository*. Every output names the
+version of Manuscribe that made it (`ME.VERSION` in `app/js/util.js`). For a DOI of Manuscribe's own, connect the
+repository to Zenodo (Zenodo › GitHub, switch the repository on) and publish a GitHub release; Zenodo then gives
+that release a DOI, which can be added to `CITATION.cff` as `doi:`.
 
 ## Credits and licences
 

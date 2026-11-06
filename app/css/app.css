@@ -637,3 +637,13 @@ body.no-project #topbar, body.no-project #main { visibility: hidden; }
 .lv-index li { break-inside: avoid; }
 .lv-index h4 { margin: 8px 0 2px; }
 .lv td input[type=text] { width: 14em; }
+
+/* sharing and releasing */
+.xv h3 { margin: 14px 0 6px; }
+.xv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 14px; }
+.xv-lines { max-height: 220px; overflow: auto; font-size: 13px; }
+.xv-lines del { color: #a12; } .xv-lines ins { color: #1a6b22; text-decoration: none; }
+.xv-checks { list-style: none; padding: 0; margin: 0 0 6px; }
+.xv-checks li { padding: 2px 0; }
+.xv td input[type=text] { width: 100%; min-width: 12em; }
+.ct-conflict ul { margin: 6px 0 0; padding-left: 18px; }

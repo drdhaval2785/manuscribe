@@ -23,7 +23,10 @@
   });
 
   async function saveEdition(ed) {
+    const was = ed.modified || 0;
     ed.modified = Date.now();
+    // a change after an issue makes the outputs drafts again
+    if (ed.issued && !ed.issued.changed && ed.issued.when && was >= ed.issued.when) ed.issued.changed = true;
     await Store.putEdition(ed);
   }
 
@@ -171,6 +174,7 @@ witnesses/<siglum>/images.json    its PDF, by name, size and SHA-256; the PDF it
 profiles/<name>.json          the normalisation rules in force, for the record
 output/tei/<siglum>.xml       TEI of each witness, made from the above and safe to regenerate
 collation/<work>/<id>.json    the alignment of each citation block, with its settings and input hashes
+manifest.json                 a SHA-256 of each file above, to compare copies of the edition
 
 To open it, use Import edition package on Manuscribe's start screen.
 `;
@@ -179,7 +183,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     const list = await loadWitnesses(ed);
     const files = [];
     const head = U.clone(ed);
-    for (const k of ['modified', 'lastPackage']) delete head[k];
+    for (const k of ['modified', 'lastPackage', 'exchange', 'github']) delete head[k];
     head.witnesses = ed.witnesses.map((w) => {
       const c = U.clone(w);
       delete c.projectId;
@@ -200,14 +204,60 @@ To open it, use Import edition package on Manuscribe's start screen.
         if (hash) { p.pdf.sha256 = hash; await Store.putProject(p); }
       }
       files.push({ name: 'witnesses/' + dir + '/project.json', data: canonical(projectFile(p)) });
-      files.push({ name: 'witnesses/' + dir + '/images.json', data: canonical(p.pdf ? { file: p.pdf.name || '', bytes: p.pdf.bytes || (blob && blob.size) || null, pages: p.pdf.pages || null, sha256: p.pdf.sha256 || null } : {}) });
+      files.push({ name: 'witnesses/' + dir + '/images.json', data: canonical(Object.assign(p.pdf ? { file: p.pdf.name || '', bytes: p.pdf.bytes || (blob && blob.size) || null, pages: p.pdf.pages || null, sha256: p.pdf.sha256 || null } : {}, { location: w.images || null, rights: w.rights || null })) });
       const named = Object.assign({}, p, { meta: Object.assign({}, p.meta, { siglum: w.siglum }) });
       files.push({ name: 'output/tei/' + dir + '.xml', data: Export.build(named, {}).xml });
     }
     for (const table of await ME.Collate.forPackage(ed.id)) {
       files.push({ name: 'collation/' + safeName(table.work) + '/' + safeName(table.unit) + '.json', data: canonical(table) });
     }
-    return { files, missing };
+    const manifest = await Edition.manifest(ed, files);
+    files.push({ name: 'manifest.json', data: canonical(manifest) });
+    return { files, missing, manifest };
+  };
+
+  // What a copy of the edition holds, by the SHA-256 of each file: derived files and the readme aside.
+  const HASHED = (name) => !name.startsWith('output/') && name !== 'README.txt' && name !== 'manifest.json';
+  Edition.hashText = async function (text) {
+    if (!window.crypto || !crypto.subtle) return null;
+    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('');
+  };
+  Edition.manifest = async function (ed, files) {
+    const hashes = {};
+    for (const f of files) if (HASHED(f.name) && typeof f.data === 'string') hashes[f.name] = await Edition.hashText(f.data);
+    return { edition: ed.id, title: ed.title || '', made: new Date().toISOString(), by: ed.editor || '', manuscribe: ME.VERSION, files: hashes };
+  };
+  Edition.canonical = canonical;
+  Edition.safeName = safeName;
+  Edition.HASHED = HASHED;
+
+  /* A package read without storing anything: {head, witnesses: [{w, dir, p}], tables, manifest, files}. files
+     maps each name to its text. */
+  Edition.readPackage = function (zip) {
+    if (!zip.has('edition.json')) throw new Error('this ZIP file has no edition.json');
+    const files = new Map();
+    for (const [name, bytes] of zip) if (!/\.pdf$/i.test(name)) files.set(name, typeof bytes === 'string' ? bytes : Zip.text(bytes));
+    const head = JSON.parse(files.get('edition.json'));
+    if (!head.id || !Array.isArray(head.witnesses)) throw new Error('edition.json is not an edition');
+    if (head.schema > SCHEMA) throw new Error('this package was made by a newer version of Manuscribe');
+    const witnesses = head.witnesses.map((w) => {
+      const raw = files.get('witnesses/' + w.dir + '/project.json');
+      if (!raw) throw new Error('the package lacks witness ' + w.siglum);
+      return { w, dir: w.dir, p: Model.upgrade(JSON.parse(raw)) };
+    });
+    const tables = [];
+    for (const [name, text] of files) if (name.startsWith('collation/')) tables.push({ name, table: JSON.parse(text) });
+    const manifest = files.has('manifest.json') ? JSON.parse(files.get('manifest.json')) : null;
+    return { head, witnesses, tables, manifest, files };
+  };
+
+  // The state both copies knew after an exchange: the hashes of its files, and its edition.json.
+  Edition.remember = async function (ed, pkg) {
+    const hashes = {};
+    for (const [name, text] of pkg.files) if (HASHED(name)) hashes[name] = await Edition.hashText(text);
+    const head = JSON.parse(pkg.files.get('edition.json'));
+    ed.exchange = { when: Date.now(), by: (pkg.manifest && pkg.manifest.by) || '', files: hashes, head };
   };
 
   Edition.exportPackage = async function (ed) {
@@ -215,6 +265,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     const { files, missing } = await Edition.buildPackage(ed);
     if (missing.length) U.toast('Not in this browser, so left out: ' + missing.join(', '), 'warn', 6000);
     U.download(safeName(ed.title || 'edition') + '.edition.zip', await Zip.write(files));
+    await Edition.remember(ed, { files: new Map(files.map((f) => [f.name, f.data])), manifest: null });
     ed.lastPackage = Date.now();
     await Store.putEdition(ed);
     U.toast('Saved the edition package (' + ed.witnesses.length + ' witnesses). PDFs are not included.', 'ok', 4500);
@@ -223,11 +274,9 @@ To open it, use Import edition package on Manuscribe's start screen.
   // Reads a package into this browser. Witnesses of an edition already here are replaced, each
   // after an automatic backup; otherwise they become new projects.
   Edition.importPackage = async function (file, choose) {
-    const zip = await Zip.read(file);
-    if (!zip.has('edition.json')) throw new Error('this ZIP file has no edition.json');
-    const head = JSON.parse(Zip.text(zip.get('edition.json')));
-    if (!head.id || !Array.isArray(head.witnesses)) throw new Error('edition.json is not an edition');
-    if (head.schema > SCHEMA) throw new Error('this package was made by a newer version of Manuscribe');
+    const zip = file instanceof Map ? file : await Zip.read(file);
+    const pkg = Edition.readPackage(zip);
+    const head = pkg.head;
     const old = await Store.getEdition(head.id);
     let mode = 'new';
     if (old) {
@@ -237,11 +286,12 @@ To open it, use Import edition package on Manuscribe's start screen.
     const byDir = new Map(old && mode === 'replace' ? old.witnesses.map((w) => [safeName(w.siglum), w]) : []);
     const ed = Object.assign({}, head, { modified: Date.now(), lastPackage: old && mode === 'replace' ? old.lastPackage : 0 });
     if (mode === 'copy') { ed.id = U.uid('ed'); ed.title = (ed.title || 'Edition') + ' (copy)'; }
+    if (old && mode === 'replace' && old.github) ed.github = old.github;
     ed.witnesses = [];
     for (const w of head.witnesses) {
       const raw = zip.get('witnesses/' + w.dir + '/project.json');
       if (!raw) throw new Error('the package lacks witness ' + w.siglum);
-      const p = JSON.parse(Zip.text(raw));
+      const p = JSON.parse(typeof raw === 'string' ? raw : Zip.text(raw));
       const prior = byDir.get(w.dir);
       p.id = prior ? prior.projectId : U.uid('ms');
       Model.upgrade(p);
@@ -253,10 +303,9 @@ To open it, use Import edition package on Manuscribe's start screen.
       delete c.dir;
       ed.witnesses.push(c);
     }
+    await Edition.remember(ed, pkg);
     await Store.putEdition(ed);
-    const tables = [];
-    for (const [name, bytes] of zip) if (name.startsWith('collation/')) tables.push(JSON.parse(Zip.text(bytes)));
-    await ME.Collate.fromPackage(ed.id, tables);
+    await ME.Collate.fromPackage(ed.id, pkg.tables.map((x) => x.table));
     return ed;
   };
 
@@ -568,7 +617,12 @@ To open it, use Import edition package on Manuscribe's start screen.
         U.el('button', { class: 'btn small', onclick: () => ME.App.showStart() }, '‹ Start screen'),
         title,
         U.el('button', { class: 'btn small primary', onclick: () => Edition.exportPackage(ed).then(redraw) }, 'Export package'),
-        U.el('button', { class: 'btn small', onclick: () => batchForSaktumiva(ed, list) }, 'Export for Saktumiva')),
+        U.el('button', { class: 'btn small', onclick: () => batchForSaktumiva(ed, list) }, 'Export for Saktumiva'),
+        U.el('button', { class: 'btn small', title: 'Compare a package from another editor, or an older one, with this copy, and merge it', onclick: () => ME.ExchangeView.compareFile(ed, redraw) }, 'Compare and merge…'),
+        U.el('button', { class: 'btn small', title: 'Send the edition to a GitHub repository, or fetch and merge what is there', onclick: () => ME.ExchangeView.github(ed, redraw) }, 'GitHub…'),
+        U.el('button', { class: 'btn small', title: 'Freeze a version, check it, and make every output of it at once', onclick: () => ME.ExchangeView.issue(ed, list, redraw) }, 'Issue edition…'),
+        U.el('button', { class: 'btn small ghost', title: 'Both copies as they were before each merge', onclick: () => ME.ExchangeView.kept(ed) }, 'Kept copies')),
+      ed.issued ? U.el('p', { class: 'help' }, ME.Publish.citation(ed)) : null,
       remind,
       U.el('h2', null, 'Witnesses (' + ed.witnesses.length + ')'),
       witnessTable(ed, list, redraw),

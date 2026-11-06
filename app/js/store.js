@@ -6,7 +6,7 @@
   // The name the project had when these stores were first made. It must stay: changing it would
   // leave everything people have already saved in this browser out of reach.
   const DB_NAME = 'lipikara';
-  const DB_VERSION = 4;
+  const DB_VERSION = 5;
   const BACKUP_EVERY_MS = 20 * 60 * 1000;
   const BACKUPS_KEPT = 25;
   let db = null;
@@ -35,6 +35,7 @@
             }
             if (!d.objectStoreNames.contains('editions')) d.createObjectStore('editions', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('packs')) d.createObjectStore('packs', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('merges')) d.createObjectStore('merges', { keyPath: 'id' }).createIndex('edition', 'edition');
             if (!d.objectStoreNames.contains('collations')) {
               const c = d.createObjectStore('collations', { keyPath: 'key' });
               c.createIndex('edition', 'edition');
@@ -115,6 +116,11 @@
       await req(tx('editions', 'readwrite').delete(id));
       await Store.deleteCollations(id);
     },
+
+    // Both copies of an edition as they were before a merge, kept until the editor deletes them: {id, edition, when, by, mine, theirs}
+    async listMerges(edition) { if (fallback) return []; return (await req(tx('merges').index('edition').getAll(edition))).sort((a, b) => b.when - a.when); },
+    async putMerge(m) { if (fallback) return false; await req(tx('merges', 'readwrite').put(m)); return true; },
+    async deleteMerge(id) { if (fallback) return; await req(tx('merges', 'readwrite').delete(id)); },
 
     // Text packs for the concordance: {id, name, licence, source, lines}
     async listPacks() { if (fallback) return []; return req(tx('packs').getAll()); },

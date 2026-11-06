@@ -11,8 +11,12 @@
   // How the edition asks to be cited, with the version. The version is the editor's, or a dated draft.
   Publish.citation = function (ed, when) {
     const d = when || new Date();
-    const version = ed.version ? 'version ' + ed.version : 'draft of ' + longDate(d);
-    return (ed.title || 'Untitled edition') + (ed.editor ? ', edited by ' + ed.editor : '') + '. ' + ed.witnesses.length + ' witnesses; ' + version + '. Made with Manuscribe (https://github.com/drdhaval2785/manuscribe).';
+    // an issued version names its date; anything changed after it is a draft again
+    const issued = ed.issued && ed.issued.version === ed.version && !ed.issued.changed;
+    const version = issued ? 'version ' + ed.version + ', issued ' + longDate(new Date(ed.issued.date + 'T12:00:00'))
+      : ed.issued ? 'draft after version ' + ed.issued.version + ', of ' + longDate(d)
+        : ed.version ? 'version ' + ed.version + ' (not yet issued), draft of ' + longDate(d) : 'draft of ' + longDate(d);
+    return (ed.title || 'Untitled edition') + (ed.editor ? ', edited by ' + ed.editor : '') + '. ' + ed.witnesses.length + ' witnesses; ' + version + '.' + (ed.doi && issued ? ' ' + (/^10\./.test(ed.doi) ? 'https://doi.org/' + ed.doi : ed.doi) + '.' : '') + ' Made with Manuscribe ' + ME.VERSION + ' (https://github.com/drdhaval2785/manuscribe).';
   };
 
   /* The witnesses, for a conspectus siglorum: [{siglum, place, date, script, material, folios, group, trust}] */
