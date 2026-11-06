@@ -584,8 +584,14 @@ carry both texts. Where blocks are linked, the apparatus window and the reader s
   Evidence is printed in a testimonia tier, in TEI as `<note type="testimonium">`, and in print as series B. If the
   place it was recorded for is lost after a recollation, the apparatus checks say so.
 - **Metre:** where a block is verse, each reading in the text view shows whether the verse with that reading fits its
-  metre, or how many faults it has. Manuscribe recognises the śloka with its vipulās, the āryā by morae, upajāti and
-  nineteen even metres from Indravajrā to Sragdharā. It only ever flags; it never changes a reading.
+  metre, or how many faults it has. Manuscribe knows 1,366 metres counted by syllables: 1,197 with one pattern for
+  all four pādas, 134 with one for the odd and one for the even, and 35 with four, from the lists of Shreevatsa
+  Rajagopalan's *Sanskrit metres* (the Vṛttaratnākara and a large list, both input by Dr. Dhaval Patel). It checks
+  by their rules the śloka with its vipulās, upajāti, the āryā, gīti, upagīti, udgīti and āryāgīti by their gaṇas,
+  and the vaitālīya and aupacchandasika by morae and close. A short vowel before a word that begins with a stop and
+  r, as *pra* or *bhra*, may count as light. Faults are tolerated only where daṇḍas mark the half and the end of the
+  verse where the metre has them; otherwise one at most, so that prose is not taken for verse. Where several metres
+  fit equally, all are named. It only ever flags; it never changes a reading.
 - **Testimonia and parallels:** a register of passages elsewhere that quote this text or run parallel to it, under
   the apparatus.
 - **Concordance:** looks for words in your own witnesses and in texts you bring in, after this edition's
@@ -842,6 +848,7 @@ It includes these components, which keep their own licences:
 | [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174, Mozilla | Apache License 2.0 |
 | Tiro Devanagari Sanskrit, © The Indigo Project Authors ([Tiro Typeworks](https://github.com/TiroTypeworks/Indigo)) | SIL Open Font License 1.1 (`app/fonts/OFL.txt`) |
 | The aligner of [Saktumiva 2.0](https://github.com/chchch/saktumiva), Charles Li (`app/vendor/saktumiva-aligner.js`), and its normalisation rules, rewritten as data in `app/js/normalize.js` | GNU GPL 3.0 |
+| Metre lists of [Sanskrit metres](https://github.com/shreevatsa/sanskrit), Shreevatsa Rajagopalan, from the Vṛttaratnākara and a large list input by Dr. Dhaval Patel, the latter after Anand Mishra's [Chanda](http://sanskrit.sai.uni-heidelberg.de/Chanda/HTML/) as scraped by Mārcis Gasūns (`app/vendor/metres.js`, made by `tools/bundle-metres.mjs`) | GNU GPL 2.0, as in that project |
 | Element and attribute lists from the [TEI P5 Guidelines](https://tei-c.org/) | CC BY 3.0 and BSD 2-Clause, © TEI Consortium |
 
 The tag set follows the [Saktumiva TEI guide](https://www.saktumiva.org/wiki/tei).
