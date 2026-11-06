@@ -669,6 +669,11 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
   block with its [abbreviation], and one Collate for all of them. Each layer is still collated on its own, with only
   its own text, so a witness that lacks one commentary is absent from that one only. The work menu also offers each
   layer alone.
+- **Links come from the IDs.** Each commentary block is linked to the blocks it hangs on, and a sub-commentary's
+  base text is its commentary: *Edited text and apparatus…* of a layer shows above each block what it comments on.
+  An introduction to a chapter or to the text (`c2.0-1`, `c0-1`) hangs on the first base block there. The cases of
+  the DHARMA guide that an ID cannot say (a commentary passing over a verse, a base that is absent) are still set
+  by hand in **Links to the base text…**, and win over the ID.
 
 #### Commentaries, evidence and indices
 

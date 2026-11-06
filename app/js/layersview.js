@@ -63,12 +63,17 @@
   /* The base text beside a commentary, for the apparatus screen and the reader. -> {title, texts: {unit: text}} or null */
   LayersView.baseTexts = async function (ed, workId) {
     const baseId = L.baseOf(ed, workId);
-    if (!baseId || !L.links(ed, workId).length) return null;
-    const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === baseId);
+    if (!baseId) return null;
+    const all = await Store.listCollations(ed.id);
+    const recs = all.filter((r) => r.work === baseId);
+    // in a layered edition the links come from the IDs; else from what the editor set
+    const LI = ME.LayerIds;
+    const links = LI.layered(ed) && LI.codeOf(workId) ? LI.links(ed, workId, all.filter((r) => r.work === workId).map((r) => r.unit), recs.map((r) => r.unit)) : L.links(ed, workId);
+    if (!links.length) return null;
     const texts = {};
     for (const r of recs) texts[r.unit] = ME.Apparatus.entries(ed, ME.CollateEdit.ensure(r.table)).text.trim();
     const w = ed.works.find((x) => x.id === baseId);
-    return { title: w ? w.title : baseId, texts, links: L.links(ed, workId).map((l) => ({ unit: l.unit, base: l.base, kind: l.kind })) };
+    return { title: w ? w.title : baseId, texts, links: links.map((l) => ({ unit: l.unit, base: l.base, kind: l.kind })) };
   };
 
   /* ---------- registers ---------- */

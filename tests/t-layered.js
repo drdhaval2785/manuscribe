@@ -89,6 +89,17 @@ const { launch, sleep, checks } = require('./h');
   T.check('a commentary block has its own text only, though it is written in the same box as the base', cText.length === 3 && cText.every((t) => /व्याख्यानम्$/.test(t) && !/युयुत्सवः/.test(t)), cText);
   const rAbsent = await page.evaluate(async () => { const r = await ME.Store.getCollation(ME.Collate.keyOf(window.edId, 'L-r', 'r1-1')); return r.table.absent.map((a) => a.siglum); });
   T.check('a witness without one commentary is absent from it only', rAbsent.join() === 'C', rAbsent);
+  // the links, from the IDs alone
+  const links = await page.evaluate(async () => {
+    const ed = ME.Edition.current, LV = ME.LayersView;
+    const of = async (w) => { const x = await LV.baseTexts(ed, w); return x ? { title: x.title, links: Object.fromEntries(x.links.map((l) => [l.unit, l.base.join(' ')])), texts: x.texts } : null; };
+    return { c: await of('L-c'), ca: await of('L-ca'), r: await of('L-r'), b: await of('L-b'), base: ME.Layers.baseOf(ed, 'L-ca') };
+  });
+  T.check('each commentary block is linked to its parent by its ID: c1-0 and c1-1 to b1, ca1-1-1 to c1-1', links.c && links.c.links['c1-0'] === 'b1' && links.c.links['c1-1'] === 'b1' && links.c.links['c2-1'] === 'b2' && links.ca.links['ca1-1-1'] === 'c1-1' && links.r.links['r1-1'] === 'b1' && links.base === 'L-c' && links.b === null, links && { c: links.c && links.c.links, ca: links.ca && links.ca.links });
+  T.check('and a sub-commentary’s base text is its commentary’s', links.ca && /व्याख्यानम्/.test(links.ca.texts['c1-1'] || ''), links.ca && links.ca.texts);
+  await page.evaluate(async () => { ME.CollateView.workApparatus(ME.Edition.current, await Promise.all(ME.Edition.current.witnesses.map(async (w) => ({ w, p: ME.Model.upgrade(await ME.Store.getProject(w.projectId)) }))), 'L-ca'); await new Promise((r) => setTimeout(r, 800)); });
+  T.check('Edited text and apparatus of a sub-commentary shows above each block what it comments on', await page.evaluate(() => { const q = document.querySelector('.modal .ap-base'); return !!q && /व्याख्यानम्/.test(q.textContent); }));
+  await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

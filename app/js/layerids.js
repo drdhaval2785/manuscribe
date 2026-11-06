@@ -59,6 +59,26 @@
     return x.segs.length === x.depth ? { code, ids: [path] } : { code, prefix: path + '-' };
   };
 
+  /* The blocks a block hangs on, among the blocks its parent layer has: the exact ones, or all those of the whole
+     comment it is on. c2.0-1 and c0-1, before a chapter or the text, hang on its first base block. */
+  LI.parentsAmong = function (id, parentIds) {
+    const x = LI.parse(id);
+    const par = LI.parentOf(x);
+    if (!par) return [];
+    if (par.prefix) return parentIds.filter((t) => t.startsWith(par.prefix));
+    const hit = par.ids.filter((t) => parentIds.includes(t));
+    if (hit.length || par.code !== LI.BASE) return hit;
+    const lead = x.loci[0].replace(/(^|\.)0$/, '');
+    const first = parentIds.find((t) => !lead || t.slice(1) === lead || t.slice(1).startsWith(lead + '.'));
+    return first && /(^|\.)0$/.test(x.loci[0]) ? [first] : [];
+  };
+
+  /* Links of a layer's blocks to its parent layer's, from their IDs; the editor's own (Layers.setLink) win. */
+  LI.links = function (ed, workId, ids, parentIds) {
+    const own = new Map(((ed && ed.links) || []).filter((l) => l.work === workId).map((l) => [l.unit, l]));
+    return ids.map((id) => own.get(id) || { work: workId, unit: id, base: LI.parentsAmong(id, parentIds), kind: 'comments', fromId: true }).filter((l) => l.base.length || l.kind !== 'comments');
+  };
+
   /* ---------- the register of layers: what each letter stands for ---------- */
 
   LI.layered = (ed) => !!(ed && ed.layers && ed.layers.length);

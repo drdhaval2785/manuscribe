@@ -43,6 +43,9 @@
 
   // Which work a work comments on: the editor's word, else commentaries and glosses on the main text.
   Layers.baseOf = function (ed, workId) {
+    // a layer of a layered edition comments on the layer its letters say
+    const LI = ME.LayerIds, code = LI && LI.layered(ed) ? LI.codeOf(workId) : null;
+    if (code) { const pc = LI.parentCode(code); return pc ? LI.workId(pc) : null; }
     const r = ed.roles && ed.roles[workId];
     if (r) return r.on || null;
     return workId === 'main' ? null : 'main';
