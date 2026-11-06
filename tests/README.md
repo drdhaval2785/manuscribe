@@ -22,6 +22,7 @@ node run.js stemma collate               # only those whose names contain these 
 | `t-exchange.js` | Two editors in two browsers: packages compared three ways and merged, a seeded conflict settled, nothing lost; sending and fetching through a stand-in for GitHub (`mock-github.js`), behind refused, PDFs never sent; a version issued, its outputs carrying version and date |
 | `t-assists.js` | PAGE-XML, ALTO and text read; proposed lines never over typed ones and not collated until accepted; error rate; the memorisation test tells a source that reads from one that remembers; the shortcut; NeighborNet gives back a tree and draws 50 witnesses without crossings; coherence; DTS files of version 1.0 |
 | `t-pdf.js` | The PDF typeset in the browser: valid and read back by pdf.js, every glyph in the font, every note on the page of its line over many pages, text searchable, the button; and the owner's package |
+| `t-print.js` | Arabic, Japanese, English and Sanskrit editions from witnesses to print: letters compared as written; the print page laid out with every note on the page of its marker, Arabic right to left; the browser's PDF of it searchable; markers in the direct PDF; notes by line instead |
 | `t-screens.js` | Copying several lines; with the sample, the trust order, text view, apparatus, workbench, and the reader opened offline |
 
 Some tests use a real edition package: by default `~/Downloads/saroddhara.edition-2.zip`, or the file named in

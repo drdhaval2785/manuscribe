@@ -255,7 +255,8 @@
         sel('polarity', 'Polarity', [['auto', 'negative, positive where few have the lemma'], ['negative', 'negative'], ['positive', 'positive']]),
         sel('abbr', 'Abbreviations', Object.entries(A.ABBREVIATIONS).map(([k, v]) => [k, v.name])),
         tick('groups', 'Group sigla for whole groups'), tick('deest', 'Say which members of a group are lacking'),
-        tick('singular', 'Singular readings apart'), tick('orthographica', 'List spelling variants')),
+        tick('singular', 'Singular readings apart'), tick('orthographica', 'List spelling variants'),
+        sel('keys', 'Notes keyed by', [['markers', 'a numbered marker in the text'], ['lines', 'line numbers']])),
       U.el('p', { class: 'help' }, 'Abbreviations, which you can write in any language or script:'), abbrBox,
       U.el('p', { class: 'help' }, 'Groups are the Group of each witness in the witness list. A group siglum stands for a group only where all its witnesses that can be read agree.'));
     const list = U.el('div', { class: 'ap-list' });
@@ -330,19 +331,54 @@
       U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
       U.el('div', { class: 'nv-head' },
         U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built, layered), 'text/html') }, 'Reader (one HTML file)'),
-        U.el('button', { class: 'btn small primary', title: 'The print edition as a PDF, typeset here in the browser: nothing to install', onclick: async (ev) => {
+        U.el('button', { class: 'btn small primary', title: 'The edition laid out as pages by this browser, in any script and font; then Print, or Save as PDF', onclick: async () => {
+          try { await ME.PrintHTML.open(ed, witnesses || [], built); } catch (e) { U.toast('Could not open the print edition: ' + e.message, 'err', 8000); }
+        } }, 'Print edition (any script)'),
+        U.el('button', { class: 'btn small', title: 'The same print edition as one HTML file, to open and print later, on any computer', onclick: async () => download(base + '.print.html', ME.PrintHTML.html(ed, witnesses || [], built, { fonts: await ME.PrintHTML.fonts(ed, built) }), 'text/html') }, 'Save the print page'),
+        U.el('button', { class: 'btn small', title: 'A PDF file made directly, with Manuscribe’s own Devanagari and Latin font: nothing to print', onclick: async (ev) => {
           const btn = ev.currentTarget; btn.disabled = true; const was = btn.textContent; btn.textContent = 'Typesetting…';
           try { const r = await ME.Typeset.pdf(ed, witnesses || [], built); U.download(base + '.pdf', r.blob); U.toast('PDF of ' + r.pages + ' page(s)' + (r.overfull ? '; ' + r.overfull + ' page(s) with more notes than fit' : ''), r.overfull ? 'warn' : 'ok'); } catch (e) { U.toast('No PDF: ' + e.message, 'err', 8000); }
           btn.disabled = false; btn.textContent = was;
-        } }, 'Print edition (PDF)'),
+        } }, 'PDF file (Devanagari and Latin)'),
         U.el('button', { class: 'btn small', title: 'A reledmac file for XeLaTeX, with its font, to typeset on your computer or on Overleaf', onclick: async () => download(base + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ed, witnesses || [], built)), 'application/zip') }, 'Print edition (LaTeX)')),
-      U.el('p', { class: 'help' }, 'The PDF is typeset here, in the browser, with the text shaped by HarfBuzz in the edition’s font: the text with numbered lines, and the apparatus of each page at its foot. For the finest print, the LaTeX folder runs on XeLaTeX with reledmac: run xelatex three times, or upload it to Overleaf.'));
+      printSettings(ed, redraw),
+      U.el('p', { class: 'help' }, 'Print edition (any script) lays the edition out as pages in this browser, which sets any script, right to left as well, in the fonts you name: the notes of each page at its foot, keyed to markers in the text. Then choose Save as PDF in the print dialog: the PDF has its fonts and its text can be searched. PDF file (Devanagari and Latin) makes a PDF directly, in Manuscribe’s own font. For the finest print, the LaTeX folder runs on XeLaTeX with reledmac.'));
     const exports = U.el('div', { class: 'nv-head' },
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'),
       ME.DTS ? U.el('button', { class: 'btn small', title: 'The edition as static files in the shape of the Distributed Text Services API 1.0', onclick: async () => { const work = ed.works.find((k) => k.id === (tables[0] && tables[0].work)); download(fileSafe(ed.title || 'edition') + '.dts.zip', await ME.Zip.write(ME.DTS.files(ed, [{ work, built }])), 'application/zip'); } }, 'Save for DTS') : null);
     return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), exports, publish);
   };
+
+  // Paper, size and fonts for the print edition: any font on this computer, by name, or a font file of your own.
+  function printSettings(ed, redraw) {
+    const P = ME.PrintHTML;
+    const s = P.settings(ed);
+    const set = async (k, v) => { ed.print = Object.assign({}, ed.print, { [k]: v }); await Edition.save(ed); redraw(); };
+    const fileName = U.el('span', { class: 'help' });
+    if (s.fontId) Store.getFont(s.fontId).then((f) => { fileName.textContent = f ? 'Your font: ' + f.name + ' ' : ''; });
+    return U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'Paper and fonts for printing'),
+      U.el('div', { class: 'nv-head' },
+        U.el('label', null, 'Paper ', U.el('select', { onchange: (e) => set('paper', e.target.value) }, Object.entries(P.PAPER).map(([k, v]) => U.el('option', { value: k, selected: s.paper === k }, v.name)))),
+        U.el('label', null, 'Text size ', U.el('input', { type: 'number', min: 7, max: 20, step: 0.5, value: s.size, style: { width: '4.5em' }, onchange: (e) => set('size', +e.target.value || 12) }), ' pt'),
+        U.el('label', null, 'Fonts ', U.el('input', { type: 'text', value: s.font, placeholder: "e.g. 'Noto Naskh Arabic', 'Hiragino Mincho ProN'", style: { width: '22em' }, onchange: (e) => set('font', e.target.value.trim()) }))),
+      U.el('div', { class: 'nv-head' }, fileName,
+        U.el('button', { class: 'btn small', onclick: async () => {
+          const inp = U.el('input', { type: 'file', accept: '.ttf,.otf,.woff,.woff2,font/*' });
+          inp.addEventListener('change', async () => {
+            const f = inp.files[0];
+            if (!f) return;
+            const buf = new Uint8Array(await f.arrayBuffer());
+            let bin = ''; for (let i = 0; i < buf.length; i += 32768) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 32768));
+            const id = 'font-' + ed.id;
+            await Store.putFont({ id, name: f.name.replace(/\.[^.]+$/, ''), format: (f.name.match(/\.(\w+)$/) || [null, 'ttf'])[1].toLowerCase(), data: btoa(bin) });
+            set('fontId', id);
+          });
+          inp.click();
+        } }, 'Use a font file…'),
+        s.fontId ? U.el('button', { class: 'btn small', onclick: async () => { await Store.deleteFont(s.fontId); set('fontId', null); } }, 'Stop using it') : null),
+      U.el('p', { class: 'help' }, 'Fonts are tried in turn for each letter: a font file of yours first, then the fonts named here, then Manuscribe’s Devanagari font where the text needs it, then the browser’s own. A font file is kept in this browser and put into the print page.'));
+  }
 
   CollateView.workApparatus = async function (ed, list, workId) {
     const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId);

@@ -5,7 +5,7 @@
   const { U, UI, Norm, Tokens, Edition } = ME;
   const NormView = { opened: new Set() }; // which folded parts are open survives a redraw
 
-  const CLASSES = { punctuation: 'Punctuation', spacing: 'Spaces', gemination: 'Gemination', nasal: 'Nasals', avagraha: 'Avagraha', sandhi: 'Sandhi', orthographic: 'Other spelling' };
+  const CLASSES = { script: 'Script', punctuation: 'Punctuation', spacing: 'Spaces', gemination: 'Gemination', nasal: 'Nasals', avagraha: 'Avagraha', sandhi: 'Sandhi', orthographic: 'Other spelling' };
   const MAX_DIP = 20000, MAX_TOKENS = 4000;
 
   const normOf = (ed, list) => {

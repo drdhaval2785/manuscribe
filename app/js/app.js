@@ -920,7 +920,7 @@
       { n: 'form', label: 'Form', type: 'select', options: ['pothi', 'codex', 'book'] },
       { n: 'language', label: 'Language of the text', type: 'combo', options: ['Sanskrit', 'Prakrit', 'Apabhraṃśa', 'Old Gujarati', 'Gujarati', 'Hindi'] },
       { n: 'script', label: 'Script of the manuscript', type: 'combo', options: ['sa-Deva', 'sa-Shrd', 'sa-Newa', 'sa-Beng', 'sa-Gujr', 'sa-Mlym', 'sa-Telu', 'sa-Knda', 'sa-Taml', 'sa-Gran', 'sa-Orya', 'sa-Sidd'], help: 'Written as textLang/@mainLang in the header.' },
-      { n: 'textLang', label: 'Script of your transcription', type: 'select', options: ['sa-Latn', 'sa-Deva'], labels: ['IAST (sa-Latn) — recommended for Saktumiva', 'Devanagari (sa-Deva)'] },
+      { n: 'textLang', label: 'Language and script of your transcription', type: 'combo', options: ['sa-Latn', 'sa-Deva', 'pra-Deva', 'hi', 'gu', 'ar', 'fa', 'ur', 'he', 'grc', 'la', 'en', 'ja', 'zh', 'bo', 'ta'], help: 'A language tag (BCP 47), as sa-Latn for Sanskrit in IAST (recommended for Saktumiva), sa-Deva for Sanskrit in Devanagari, ar for Arabic, ja for Japanese. It goes into the TEI as xml:lang, and tells the print edition how to set the text.' },
       { n: 'transcriber', label: 'Transcribed by', type: 'text' },
       { n: 'notes', label: 'Notes', type: 'textarea' },
     ], p.meta);

@@ -420,8 +420,16 @@ Before witnesses can be compared, Manuscribe has to know what counts as the same
 **Normalisation** part of the edition screen sets this. It works on a copy: your transcriptions never
 change, and every normalised letter knows its place in the manuscript.
 
-- **Profiles:** Classical Sanskrit, Epic Sanskrit, Vedic (minimal), Jain Prakrit and Old Gujarati. The last
-  two are provisional and have not been checked against published editions.
+- **Profiles:** Classical Sanskrit, Epic Sanskrit, Vedic (minimal), Jain Prakrit and Old Gujarati, and **Any
+  language: letters as written**. Jain Prakrit and Old Gujarati are provisional and have not been checked against
+  published editions. The Sanskrit profiles compare Devanagari and IAST alike, through Manuscribe's own
+  transliteration; the profile for any language compares letters as they are written, in any script, with none of
+  the rules of Sanskrit, ignoring only punctuation (of any script) and spaces. With it you can also switch on
+  capital and small letters, and marks such as vowel points and accents, where your edition ignores them. A new
+  edition of a text in a language other than Sanskrit, Prakrit or Gujarati is offered it.
+- **The language of a witness** is set in the Manuscript tab as a language tag: `sa-Latn` for Sanskrit in IAST,
+  `sa-Deva` in Devanagari, `ar` for Arabic, `ja` for Japanese, and so on. It goes into the TEI, and tells the print
+  edition how to set the text.
 - **Rules:** switch any rule on or off for this edition. The Sanskrit rules come from Charles Li's
   Saktumiva 2.0.
 - **What each witness is known to do:** for example, that one manuscript writes b and v alike. This applies
@@ -542,15 +550,24 @@ draft). Every output then carries the same citation line. To release a version, 
   entry to read it in the text; **Read** shows the text of any one witness instead; switches show or hide spelling
   variants, singular readings and readings before correction, and colour the words by how much the witnesses differ.
   **Print a draft** prints, or saves as PDF, with the apparatus in two columns: a draft, not a typeset edition.
-- **Print edition (PDF):** the print edition typeset here, in the browser, in a moment and with nothing to install
-  or send anywhere. The text is shaped by [HarfBuzz](https://harfbuzz.github.io/) in Tiro Devanagari Sanskrit, so
-  that conjuncts, vowel signs and marks come out as the font draws them. A title page carries the conspectus and the
-  principles; then each block, its lines justified and numbered every five; and at the foot of each page the
-  apparatus of the lines on it, by block and line, in the same series as the LaTeX: A variants, B testimonia, C
-  singular readings, D spelling variants if listed, E the reasons for your decisions. A line goes over to the next
-  page if it and its notes do not fit there, so a note is always on the page of its line. Corrupt places are in
-  daggers, uncertain ones underlined with dots. The font is embedded, and the text can be searched and copied
-  (copied Devanagari comes out letter for letter, but, as from most PDFs, with ि and reph where they are drawn).
+- **Notes are keyed to the text:** each place with an entry has a small number after its reading, counting from 1
+  in each block, and its note at the foot of the page begins with the block and that number. Under **How the
+  apparatus is written**, *Notes keyed by* can be set to line numbers instead, as in many printed editions.
+- **Print edition (any script):** the edition laid out as pages by the browser itself, so that any language and
+  script is set as the browser sets it: Arabic and Hebrew right to left, Japanese and Chinese without spaces,
+  Devanagari with its conjuncts, in any fonts. The page cuts the text into pages with the notes of each page at its
+  foot, a note always on the page of its marker; lines are numbered every five, in the margin on the side the text
+  starts. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
+  **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, the
+  fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Save the print
+  page** saves the same page as one HTML file, to open and print on any computer. Copying text out of Chrome's PDF
+  keeps every letter in most scripts (an Arabic ligature such as Allah comes out as one sign), but not the letters
+  inside Devanagari conjuncts: for Devanagari, the next PDF copies better.
+- **PDF file (Devanagari and Latin):** a PDF made directly, with nothing to print: the text shaped by
+  [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, with the same title page,
+  numbered lines, markers and notes at the foot in series. Copied Devanagari comes out letter for letter, with ि
+  and reph where they are drawn, as from most PDFs. It knows only that font, and sets text left to right: for other
+  scripts, use the print edition above.
 - **Print edition (LaTeX):** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
   variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
@@ -894,6 +911,7 @@ app/js/
   exchangeview.js       the screens for comparing, GitHub, kept copies and issuing
   htr.js                text proposed by recognition or AI: PAGE-XML, ALTO and plain text, error rate, memorisation test
   dts.js                the edition as static files in the shape of DTS 1.0
+  printhtml.js          the print edition as pages laid out by the browser, in any script, for Save as PDF
   shaper.js             HarfBuzz text shaping, from WebAssembly, for the PDF
   pdfwrite.js           a small PDF writer: shaped glyphs in an embedded font, searchable
   typeset.js            the print edition as a PDF: pages, numbered lines, the apparatus at the foot

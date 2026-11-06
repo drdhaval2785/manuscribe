@@ -39,7 +39,7 @@ const { launch, checks } = require('./h');
     for (const [x, y] of [['atty annam', 'aty annam'], ['bala', 'vala'], ['śiva', 'siva'], ['7984', '8884'], ['rāma', 'rāmā']]) ok('keeps apart ' + x + ' / ' + y, !same(x, y));
     ok('Devanagari and IAST give the same', Norm.apply('कृष्णं वन्दे जगद्गुरुम्', { rules: cl }).text === Norm.apply('kṛṣṇaṃ vande jagadgurum', { rules: cl }).text);
     ok('a declaration applies to its witness', Norm.sameReading('bala', 'vala', cl, ['decl-bv'], []));
-    ok('five profiles, two provisional', Norm.PROFILES.length === 5 && Norm.PROFILES.filter((x) => x.provisional).length === 2);
+    ok('six profiles, one for any language, two provisional', Norm.PROFILES.length === 6 && Norm.PROFILES.some((x) => x.id === 'any') && Norm.PROFILES.filter((x) => x.provisional).length === 2);
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);

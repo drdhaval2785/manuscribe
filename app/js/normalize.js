@@ -41,6 +41,7 @@
   /* -> {text, at}. opts.skip: [[from, to]] of diplomatic text not to be compared; opts.gaps: [{at, quantity}]
      places where the witness has lost text, written as GAP characters that have no diplomatic letters. */
   Norm.fromDiplomatic = function (dip, opts) {
+    if (opts && opts.raw) return asWritten(dip, opts);
     const skip = (opts && opts.skip) || [];
     const gaps = ((opts && opts.gaps) || []).slice().sort((a, b) => a.at - b.at);
     const out = [], at = [];
@@ -158,7 +159,14 @@
   ];
   const BY_ID = new Map(Norm.RULES.map((r) => [r.id, r]));
   Norm.rule = (id) => BY_ID.get(id);
-  for (const r of Norm.RULES) r.re = new RegExp(r.search, 'g');
+  // For a text in any script: no transliteration, and rules that hold for any script.
+  Norm.RULES.push(
+    R('raw', 'Letters as written, in any script (no transliteration)', 'script', '(?!)', '', 'Manuscribe', { raw: true }),
+    R('u-punct', 'Punctuation of any script', 'punctuation', '[\\p{P}\\p{S}]+', '', 'Unicode, general categories P and S', { flags: 'gu' }),
+    R('u-case', 'Capital and small letters', 'orthographic', '\\p{Lu}', '', 'Unicode case folding', { flags: 'gu', fn: (m) => m.toLowerCase() }),
+    R('u-marks', 'Marks over and under letters, as vowel points and accents', 'orthographic', '\\p{Mn}+', '', 'Unicode, general category Mn, after canonical decomposition', { flags: 'gu' }),
+  );
+  for (const r of Norm.RULES) { r.re = new RegExp(r.search, r.flags || 'g'); BY_ID.set(r.id, r); }
 
   // What a witness may be declared to do: applied to that witness alone, not to the others.
   Norm.DECLARATIONS = [
@@ -189,6 +197,9 @@
     { id: 'pra-jain', version: 1, name: 'Jain Prakrit', provisional: true, align: ['verse-number', 'punct', 'iast-anusvara', 'candrabindu', 'pk-nasal', 'avagraha-extra', 'spaces'],
       hide: ['punctuation', 'spacing', 'nasal', 'avagraha'],
       note: 'Provisional: not checked against published Prakrit editions. Ya-śruti and ṇ/n are never merged unless you declare them for a witness, because they are unsettled editorial questions.' },
+    { id: 'any', version: 1, name: 'Any language: letters as written', align: ['raw', 'u-punct', 'spaces'],
+      hide: ['punctuation', 'spacing'],
+      note: 'For a text in any script: letters are compared as they are written, with no transliteration and none of the rules of Sanskrit. Only punctuation and spaces are ignored. Switch on capital and small letters, or marks such as vowel points and accents, if your edition ignores them too.' },
     { id: 'gu-old', version: 1, name: 'Old Gujarati', provisional: true, align: ['verse-number', 'punct', 'iast-anusvara', 'spaces'],
       hide: ['punctuation', 'spacing'],
       note: 'Provisional: not checked against published editions. Only punctuation and spaces are ignored; -ai/-e, -au/-o and nasal signs stay visible unless you switch them on.' },
@@ -202,7 +213,8 @@
     const l = String(language || '').toLowerCase();
     if (/prakrit|prākṛt|ardhamāgadh/.test(l)) return 'pra-jain';
     if (/gujar/.test(l)) return 'gu-old';
-    return 'sa-classical';
+    if (!l || /sanskrit|saṃskṛt|samskrit/.test(l)) return 'sa-classical';
+    return 'any';
   };
 
   // The rules in force for an edition's settings, in running order.
@@ -226,7 +238,7 @@
     };
   };
 
-  function applyRule(st, rule, hits) {
+  function applyRule(st, rule, hits, raw) {
     const matches = Array.from(st.text.matchAll(rule.re));
     if (!matches.length) return st;
     let text = '', pos = 0;
@@ -234,7 +246,7 @@
     const copy = (a, b) => { text += st.text.slice(a, b); for (let k = a; k < b; k++) at.push(st.at[k]); };
     for (const m of matches) {
       const a = m.index, b = a + m[0].length;
-      const r = rule.replace.replace(/\$(\d)/g, (_, k) => m[+k] || '');
+      const r = rule.fn ? rule.fn(m[0]) : rule.replace.replace(/\$(\d)/g, (_, k) => m[+k] || '');
       copy(pos, a);
       // what the match and its replacement share keeps its exact place in the manuscript
       let p = 0, s = 0;
@@ -245,7 +257,7 @@
       for (let k = 0; k < inserted.length; k++) { text += inserted[k]; at.push(st.at[a + p + Math.min(k, removed)]); }
       copy(b - s, b);
       pos = b;
-      if (hits) hits.push({ rule: rule.id, from: st.at[a], to: st.at[b], before: Norm.fromSlp(m[0]), after: Norm.fromSlp(r) });
+      if (hits) hits.push({ rule: rule.id, from: st.at[a], to: st.at[b], before: raw ? m[0] : Norm.fromSlp(m[0]), after: raw ? r : Norm.fromSlp(r) });
     }
     copy(pos, st.text.length);
     at.push(st.at[st.text.length]);
@@ -256,14 +268,37 @@
      -> {text, at, hits}; `text` has one character per sound (Norm.fromSlp makes it readable). */
   Norm.apply = function (dip, opts) {
     const o = opts || {};
-    let st = Norm.fromDiplomatic(dip, { skip: o.skip, gaps: o.gaps });
+    const raw = !!(o.rules && o.rules.has('raw'));
+    let st = Norm.fromDiplomatic(dip, { skip: o.skip, gaps: o.gaps, raw });
     const hits = [];
     for (const rule of Norm.RULES) {
-      if (rule.always || o.rules.has(rule.id) || (o.declared && o.declared.includes(rule.id))) st = applyRule(st, rule, hits);
+      if (rule.raw) continue;
+      // the rules of Sanskrit act on Manuscribe's transliteration, and so not on letters as written
+      if (raw && !rule.always && !/^u-|^spaces$/.test(rule.id)) continue;
+      if (rule.always || o.rules.has(rule.id) || (o.declared && o.declared.includes(rule.id))) st = applyRule(st, rule, hits, raw);
     }
     hits.sort((a, b) => a.from - b.from);
-    return { text: st.text, at: st.at, hits };
+    return { text: st.text, at: st.at, hits, raw };
   };
+
+  // Letters as written: only what is skipped, invisible or lost is handled, and marks are decomposed so that a rule
+  // can take them off. -> {text, at}
+  function asWritten(dip, opts) {
+    const skip = opts.skip || [];
+    const gaps = (opts.gaps || []).slice().sort((a, b) => a.at - b.at);
+    const out = [], at = [];
+    let sk = 0, g = 0;
+    for (let i = 0; i <= dip.length; i++) {
+      while (g < gaps.length && gaps[g].at <= i) { for (let q = 0; q < (gaps[g].quantity || 1); q++) { out.push(Norm.GAP); at.push(gaps[g].at); } g++; }
+      if (i === dip.length) break;
+      while (sk < skip.length && skip[sk][1] <= i) sk++;
+      if (sk < skip.length && skip[sk][0] <= i) continue;
+      if (INVISIBLE.test(dip[i])) continue;
+      for (const c of dip[i].normalize('NFD')) { out.push(c); at.push(i); }
+    }
+    at.push(dip.length);
+    return { text: out.join(''), at };
+  }
 
   // Do two readings count as the same? The declarations of both witnesses apply to both readings.
   Norm.sameReading = function (a, b, rules, declaredA, declaredB) {
@@ -295,7 +330,7 @@
     if (!out.length) return [{ from: 0, to: st.at[st.at.length - 1], slp: '', n: '' }];
     return out.map((t) => {
       const slp = st.text.slice(t.start, t.end).trim();
-      return { from: st.at[t.start], to: st.at[t.end], slp, n: Norm.fromSlp(slp) };
+      return { from: st.at[t.start], to: st.at[t.end], slp, n: st.raw ? slp.normalize('NFC') : Norm.fromSlp(slp) };
     });
   };
 

@@ -90,10 +90,10 @@ const { launch, sleep, checks, importSample, WORK } = require('./h');
   const cdp = await page.createCDPSession(); await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dl });
   await page.evaluate(() => { ME.CollateView.workApparatus(window.ed, window.list, 'main'); });
   await sleep(900);
-  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find((b) => b.textContent === 'Print edition (PDF)').click());
+  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find((b) => b.textContent === 'PDF file (Devanagari and Latin)').click());
   for (let k = 0; k < 40 && !fs.readdirSync(dl).some((f) => f.endsWith('.pdf')); k++) await sleep(250);
   const file = fs.readdirSync(dl).find((f) => f.endsWith('.pdf'));
-  T.check('Print edition (PDF) saves a PDF', !!file && fs.statSync(path.join(dl, file)).size > 100000, file);
+  T.check('PDF file (Devanagari and Latin) saves a PDF', !!file && fs.statSync(path.join(dl, file)).size > 100000, file);
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   await sleep(300);
 

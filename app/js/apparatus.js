@@ -16,7 +16,7 @@
     latin: { name: 'Latin', om: 'om.', add: 'add.', post: 'post', ante: 'ante', transp: 'transp.', lac: 'lac.', illeg: 'illeg.', ac: 'a.c.', pc: 'p.c.', em: 'em.', conj: 'conj.', omnes: 'omnes', rell: 'rell.', deest: 'deest', crux: '†' },
     english: { name: 'English', om: 'omits', add: 'adds', post: 'after', ante: 'before', transp: 'transposes', lac: 'lost in', illeg: 'illegible in', ac: 'before correction', pc: 'after correction', em: 'emended', conj: 'conjectured', omnes: 'all', rell: 'the rest', deest: 'lacking', crux: '†' },
   };
-  App_.DEFAULTS = { polarity: 'auto', abbr: 'latin', groups: true, deest: true, orthographica: false, singular: false, star: 60, custom: null };
+  App_.DEFAULTS = { polarity: 'auto', abbr: 'latin', groups: true, deest: true, orthographica: false, singular: false, star: 60, custom: null, keys: 'markers' };
   App_.settings = (ed) => Object.assign({}, App_.DEFAULTS, ed.apparatus || {});
   App_.abbr = (ed) => { const s = App_.settings(ed); return Object.assign({}, App_.ABBREVIATIONS[s.abbr] || App_.ABBREVIATIONS.latin, s.custom || {}); };
 
@@ -173,6 +173,48 @@
     }
     const testimonia = entries.filter((e) => e.testimonia && e.testimonia.length);
     return { variants, singular, orthographica, testimonia };
+  };
+
+  /* The series in which an entry is printed, as in the print editions: A variants, B testimonia, C singular readings,
+     D spelling (if listed), E the editor's reasons. */
+  App_.series = function (ed, b, e, tiers) {
+    const s = tiers || App_.tiers(ed, b.entries);
+    const out = [];
+    if (e.kind === 'orthographic') { if (s.orthographica.includes(e)) out.push('D'); } else if (e.kind !== 'testimonium') out.push(s.singular.includes(e) ? 'C' : 'A');
+    if (e.testimonia && e.testimonia.length) out.push('B');
+    if (e.decision && (e.decision.reasons || e.decision.note || e.decision.source)) out.push('E');
+    return out;
+  };
+
+  /* The note markers of a block: each printed entry, in the order of the text, numbered from 1 in each block.
+     -> Map(entry index -> number) */
+  App_.markers = function (ed, b) {
+    const tiers = App_.tiers(ed, b.entries);
+    const out = new Map();
+    let n = 0;
+    b.entries.forEach((e, i) => { if (App_.series(ed, b, e, tiers).length) out.set(i, ++n); });
+    return out;
+  };
+
+  /* Where each entry is in the block's edited text: the offset just after its lemma, or, for an omission or
+     addition, the place between words. -> {text, anchors: [{i, at, empty}], crux: [[from, to]], unsure: [[from, to]]} */
+  App_.anchors = function (b) {
+    const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
+    let text = '';
+    const anchors = [], crux = [], unsure = [];
+    for (const u of b.proposal.units) {
+      const i = byFrom.get(u.fromId);
+      const e = i === undefined ? null : b.entries[i];
+      const d = e && e.decision;
+      let t = u.text;
+      if (d && d.crux) t = t.replace(/^(\s*)(.*?)(\s*)$/, '$1†$2†$3');
+      const lead = (t.match(/^\s*/) || [''])[0].length;
+      const core = t.trim().length;
+      if (e) anchors.push({ i, at: text.length + lead + core, start: text.length + lead, empty: !core });
+      if (d && d.confidence === 'low' && core) unsure.push([text.length + lead, text.length + lead + core]);
+      text += t;
+    }
+    return { text, anchors, crux, unsure };
   };
 
   /* ---------- checks ---------- */

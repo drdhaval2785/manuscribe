@@ -17,17 +17,21 @@
 
   // An atom: {t, size, rise, gap (space before it, in points), mark?}; a paragraph is a list of atoms.
   function makeLayout(font) {
-    const width = (a) => font.width(a.t, { lang: 'sa' }) * a.size / font.upem;
+    const bare = (a) => font.width(a.t, { lang: 'sa' }) * a.size / font.upem;
+    // a word's note markers ride on it, raised and small, and are never parted from it
+    const supSize = (a) => a.size * 0.62;
+    const supW = (a) => (a.sup ? font.width(a.sup) * supSize(a) / font.upem + a.size * 0.04 : 0);
+    const width = (a) => bare(a) + supW(a);
     const space = (size) => font.width(' ') * size / font.upem;
     // a word too long for the line is broken between letters, with a hyphen
     function split(a, w) {
       const parts = [];
       let cur = '';
       for (const g of graphemes(a.t)) {
-        if (cur && width(Object.assign({}, a, { t: cur + g + '-' })) > w) { parts.push(cur + '-'); cur = g; } else cur += g;
+        if (cur && bare(Object.assign({}, a, { t: cur + g + '-' })) > w - supW(a)) { parts.push(cur + '-'); cur = g; } else cur += g;
       }
       parts.push(cur);
-      return parts.map((t, i) => Object.assign({}, a, { t, gap: i ? 0 : a.gap, cont: i > 0 }));
+      return parts.map((t, i) => Object.assign({}, a, { t, gap: i ? 0 : a.gap, cont: i > 0, sup: i === parts.length - 1 ? a.sup : undefined, entries: i === parts.length - 1 ? a.entries : [] }));
     }
     /* -> [{atoms: [{...a, x, w}], end: bool (last of the paragraph), natural}] */
     function lines(atoms, w, justify) {
@@ -80,40 +84,29 @@
       push(html.slice(last), false);
       return out;
     };
-    return { lines, words, rich, width, space };
+    return { lines, words, rich, width, space, bare, supSize };
   }
 
   /* ---------- the edited text of a block ---------- */
 
-  // The block's text as words, each knowing the entries that start in it.
-  function blockWords(b, size, L) {
-    const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
-    let text = '';
-    const starts = []; // [offset, entry index]
-    const marks = []; // [from, to, 'unsure']
-    for (const u of b.proposal.units) {
-      const i = byFrom.get(u.fromId);
-      const e = i === undefined ? null : b.entries[i];
-      let t = u.text;
-      const d = e && e.decision;
-      if (d && d.crux) t = t.replace(/^(\s*)(.*?)(\s*)$/, '$1†$2†$3');
-      const lead = (t.match(/^\s*/) || [''])[0].length;
-      if (e) starts.push([text.length + lead, i]);
-      if (d && d.confidence === 'low') marks.push([text.length + lead, text.length + t.trimEnd().length]);
-      text += t;
-    }
-    text = text.replace(/\s+/g, ' ');
-    // words with their offsets
+  /* The block's text as words. Each entry is anchored after its lemma (an omission or addition, after the word
+     before it), and the word there carries the entry and, if notes are keyed by markers, its number. */
+  function blockWords(ed, b, size, L, markers) {
+    const { text: raw, anchors, unsure } = ME.Apparatus.anchors(b);
+    const text = raw.replace(/\s/g, ' ');
     const atoms = [];
     const re = /\S+/g;
     let m;
-    while ((m = re.exec(text))) atoms.push({ t: m[0].normalize('NFC'), size, rise: 0, gap: atoms.length ? L.space(size) : 0, from: m.index, to: m.index + m[0].length });
-    for (const a of atoms) {
-      a.entries = starts.filter(([o]) => o >= a.from && o < a.to + 1).map(([, i]) => i);
-      a.unsure = marks.some(([f, t]) => f < a.to && t > a.from);
+    while ((m = re.exec(text))) atoms.push({ t: m[0].normalize('NFC'), size, rise: 0, gap: atoms.length ? L.space(size) : 0, from: m.index, to: m.index + m[0].length, entries: [] });
+    for (const an of anchors) {
+      let a;
+      if (!an.empty) a = atoms.find((x) => x.from < an.at && x.to >= an.at);
+      if (!a) a = atoms.filter((x) => x.to <= an.start).pop() || atoms.find((x) => x.from >= an.start) || atoms[atoms.length - 1];
+      if (!a) continue;
+      a.entries.push(an.i);
+      if (markers && markers.has(an.i)) a.sup = (a.sup ? a.sup + ',' : '') + markers.get(an.i);
     }
-    // an entry that starts in a space belongs to the word after it
-    for (const [o, i] of starts) if (!atoms.some((a) => a.entries.includes(i))) { const a = atoms.find((x) => x.from >= o) || atoms[atoms.length - 1]; if (a) a.entries.push(i); }
+    for (const a of atoms) a.unsure = unsure.some(([f, t]) => f < a.to && t > a.from);
     return atoms;
   }
 
@@ -121,19 +114,12 @@
 
   const SERIES = [['A', ''], ['B', 'Testimonia: '], ['C', 'Singular readings: '], ['D', 'Spelling: '], ['E', 'Decisions: ']];
 
-  function seriesOf(ed, b, e) {
-    const s = ME.Apparatus.tiers(ed, b.entries);
-    const out = [];
-    if (e.kind === 'orthographic') { if (s.orthographica.includes(e)) out.push('D'); } else if (e.kind !== 'testimonium') out.push(s.singular.includes(e) ? 'C' : 'A');
-    if (e.testimonia && e.testimonia.length) out.push('B');
-    if (e.decision && (e.decision.reasons || e.decision.note || e.decision.source)) out.push('E');
-    return out;
-  }
+  const seriesOf = (ed, b, e) => ME.Apparatus.series(ed, b, e);
 
   // the atoms of one note: line number, lemma ] readings, in its series
   function noteAtoms(ed, note, s, L, size) {
-    const { e, line, unit, first } = note;
-    const head = (first ? [{ t: unit + ':', size, rise: 0, gap: 0, mark: 'unit' }] : []).concat([{ t: String(line), size, rise: 0, gap: first ? L.space(size) : 0, mark: 'num' }]);
+    const { e, line, unit, first, marker } = note;
+    const head = (first ? [{ t: unit + ':', size, rise: 0, gap: 0, mark: 'unit' }] : []).concat([{ t: String(marker || line), size, rise: 0, gap: first ? L.space(size) : 0, mark: 'num' }]);
     let body;
     if (s === 'B') body = (e.lemma || '⌀') + ' ] ' + e.testimonia.map(ME.Layers.formatEvidence).join('; ');
     else if (s === 'E') { const d = e.decision; body = (e.lemma || '⌀') + ' ] ' + [d.type === 'selectio' ? 'chosen' : d.type, d.source, ...(d.reasons || []), d.note].filter(Boolean).join('; '); }
@@ -166,7 +152,8 @@
         const gl = font.shape(t, { lang: 'sa' });
         missing += gl.filter((g) => g.g === 0).length;
         page.glyphs(gl, x0 + a.x, base - (a.rise || 0), a.size, t, a.mark === 'num' || a.mark === 'unit' ? [0.35, 0.3, 0.25] : null);
-        if (a.unsure) page.line(x0 + a.x, base + 2.5, x0 + a.x + a.w, base + 2.5, 0.5, [1.5, 1.2]);
+        if (a.sup) { const ss = L.supSize(a); page.glyphs(font.shape(a.sup), x0 + a.x + L.bare(a) + a.size * 0.04, base - a.size * 0.38, ss, a.sup, [0.55, 0.15, 0.1]); }
+        if (a.unsure) page.line(x0 + a.x, base + 2.5, x0 + a.x + L.bare(a), base + 2.5, 0.5, [1.5, 1.2]);
       }
     };
     const header = (title) => {
@@ -237,7 +224,7 @@
       return h;
     };
     const finishPage = () => {
-      const rec = { page: pageNo, lines: bodyLines.filter((l) => l.unit).map((l) => l.unit + ':' + l.n), notes: notes.map((n) => n.unit + ':' + n.line), bodyEnd: bodyLines.length ? bodyLines[bodyLines.length - 1].base + o.size * 0.3 : 0, footTop: notes.length ? H - o.bottom - footHeight(notes) + 4 : H - o.bottom, limit: H - o.bottom };
+      const rec = { page: pageNo, lines: bodyLines.filter((l) => l.unit).map((l) => l.unit + ':' + l.n), notes: notes.map((n) => n.unit + ':' + n.line), markers: bodyLines.flatMap((l) => (l.atoms || []).filter((a) => a.sup).flatMap((a) => a.sup.split(',').map((x) => l.unit + '#' + x))), noted: notes.filter((n) => n.marker).map((n) => n.unit + '#' + n.marker), bodyEnd: bodyLines.length ? bodyLines[bodyLines.length - 1].base + o.size * 0.3 : 0, footTop: notes.length ? H - o.bottom - footHeight(notes) + 4 : H - o.bottom, limit: H - o.bottom };
       if (bodyLines.length) layout.push(rec);
       for (const l of bodyLines) {
         draw(l.atoms, left(), l.base);
@@ -267,13 +254,16 @@
       notes = []; bodyLines = [];
     };
     const room = (extraLines, extraNotes) => y + extraLines * o.lead + footHeight(notes.concat(extraNotes)) <= avail();
+    const byMarkers = ME.Apparatus.settings(ed).keys !== 'lines';
     for (const b of built) {
-      const atoms = blockWords(b, o.size, L);
+      const markers = byMarkers ? ME.Apparatus.markers(ed, b) : null;
+      const atoms = blockWords(ed, b, o.size, L, markers);
+      const note = (ei, line) => ({ e: b.entries[ei], line, marker: markers ? markers.get(ei) : null, unit: b.table.unit, series: seriesOf(ed, b, b.entries[ei]) });
       const lines = L.lines(atoms, bodyW, true);
       // the block's id, kept with its first two lines
       const first = lines.slice(0, 2);
       const firstNotes = [];
-      first.forEach((l, i) => { for (const a of l.atoms) for (const ei of a.entries || []) firstNotes.push({ e: b.entries[ei], line: i + 1, unit: b.table.unit, series: seriesOf(ed, b, b.entries[ei]) }); });
+      first.forEach((l, i) => { for (const a of l.atoms) for (const ei of a.entries || []) firstNotes.push(note(ei, i + 1)); });
       if (!room(1.6 + first.length, firstNotes) && (bodyLines.length || notes.length)) { finishPage(); newPage(running); }
       y += o.lead * 0.4;
       bodyLines.push({ atoms: L.words(b.table.unit, o.small, { mark: 'unit' }).map((a, i) => Object.assign(a, { x: 0, w: 0 })), base: y + o.small, heading: false });
@@ -282,7 +272,7 @@
       y += o.lead * 0.9;
       lines.forEach((l, i) => {
         const here = [];
-        for (const a of l.atoms) for (const ei of a.entries || []) here.push({ e: b.entries[ei], line: i + 1, unit: b.table.unit, series: seriesOf(ed, b, b.entries[ei]) });
+        for (const a of l.atoms) for (const ei of a.entries || []) here.push(note(ei, i + 1));
         if (!room(1, here) && bodyLines.length) {
           finishPage(); newPage(running);
           if (!room(1, here)) overfull++;

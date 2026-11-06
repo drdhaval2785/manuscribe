@@ -6,7 +6,7 @@
   // The name the project had when these stores were first made. It must stay: changing it would
   // leave everything people have already saved in this browser out of reach.
   const DB_NAME = 'lipikara';
-  const DB_VERSION = 5;
+  const DB_VERSION = 6;
   const BACKUP_EVERY_MS = 20 * 60 * 1000;
   const BACKUPS_KEPT = 25;
   let db = null;
@@ -35,6 +35,7 @@
             }
             if (!d.objectStoreNames.contains('editions')) d.createObjectStore('editions', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('packs')) d.createObjectStore('packs', { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('fonts')) d.createObjectStore('fonts', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('merges')) d.createObjectStore('merges', { keyPath: 'id' }).createIndex('edition', 'edition');
             if (!d.objectStoreNames.contains('collations')) {
               const c = d.createObjectStore('collations', { keyPath: 'key' });
@@ -116,6 +117,11 @@
       await req(tx('editions', 'readwrite').delete(id));
       await Store.deleteCollations(id);
     },
+
+    // Fonts the editor gives for printing: {id, name, format, data (base64)}
+    async getFont(id) { if (fallback) return null; return req(tx('fonts').get(id)); },
+    async putFont(f) { if (fallback) return false; await req(tx('fonts', 'readwrite').put(f)); return true; },
+    async deleteFont(id) { if (fallback) return; await req(tx('fonts', 'readwrite').delete(id)); },
 
     // Both copies of an edition as they were before a merge, kept until the editor deletes them: {id, edition, when, by, mine, theirs}
     async listMerges(edition) { if (fallback) return []; return (await req(tx('merges').index('edition').getAll(edition))).sort((a, b) => b.when - a.when); },
