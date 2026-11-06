@@ -265,7 +265,8 @@
       const old = m.has(key) ? await Store.getCollation(key) : null;
       const same = old && !o.force && !old.table.imported && old.paramsKey === paramsKey && JSON.stringify(sortKeys(old.table.inputs)) === JSON.stringify(sortKeys(inputs));
       if (same) {
-        // the same text: only what the editor says about absent witnesses can have changed
+        // the same text: only what the editor says about absent witnesses, and the folio names, can have changed
+        for (const st of states) if (old.table.states[st.label]) old.table.states[st.label].runs = stateRecord(st).runs;
         old.seen = seen;
         old.table.absent = absent;
         await save(ed.id, old);

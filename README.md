@@ -597,11 +597,16 @@ Say which folio the first PDF page with text shows, and whether each PDF page sh
 sides. The pages after it are numbered 1r, 1v, 2r, 2v and so on. You can change this in the Manuscript
 tab, and rename any single folio in the Folio tab (the following ones are not renumbered).
 
-Name the folios the manuscript lacks as `7, 12-14, 20v`. A number leaves out both sides of that folio,
-and `20v` leaves out one side. The PDF pages then map to the folios that remain.
+Some manuscripts give every side its own number, so that the back of 5 is 6. For these, choose **side:
+neither: each side has its own page number**, and the sides are numbered 1, 2, 3 and so on, with no r or v.
 
-Your text is stored by folio number. Changing the numbering changes which PDF page is shown beside a
-folio, not the text of that folio.
+Name the folios the manuscript lacks as `7, 12-14, 20v`. A number leaves out both sides of that folio,
+and `20v` leaves out one side. With page numbers, `7, 12-14` are pages. The PDF pages then map to the
+folios that remain.
+
+Your text is stored by folio or page number. When you change the numbering of a transcription that has
+text, you choose: each side keeps its text beside the same PDF page and takes its new number, or keeps its
+number and sits beside another PDF page. A backup is made first either way.
 
 ## Settings
 

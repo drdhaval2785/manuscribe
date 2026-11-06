@@ -221,9 +221,21 @@
     const cards = layoutCards(type, (k) => { type = k; lines.draw(k); });
     const firstPage = U.el('input', { type: 'number', min: '1', value: '1' });
     const startNo = U.el('input', { type: 'number', min: '0', value: '1' });
-    const startSide = U.el('select', null, U.el('option', { value: 'r' }, 'recto (r)'), U.el('option', { value: 'v' }, 'verso (v)'));
+    const startSide = U.el('select', null, U.el('option', { value: 'r' }, 'recto (r)'), U.el('option', { value: 'v' }, 'verso (v)'), U.el('option', { value: 'p' }, 'neither: each side has its own page number'));
     const sides = U.el('select', null, U.el('option', { value: '1' }, 'one folio side'), U.el('option', { value: '2' }, 'two folio sides (upper & lower half)'));
     const missing = U.el('input', { type: 'text', placeholder: 'e.g. 7, 12-14, 20v' });
+    const numberLabel = U.el('span', null, 'is folio number');
+    const numberingHelp = U.el('p', { class: 'help' });
+    const explainNumbering = () => {
+      const byPage = startSide.value === 'p';
+      numberLabel.textContent = byPage ? 'is page number' : 'is folio number';
+      missing.placeholder = byPage ? 'e.g. 7, 12-14' : 'e.g. 7, 12-14, 20v';
+      numberingHelp.textContent = byPage
+        ? 'Following sides are numbered 1, 2, 3…, one number for each side, as when a manuscript writes a number on every side. Missing pages are skipped. Any side can be renamed later (Folio tab).'
+        : 'Following sides are numbered 1r, 1v, 2r, 2v…, skipping the missing folios. If the manuscript gives each side its own number, choose “neither” under side. Any side can be renamed later (Folio tab).';
+    };
+    startSide.addEventListener('change', explainNumbering);
+    explainNumbering();
     const err = U.el('div', { class: 'field-error' });
     const body = U.el('div', { class: 'new-project' },
       U.el('section', null, U.el('h3', null, '1 · Manuscript PDF'), U.el('div', { class: 'file-row' }, pickBtn, fileName, fileInput),
@@ -238,11 +250,11 @@
         U.el('p', { class: 'help' }, 'Individual folios can differ — you can change the number of lines on any folio while typing.')),
       U.el('section', null, U.el('h3', null, '4 · Folio numbering'), U.el('div', { class: 'row4' },
         U.el('label', { class: 'field' }, U.el('span', null, 'First PDF page with text'), firstPage),
-        U.el('label', { class: 'field' }, U.el('span', null, 'is folio number'), startNo),
+        U.el('label', { class: 'field' }, numberLabel, startNo),
         U.el('label', { class: 'field' }, U.el('span', null, 'side'), startSide),
         U.el('label', { class: 'field' }, U.el('span', null, 'Each PDF page shows'), sides)),
         U.el('label', { class: 'field' }, U.el('span', null, 'Folios missing from the manuscript (optional)'), missing),
-        U.el('p', { class: 'help' }, 'Following pages are numbered 1r, 1v, 2r, 2v…, skipping the missing folios. Any page can be renamed later (Folio tab).')),
+        numberingHelp),
       err);
     const ok = await UI.modal({
       title: 'New transcription', body, wide: true,
@@ -250,8 +262,8 @@
         label: 'Create', kind: 'primary', value: true,
         validate: () => {
           if (!file) { err.textContent = 'Please choose the manuscript PDF.'; return false; }
-          const bad = Model.parseMissing(missing.value).bad;
-          if (bad.length) { err.textContent = 'Missing folios: “' + bad[0] + '” is not understood. Write e.g. 7, 12-14, 20v'; return false; }
+          const bad = Model.parseMissing(missing.value, startSide.value === 'p').bad;
+          if (bad.length) { err.textContent = 'Missing ' + (startSide.value === 'p' ? 'pages' : 'folios') + ': “' + bad[0] + '” is not understood. Write e.g. ' + (startSide.value === 'p' ? '7, 12-14' : '7, 12-14, 20v'); return false; }
           return true;
         },
       }],
@@ -940,22 +952,47 @@
     const fo = p.folios;
     const numbering = UI.form([
       { n: 'firstPage', label: 'First PDF page with text', type: 'number' },
-      { n: 'startNo', label: 'is folio number', type: 'number' },
-      { n: 'startSide', label: 'side', type: 'select', options: ['r', 'v'], labels: ['recto', 'verso'] },
+      { n: 'startNo', label: Model.byPage(fo) ? 'is page number' : 'is folio number', type: 'number' },
+      { n: 'startSide', label: 'side', type: 'select', options: ['r', 'v', 'p'], labels: ['recto', 'verso', 'neither: each side has its own page number'] },
       { n: 'sidesPerPage', label: 'Each PDF page shows', type: 'select', options: ['1', '2'], labels: ['one folio side', 'two folio sides'] },
-      { n: 'missing', label: 'Folios missing from the manuscript', type: 'text', placeholder: 'e.g. 7, 12-14, 20v', help: 'These numbers are skipped when the PDF pages are numbered, so that the pages after a gap keep their true folio numbers.' },
+      { n: 'missing', label: Model.byPage(fo) ? 'Pages missing from the manuscript' : 'Folios missing from the manuscript', type: 'text', placeholder: Model.byPage(fo) ? 'e.g. 7, 12-14' : 'e.g. 7, 12-14, 20v', help: 'These numbers are skipped when the PDF pages are numbered, so that the pages after a gap keep their true numbers.' },
     ], { firstPage: fo.firstPage, startNo: fo.startNo, startSide: fo.startSide, sidesPerPage: String(fo.sidesPerPage), missing: fo.missing || '' });
     numbering.el.addEventListener('change', async () => {
       const v = numbering.values();
       const next = { firstPage: Math.max(1, +v.firstPage || 1), startNo: Math.max(0, +v.startNo || 0), startSide: v.startSide, sidesPerPage: +v.sidesPerPage, missing: v.missing };
-      const bad = Model.parseMissing(v.missing).bad;
-      if (bad.length) { U.toast('Missing folios: “' + bad[0] + '” is not understood. Write e.g. 7, 12-14, 20v', 'warn', 5000); return; }
+      const bad = Model.parseMissing(v.missing, v.startSide === 'p').bad;
+      if (bad.length) { U.toast('Missing ' + (v.startSide === 'p' ? 'pages' : 'folios') + ': “' + bad[0] + '” is not understood. Write e.g. ' + (v.startSide === 'p' ? '7, 12-14' : '7, 12-14, 20v'), 'warn', 5000); return; }
       const hasData = Object.values(p.pages).some(Model.pageHasContent);
-      if (hasData && !(await UI.confirm('Your transcription is stored by folio number. Changing the numbering changes which PDF page is shown next to each transcribed folio (the text itself stays with its folio number).', { ok: 'Change numbering' }))) { renderMsTab(); return; }
+      let follow = false;
+      if (hasData) {
+        const choice = await UI.modal({
+          title: 'Change the numbering',
+          body: U.el('p', { class: 'confirm-text' }, 'Your transcription is stored by folio or page number. Should each transcribed side keep its text beside the same PDF page, taking its new number? Or keep its present number, which then sits beside a different PDF page? Either way, a backup is made first.'),
+          buttons: [{ label: 'Cancel', value: null, kind: 'ghost' }, { label: 'Keep the numbers', value: 'numbers' }, { label: 'Keep beside the same PDF page', value: 'pages', kind: 'primary' }],
+        });
+        if (!choice) { renderMsTab(); return; }
+        follow = choice === 'pages';
+        await Store.backupNow(p);
+      }
+      const before = Model.entries(p);
       Object.assign(p.folios, next);
+      if (follow) {
+        // each side's text goes to the new number of its PDF page
+        const after = new Map(Model.entries(p).filter((e) => !e.orphan).map((e) => [e.key, e.label]));
+        const moved = {};
+        const keep = Object.assign({}, p.pages);
+        for (const e of before) {
+          if (e.orphan || !after.has(e.key) || !keep[e.label]) continue;
+          moved[after.get(e.key)] = keep[e.label];
+          delete keep[e.label];
+        }
+        for (const [label, pg] of Object.entries(keep)) if (!moved[label]) moved[label] = pg;
+        p.pages = moved;
+      }
       App.entries = Model.entries(p);
       App.changed();
       App.go(Math.min(App.idx, App.entries.length - 1), { noFocus: true });
+      renderMsTab();
     });
     const storageNote = U.el('p', { class: 'help' });
     Store.status().then((st) => {

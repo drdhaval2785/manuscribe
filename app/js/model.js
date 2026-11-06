@@ -140,11 +140,20 @@
 
   /* ---------- folio mapping ---------- */
 
+  // How the sides are numbered: 'r' or 'v' for folios (1r, 1v, 2r…), starting on that side; 'p' when each
+  // side has its own number, as pages do (1, 2, 3…).
+  Model.byPage = (folios) => folios && folios.startSide === 'p';
+
   // Folios missing from the manuscript, e.g. "7, 12-14, 20v": {set: Set('7r','7v',…,'20v'), bad: [tokens]}
-  Model.parseMissing = function (text) {
+  // With page numbers, "7, 12-14" are pages, and a side such as 20v means nothing.
+  Model.parseMissing = function (text, byPage) {
     const set = new Set(), bad = [];
     for (const tok of String(text || '').split(/[\s,;]+/).filter(Boolean)) {
       let m;
+      if (byPage) {
+        if ((m = /^(\d+)-(\d+)$/.exec(tok))) { for (let f = parseInt(m[1], 10); f <= parseInt(m[2], 10); f++) set.add(String(f)); } else if ((m = /^(\d+)$/.exec(tok))) set.add(String(parseInt(m[1], 10))); else bad.push(tok);
+        continue;
+      }
       if ((m = /^(\d+)-(\d+)$/.exec(tok))) {
         for (let f = parseInt(m[1], 10); f <= parseInt(m[2], 10); f++) set.add(f + 'r').add(f + 'v');
       } else if ((m = /^(\d+)$/.exec(tok))) {
@@ -163,11 +172,12 @@
     const f = project.folios;
     const n = (project.pdf && project.pdf.pages) || 0;
     const sides = f.sidesPerPage === 2 ? 2 : 1;
-    const missing = Model.parseMissing(f.missing).set;
+    const byPage = Model.byPage(f);
+    const missing = Model.parseMissing(f.missing, byPage).set;
     let side = f.startSide === 'v' ? 1 : 0;
     const nextLabel = () => {
       for (;;) {
-        const label = (f.startNo + Math.floor(side / 2)) + (side % 2 ? 'v' : 'r');
+        const label = byPage ? String(f.startNo + side) : (f.startNo + Math.floor(side / 2)) + (side % 2 ? 'v' : 'r');
         side++;
         if (!missing.has(label)) return label;
       }
