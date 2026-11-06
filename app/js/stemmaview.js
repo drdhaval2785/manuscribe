@@ -143,7 +143,11 @@
     return recs.map((r) => Object.assign({ table: ME.CollateEdit.ensure(r.table) }, A.entries(ed, r.table)));
   }
 
-  StemmaView.open = async function (ed, list, workId) {
+  /* only: one part of the workbench, as the Analyse step opens it ('agreement', 'trees', 'network', 'copies',
+     'stemma'), with the settings above it; without it, all of it. */
+  StemmaView.PARTS = { agreement: 'Agreement', trees: 'Trees', network: 'Network and coherence', copies: 'Copies and contamination', stemma: 'Your stemma' };
+  StemmaView.open = async function (ed, list, workId, only) {
+    const show = (k) => !only || only === k;
     if (list) ME.Features.setContext(ME.Features.langsOf(list));
     const built = await builtFor(ed, list, workId);
     if (!built.length) { U.toast('Collate first', 'warn'); return; }
@@ -191,11 +195,11 @@
       const nj = S.nj(D);
       const shown = S.midpoint(nj);
       const order = S.leafOrder(shown);
-      body.append(U.el('h3', null, 'How far the witnesses agree'),
+      if (show('agreement')) body.append(U.el('h3', null, 'How far the witnesses agree'),
         U.el('p', { class: 'help' }, 'Variants where two witnesses read alike, out of those where both can be read. Ordered as in the tree below, so that close witnesses sit together.'),
         heatmap(m, ag, order));
       const treeBox = U.el('div', { class: 'sv-figure' }, drawTree(shown, m.taxa, state.boot && state.boot.support, state.boot && state.boot.reps));
-      body.append(U.el('div', { class: 'sv-row' },
+      if (show('trees')) body.append(U.el('div', { class: 'sv-row' },
         U.el('div', null, U.el('h3', null, 'A tree by distance (neighbour joining)'), treeBox,
           U.el('p', { class: 'help' }, state.boot ? 'Numbers: in how many of ' + state.boot.reps + ' resamplings of the variants each group came out again.' : 'Drawn from its midpoint: a computed tree has no top of its own.'),
           U.el('div', { class: 'nv-head' }, U.el('button', { class: 'btn small', onclick: () => { state.boot = S.bootstrap(m, nj, s.bootstrap, s.seed); draw(); } }, 'How sure? (bootstrap, ' + s.bootstrap + ')'),
@@ -219,7 +223,7 @@
       };
       coWho.addEventListener('change', showCoherence);
       showCoherence();
-      body.append(U.el('div', { class: 'sv-row' },
+      if (show('network')) body.append(U.el('div', { class: 'sv-row' },
         U.el('div', null, U.el('h3', null, 'A network (NeighborNet)'),
           U.el('p', { class: 'help' }, 'Where the variants pull in different directions, as contamination does, a tree hides it and a network shows it: boxes mark witnesses grouped two ways at once.'),
           U.el('button', { class: 'btn small primary', onclick: () => { state.net = S.neighbornet(D); draw(); } }, state.net ? 'Draw again' : 'Draw it'), netBox),
@@ -237,7 +241,7 @@
             U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.parsimony.tre', S.newick(S.midpoint(p.tree), m.taxa) + '\n') }, 'Save as Newick'),
             U.el('button', { class: 'btn small', onclick: () => { ed.stemma.dot = S.stemmaFromTree(S.midpoint(p.tree), m.taxa); save(); draw(); } }, 'Start my stemma from this tree')));
       }
-      body.append(U.el('h3', null, 'The shortest tree (parsimony)'),
+      if (show('trees')) body.append(U.el('h3', null, 'The shortest tree (parsimony)'),
         U.el('p', { class: 'help' }, 'The tree that needs the fewest changes of reading. It can take a while with many witnesses.'),
         U.el('button', { class: 'btn small primary', onclick: () => { state.pars = S.parsimony(m, { starts: 5, seed: s.seed }); draw(); } }, state.pars ? 'Search again' : 'Find it'), parsBox);
 
@@ -259,7 +263,7 @@
       };
       who.addEventListener('change', showBlocks);
       showBlocks();
-      body.append(U.el('h3', null, 'Copies, contamination, changes of exemplar'),
+      if (show('copies')) body.append(U.el('h3', null, 'Copies, contamination, changes of exemplar'),
         U.el('p', { class: 'help' }, 'Possible copies: a witness that has all the readings another has alone with it, and differs only where it stands alone. To check against the manuscripts: dates and palaeography may show the reverse.'),
         desc.length ? U.el('ul', { class: 'sv-saved' }, desc.slice(0, 20).map((d) => U.el('li', null, d.copy + ' may be a copy of ' + d.of + ': ' + d.shared + ' reading(s) only they share, none against, ' + d.sites + ' variants compared'))) : U.el('p', { class: 'help' }, 'None found.'),
         U.el('div', { class: 'nv-head' }, U.el('button', { class: 'btn small', onclick: () => { state.drop = S.dropOne(m, { starts: 3, seed: s.seed }); draw(); } }, 'Leave each witness out in turn'), U.el('span', { class: 'help' }, 'A witness whose absence removes the most extra changes may be contaminated, or the cause of it.')),
@@ -294,7 +298,7 @@
             U.el('ul', { class: 'ap-entries' }, conf.slice(0, 100).map((c) => U.el('li', null, c.ref + ' (+' + c.extra + '): ' + c.groups.map((g) => (g.text || 'om.') + ' ' + g.wits.join(' ')).join('; '))))));
       };
       dot.addEventListener('input', U.debounce(() => { ed.stemma.dot = dot.value; save(); drawHypothesis(); }, 400));
-      body.append(U.el('h3', null, 'Your stemma'),
+      if (show('stemma')) body.append(U.el('h3', null, 'Your stemma'),
         U.el('p', { class: 'help' }, 'Write it in DOT, one line from exemplar to copy: ω -> α; α -> A. Names that are not sigla are lost witnesses. A copy with a second source: B -> C [style=dashed]. An extant witness may be the exemplar of another.'),
         U.el('div', { class: 'sv-row' }, dot, stBox),
         U.el('div', { class: 'nv-head' }, U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.stemma.dot', dot.value) }, 'Save as DOT')));
@@ -302,13 +306,13 @@
 
       // exports
       const nx = S.nexus(m, { citation: ME.Publish.citation(ed) });
-      body.append(U.el('h3', null, 'For other programs'),
+      if (!only) body.append(U.el('h3', null, 'For other programs'),
         U.el('p', { class: 'help' }, 'NEXUS for PAUP* and SplitsTree, the tree in Newick, your stemma in DOT, and the TEI apparatus for teiphy and open-cbgm: under Export.'),
         U.el('div', { class: 'nv-head' }, U.el('button', { class: 'btn small', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, workId }) }, 'Export…')),
         nx.dropped.length ? U.el('p', { class: 'help' }, nx.dropped.length + ' variant(s) with more than 32 readings are left out of the NEXUS file: ' + nx.dropped.slice(0, 10).join(', ')) : '');
     };
     draw();
-    await UI.modal({ title: 'Stemmatics', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }], onOpen: () => { StemmaView.lastOpen = { state, body, ed }; } });
+    await UI.modal({ title: only ? StemmaView.PARTS[only] : 'Stemmatics', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }], onOpen: () => { StemmaView.lastOpen = { state, body, ed }; } });
     StemmaView.lastOpen = null;
   };
 

@@ -59,7 +59,15 @@
           found.append(U.el('li', { class: 'help' }, res.length + ' place(s). Places where any of them is lost are left out.'), ...res.map((r) => U.el('li', null, r.ref + ' ' + (r.reading || '(omits)') + ' — ' + A.format(ed, r.entry).replace(/<\/?sup>/g, ''))));
         } }, 'Find')), found));
     }, 'an-agreement'));
-    if (F().on('stemmatics')) cards.push(card('Stemmatics', 'Trees by distance and by parsimony, a network, copies and contamination, coherence, and your own stemma with what contradicts it.', () => ME.StemmaView.open(ed, list, workId), 'stemmatics'));
+    if (F().on('stemmatics')) {
+      // the workbench in its parts, each opened on its own
+      const SV = ME.StemmaView;
+      cards.push(card('Trees', 'A tree by distance (neighbour joining) with how sure each group is, a map of the witnesses, and the shortest tree (parsimony).', () => SV.open(ed, list, workId, 'trees'), 'an-trees'));
+      cards.push(card('Network and coherence', 'A NeighborNet, where the variants pull two ways; and each witness’s closest relatives and potential ancestors.', () => SV.open(ed, list, workId, 'network'), 'an-network'));
+      cards.push(card('Copies and contamination', 'Possible copies, each witness left out in turn, and passage by passage how far one witness agrees with each other.', () => SV.open(ed, list, workId, 'copies'), 'an-copies'));
+      cards.push(card('Your stemma', 'Write your stemma, see the archetype it implies, and the variants that do not fit it.', () => SV.open(ed, list, workId, 'stemma'), 'an-stemma'));
+      cards.push(card('The whole workbench', 'All of the above, and agreement, on one page.', () => SV.open(ed, list, workId), 'stemmatics'));
+    }
     if (F().on('registers')) cards.push(card('Testimonia, parallels, concordance', 'Passages elsewhere that quote this text or run beside it, and where else a passage occurs, in your witnesses and in texts you bring in.', () => {
       const folds = ME.LayersView.folds(ed, w.built, list, redraw).filter((x) => !/Indices/.test(x.textContent));
       for (const f of folds) f.open = true;

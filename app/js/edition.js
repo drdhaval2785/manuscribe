@@ -442,7 +442,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     Edition.current = ed;
     home().hidden = true;
     view().hidden = false;
-    Edition.draw();
+    await Edition.draw();
   };
 
   // how long since the work was last saved outside the browser; null if there is nothing to remind of
