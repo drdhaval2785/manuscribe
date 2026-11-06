@@ -143,7 +143,8 @@
         works.length > 1 ? U.el('label', null, 'Work ', pick) : null,
         U.el('label', null, 'Align by ', tok),
         go, again,
-        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…')),
+        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'),
+        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'The edited text of the whole work, its apparatus, checks, search, and TEI', onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…')),
       trustLine,
       progress,
       ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
@@ -232,6 +233,75 @@
     } catch (e) {
       U.toast('Not imported: ' + e.message, 'err', 8000);
     }
+  };
+
+  /* ---------- the apparatus ---------- */
+
+  // Settings, the apparatus itself, its checks and the search. tables: one or all of a work's tables.
+  CollateView.apparatusView = function (ed, tables, redraw, goRef) {
+    const A = ME.Apparatus;
+    const s = A.settings(ed);
+    const built = tables.map((t) => Object.assign({ table: t }, A.entries(ed, t)));
+    const set = async (k, v) => { ed.apparatus = Object.assign({}, ed.apparatus, { [k]: v }); await Edition.save(ed); redraw(); };
+    const sel = (k, label, opts) => U.el('label', null, label + ' ', U.el('select', { onchange: (e) => set(k, e.target.value) }, opts.map(([v, t]) => U.el('option', { value: v, selected: String(s[k]) === String(v) }, t))));
+    const tick = (k, label) => U.el('label', null, U.el('input', { type: 'checkbox', checked: !!s[k], onchange: (e) => set(k, e.target.checked) }), ' ' + label);
+    const ab = A.abbr(ed);
+    const abbrFields = ['om', 'add', 'post', 'transp', 'lac', 'ac', 'em', 'conj', 'deest'];
+    const abbrBox = U.el('div', { class: 'ap-abbr' }, abbrFields.map((k) => U.el('label', null, k + ' ', U.el('input', { type: 'text', value: ab[k], 'aria-label': 'Abbreviation for ' + k, onchange: (e) => set('custom', Object.assign({}, s.custom, { [k]: e.target.value })) }))));
+    const settings = U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'How the apparatus is written'),
+      U.el('div', { class: 'nv-head' },
+        sel('polarity', 'Polarity', [['auto', 'negative, positive where few have the lemma'], ['negative', 'negative'], ['positive', 'positive']]),
+        sel('abbr', 'Abbreviations', Object.entries(A.ABBREVIATIONS).map(([k, v]) => [k, v.name])),
+        tick('groups', 'Group sigla for whole groups'), tick('deest', 'Say which members of a group are lacking'),
+        tick('singular', 'Singular readings apart'), tick('orthographica', 'List spelling variants')),
+      U.el('p', { class: 'help' }, 'Abbreviations, which you can write in any language or script:'), abbrBox,
+      U.el('p', { class: 'help' }, 'Groups are the Group of each witness in the witness list. A group siglum stands for a group only where all its witnesses that can be read agree.'));
+    const list = U.el('div', { class: 'ap-list' });
+    for (const b of built) {
+      const { variants, singular, orthographica } = A.tiers(ed, b.entries);
+      list.append(U.el('h3', null, b.table.unit), U.el('p', { class: 'ap-text' }, b.text.trim()));
+      const entry = (e) => U.el('li', { class: e.review ? 'ap-bad' : e.decision ? 'ap-decided' : '' }, U.el('button', { class: 'link', title: 'Show this place', onclick: () => goRef && goRef(e) }, e.ref), ' ', U.el('span', { class: 'ap-entry', html: U.escXml(A.format(ed, e)).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>') }));
+      if (variants.length) list.append(U.el('ul', { class: 'ap-entries' }, variants.map(entry)));
+      if (singular.length) list.append(U.el('div', { class: 'ap-tier' }, 'Singular readings'), U.el('ul', { class: 'ap-entries' }, singular.map(entry)));
+      if (orthographica.length) list.append(U.el('div', { class: 'ap-tier' }, 'Spelling variants'), U.el('ul', { class: 'ap-entries' }, orthographica.map((e) => U.el('li', null, e.ref + ' ' + e.lemma + ' ] ' + e.orth.map((o) => o.text + ' ' + o.wits.join(' ')).join('; ')))));
+      if (b.stars.length) list.append(U.el('div', { class: 'ap-tier' }, 'Additional passages'), U.el('ul', { class: 'ap-entries' }, b.stars.map((x) => U.el('li', null, x.id + ' (' + x.wits.join(' ') + '): ' + x.text))));
+    }
+    const problems = built.flatMap((b) => A.validate(ed, b.table, b));
+    const errors = problems.filter((p) => p.level === 'error');
+    const checks = U.el('details', { class: 'nv-fold', open: errors.length > 0 }, U.el('summary', null, errors.length ? errors.length + ' problem(s) in the apparatus' + (problems.length > errors.length ? ', ' + (problems.length - errors.length) + ' place(s) to look at' : '') : problems.length ? '✓ No problems; ' + problems.length + ' place(s) to look at' : '✓ The apparatus passes every check'),
+      U.el('p', { class: 'help' }, 'Checked: each witness cited once in each entry; no unknown siglum; group sigla stand for exactly the witnesses they replace; each lemma is the edited text, with a witness unless it is an emendation; no witness cited where its text is lost; decisions that need review.'),
+      U.el('ul', { class: 'ap-problems' }, problems.map((p) => U.el('li', { class: p.level }, U.el('span', { class: 'ed-tag ' + (p.level === 'error' ? 'bad' : 'warn') }, p.level === 'error' ? 'problem' : 'look'), ' ', p.ref + ': ' + p.text))));
+    // which witnesses agree against which
+    const sigla = ed.witnesses.map((w) => w.siglum);
+    const pickBox = (name) => U.el('span', { class: 'ap-pick' }, sigla.map((x) => U.el('label', null, U.el('input', { type: 'checkbox', value: x, name }), ' ' + x)));
+    const withBox = pickBox('with'), againstBox = pickBox('against');
+    const found = U.el('ul', { class: 'ap-entries' });
+    const search = U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'Find where witnesses agree against others'),
+      U.el('div', { class: 'nv-head' }, U.el('span', null, 'These agree:'), withBox),
+      U.el('div', { class: 'nv-head' }, U.el('span', null, 'against:'), againstBox,
+        U.el('button', { class: 'btn small primary', onclick: () => {
+          const w = [...withBox.querySelectorAll('input:checked')].map((i) => i.value), g = [...againstBox.querySelectorAll('input:checked')].map((i) => i.value);
+          found.innerHTML = '';
+          if (!w.length) { found.append(U.el('li', { class: 'help' }, 'Tick at least one witness that agrees.')); return; }
+          const res = A.agreements(ed, built, w, g);
+          found.append(U.el('li', { class: 'help' }, res.length + ' place(s). Places where any of them is lost are left out.'), ...res.map((r) => U.el('li', null, U.el('button', { class: 'link', onclick: () => goRef && goRef(r.entry) }, r.ref), ' ', r.reading || '(omits)', ' — ' + A.format(ed, r.entry).replace(/<\/?sup>/g, ''))));
+        } }, 'Find')), found);
+    const exports = U.el('div', { class: 'nv-head' },
+      U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
+      U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'));
+    return U.el('div', null, settings, checks, list, search, exports);
+  };
+
+  CollateView.workApparatus = async function (ed, list, workId) {
+    const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId);
+    const order = Edition.register(ed, list)[workId];
+    const ids = order ? order.order : [];
+    recs.sort((a, b) => ids.indexOf(a.unit) - ids.indexOf(b.unit));
+    if (!recs.length) { U.toast('Collate first', 'warn'); return; }
+    const body = U.el('div', { class: 'cv-view' });
+    const draw = () => { body.innerHTML = ''; body.append(CollateView.apparatusView(ed, recs.map((r) => ME.CollateEdit.ensure(r.table)), draw, null)); };
+    draw();
+    await UI.modal({ title: 'Edited text and apparatus', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }] });
   };
 
   /* ---------- the scan beside a reading ---------- */
@@ -489,7 +559,7 @@
       const bits = [];
       if (state.mode === 'text') {
         const c = text.proposal ? text.proposal.count : null;
-        if (c) bits.push(c.words + ' words · ' + c.differ + ' differ: ' + c.majority + ' by majority' + (c.plurality ? ', ' + c.plurality + ' by most votes' : '') + ', ' + c.trust + ' by your trust order' + (c.chosen ? ', ' + c.chosen + ' chosen by you' : ''));
+        if (c) bits.push(c.words + ' words · ' + c.differ + ' differ: ' + c.majority + ' by majority' + (c.plurality ? ', ' + c.plurality + ' by most votes' : '') + ', ' + c.trust + ' by your trust order' + (c.chosen ? ', ' + c.chosen + ' chosen by you' : '') + (c.decided ? ' · ' + c.decided + ' decision(s)' : '') + (c.review ? ' · ' + c.review + ' to review' : ''));
         if (text.proposal && text.proposal.orphaned.length) bits.push(text.proposal.orphaned.length + ' choice(s) no longer fit a word');
       } else bits.push(state.count + ' of ' + table.ncols + ' columns differ');
       if (table.ops.length) bits.push(table.ops.length + ' correction(s)');
@@ -666,6 +736,9 @@
     };
 
     /* ---------- word by word ---------- */
+    const DECIDED = {
+      selectio: 'You chose this reading.', emendatio: 'Your emendation.', conjecture: 'A conjecture.', lacuna: 'You marked the text as lost here.',
+    };
     const SETTLED = {
       majority: 'Most witnesses read this.',
       plurality: 'More witnesses read this than any other reading, though not most of them.',
@@ -687,8 +760,11 @@
         P.units.forEach((u, i) => {
           const shown = escHtml(u.text);
           if (!u.others) { h += shown; return; }
-          const cls = 'ct-u ' + (u.differs ? 'd-' + u.decided : 'd-lost') + (text.sel && text.sel.fromId === u.fromId ? ' sel' : '');
-          h += '<span class="' + cls + '" data-u="' + i + '">' + (shown.trim() ? shown : '<span class="ct-om">⌀</span>' + shown) + '</span>';
+          const dd = u.decision;
+          const cls = 'ct-u ' + (u.review ? 'd-review' : dd ? 'd-decided d-' + dd.type : u.differs ? 'd-' + u.decided : 'd-lost') + (dd && dd.confidence === 'low' ? ' unsure' : '') + (text.sel && text.sel.fromId === u.fromId ? ' sel' : '');
+          let inner = shown.trim() ? shown : '<span class="ct-om">⌀</span>' + shown;
+          if (dd && dd.crux) inner = '†' + inner.replace(/(\s*)$/, '†$1');
+          h += '<span class="' + cls + '" data-u="' + i + '">' + inner + '</span>';
         });
         textBox.innerHTML = h;
         if (text.sel) {
@@ -721,6 +797,14 @@
         textScan.append(pic);
         text.scanResult = CollateView.showScan(pic, x.p, src);
       },
+      decide(u, extra) {
+        const quote = {};
+        for (const g of u.groups) for (const m of g.members) quote[m.label] = m.text;
+        for (const m of u.missing) if (m.text) quote[m.label] = m.text;
+        const cur = u.decision || {};
+        const keep = extra.type === 'votes' ? {} : { reasons: cur.reasons, note: cur.note, confidence: cur.confidence, crux: cur.crux };
+        return act(Object.assign({ op: 'decide', from: u.fromId, to: u.toId, quote }, keep, extra));
+      },
       choose(i, quiet) {
         const u = text.proposal.units[i];
         text.sel = u;
@@ -733,18 +817,45 @@
           const isWinner = g === winners;
           const members = g.members.map((m) => U.el('button', { class: 'link ct-wit', title: 'See this line in the scan', onclick: () => text.showScanOf(m) }, m.label + (m.layer === 'ac' ? ' (before correction)' : '')));
           return U.el('li', { class: isWinner ? 'win' : '' },
-            U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && u.decided === 'chosen', onclick: () => act({ op: 'pick', from: u.fromId, to: u.toId, label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
+            U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && u.decided === 'chosen', onclick: () => text.decide(u, { type: 'selectio', label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
             ' ', U.el('span', { class: 'ct-reading' }, g.form.text.trim() || '(omits)'), ' ',
             U.el('span', { class: 'help' }, g.votes ? g.votes + ' vote' + (g.votes > 1 ? 's' : '') + ': ' : 'no vote: '), members);
         });
         const missing = u.missing.map((m) => U.el('li', { class: 'muted' }, m.label + ': ' + ({ lac: 'text lost', illeg: 'illegible', na: 'outside its coverage', ambig: 'uncertain', transposed: 'has this elsewhere' }[m.why] || m.why) + ', so no vote'));
-        textPanel.append(
-          U.el('div', { class: 'ct-settled' }, SETTLED[u.decided] || '', u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
+        const d = u.decision;
+        // the editor's own text, a crux, doubt and reasons: all optional, all one step
+        const emendText = U.el('input', { type: 'text', class: 'ct-emend', value: d && d.text ? d.text : '', placeholder: 'your text for this place', 'aria-label': 'Emended text' });
+        const emendKind = U.el('select', { 'aria-label': 'Kind of correction' }, U.el('option', { value: 'emendatio' }, 'emendation'), U.el('option', { value: 'conjecture', selected: d && d.type === 'conjecture' }, 'conjecture'));
+        const source = U.el('input', { type: 'text', value: d && d.source ? d.source : '', placeholder: 'whose, if not yours (e.g. Kielhorn)', 'aria-label': 'Source of the emendation' });
+        const confidence = U.el('select', { 'aria-label': 'How sure', onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, confidence: confidence.value || undefined }) },
+          U.el('option', { value: '' }, 'How sure? —'), U.el('option', { value: 'high', selected: d && d.confidence === 'high' }, 'certain'), U.el('option', { value: 'medium', selected: d && d.confidence === 'medium' }, 'probable'), U.el('option', { value: 'low', selected: d && d.confidence === 'low' }, 'uncertain (marked in the text)'));
+        const REASONS = ['lectio difficilior', 'usus scribendi', 'metre', 'stemma', 'sense', 'parallel or testimonium', 'grammar'];
+        const chips = REASONS.map((r) => {
+          const on = !!(d && d.reasons && d.reasons.includes(r));
+          return U.el('button', { class: 'btn small ct-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), onclick: () => {
+            const now = new Set((d && d.reasons) || []);
+            if (now.has(r)) now.delete(r); else now.add(r);
+            text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, reasons: Array.from(now) });
+          } }, r);
+        });
+        const note = U.el('input', { type: 'text', class: 'ct-note', value: d && d.note ? d.note : '', placeholder: 'a note on the reason (optional)', 'aria-label': 'Note', onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, note: note.value.trim() }) });
+        const history = table.decisions.filter((x) => x.key === u.key && x.status !== 'accepted');
+        textPanel.append(...[
+          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : SETTLED[u.decided] || '', !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
+          u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
           U.el('ol', { class: 'ct-readings' }, rows, missing),
+          U.el('div', { class: 'ct-decide' },
+            !d ? U.el('button', { class: 'btn small', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept the proposal') : null,
+            U.el('span', { class: 'ct-group' }, emendText, emendKind, source, U.el('button', { class: 'btn small', onclick: () => text.decide(u, { type: emendKind.value, text: emendText.value, source: source.value.trim() }) }, 'Use my text')),
+            U.el('button', { class: 'btn small' + (d && d.crux ? ' on' : ''), title: 'Mark this place as corrupt, between daggers', onclick: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, crux: !(d && d.crux) }) }, '† crux'),
+            U.el('button', { class: 'btn small', title: 'The text is lost here in every witness', onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
+            confidence),
+          U.el('div', { class: 'ct-reasons' }, U.el('span', { class: 'help' }, 'Why (optional): '), chips, note),
+          history.length ? U.el('details', { class: 'ct-history' }, U.el('summary', null, history.length + ' earlier decision(s) here'), U.el('ul', null, history.map((h) => U.el('li', null, h.id + ': ' + (h.type === 'selectio' ? h.label : h.type + ' ' + (h.text || '')) + (h.reasons ? ' · ' + h.reasons.join(', ') : '') + ' · ' + h.status + (h.why ? ' (' + h.why + ')' : ''))))) : null,
           U.el('div', { class: 'nv-head' },
-            u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) }, 'Follow the votes again') : null,
+            d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, 'Follow the votes again') : null,
             i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: 'This and the next word are one unit of variation', onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
-            U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'See the letters')));
+            U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'See the letters'))].filter(Boolean));
         const first = (winners && winners.members.find((m) => m.votes)) || (winners && winners.members[0]);
         if (first) text.showScanOf(first); else textScan.innerHTML = '';
       },
@@ -762,8 +873,8 @@
       else if (k === 'p' || k === 'arrowup' || k === 'k') { e.preventDefault(); text.jump(-1); }
       else if (/^[1-9]$/.test(k) && text.sel) {
         const g = text.sel.groups[+k - 1];
-        if (g) { e.preventDefault(); act({ op: 'pick', from: text.sel.fromId, to: text.sel.toId, label: g.form.label }); }
-      }
+        if (g) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: g.form.label }); }
+      } else if (k === 'a' && text.sel && !text.sel.decision && text.sel.form) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: text.sel.form }); }
     });
 
     /* ---------- places to check ---------- */
@@ -825,6 +936,16 @@
     } }, 'Save');
     const textTab = U.el('button', { class: 'btn small', 'aria-pressed': 'true', onclick: () => setMode('text') }, 'Text');
     const letterTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', onclick: () => setMode('letters') }, 'Letters');
+    const appTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', onclick: () => setMode('apparatus') }, 'Apparatus');
+    const appPane = U.el('div', { class: 'ap-pane', hidden: true });
+    const drawApparatus = () => {
+      appPane.innerHTML = '';
+      appPane.append(CollateView.apparatusView(ed, [table], () => drawApparatus(), (entry) => {
+        setMode('text');
+        const i = text.proposal.units.findIndex((x) => x.fromId === entry.fromId);
+        if (i >= 0) text.choose(i);
+      }));
+    };
     const textPane = U.el('div', { class: 'ct-pane' },
       U.el('div', { class: 'nv-head' },
         U.el('button', { class: 'btn small', title: 'P', onclick: () => text.jump(-1) }, '‹ Previous'),
@@ -841,8 +962,11 @@
       state.mode = m;
       textTab.setAttribute('aria-pressed', String(m === 'text'));
       letterTab.setAttribute('aria-pressed', String(m === 'letters'));
+      appTab.setAttribute('aria-pressed', String(m === 'apparatus'));
       textPane.hidden = m !== 'text';
       letterPane.hidden = m !== 'letters';
+      appPane.hidden = m !== 'apparatus';
+      if (m === 'apparatus') { drawApparatus(); ui.buttons(); showStatus(); return; }
       if (m === 'letters' && !lettersBuilt) {
         lettersBuilt = true;
         buildTable(table, host, ui, state);
@@ -874,9 +998,9 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn, fmt, save),
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn, fmt, save),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
-      textPane, letterPane].filter(Boolean));
+      textPane, letterPane, appPane].filter(Boolean));
     await UI.modal({
       title: 'Collation: ' + table.unit, body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }],
       onOpen: () => {

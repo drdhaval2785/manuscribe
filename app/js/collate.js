@@ -483,7 +483,7 @@
   // An alignment from elsewhere replaces this table's, and with it any corrections.
   function freshCopy(table, over) {
     const c = Object.assign({}, table, over);
-    for (const k of ['colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'ops', 'review', 'base', 'redo', 'checked', 'lockSeq', 'linkSeq', 'history', 'picks']) delete c[k];
+    for (const k of ['colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'ops', 'review', 'base', 'redo', 'checked', 'lockSeq', 'linkSeq', 'history', 'picks', 'decisions', 'decisionSeq']) delete c[k];
     return c;
   }
 

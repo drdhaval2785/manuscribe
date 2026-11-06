@@ -484,6 +484,44 @@ appears below, if the witness has its PDF here.
 The proposed text is a starting point for your decisions, not an edition. The letters underneath decide which words
 line up, so if a word's readings look wrong, **See the letters** opens the letter table at that place.
 
+#### Decisions
+
+In **Text**, every place where the witnesses differ can carry your decision. All of it is optional except the
+choice itself, and each part is one click.
+
+- **Choose a reading** with its button or the keys 1 to 9; **Accept the proposal** (A) makes the proposed one yours.
+- **Use my text** for an emendation or a conjecture, with whose it is if not yours.
+- **† crux** marks a corrupt place; **Lacuna** says the text is lost in every witness; **How sure?** sets certain,
+  probable or uncertain, and uncertain places get a wavy line in the text.
+- **Why** takes any of lectio difficilior, usus scribendi, metre, stemma, sense, parallel or testimonium, grammar,
+  and a note.
+- **Follow the votes again** returns the place to the proposal. Nothing is overwritten: a new decision supersedes the
+  old one, and the earlier ones are listed with it.
+- **A decision stays only where its text is.** It remembers what each witness read when you made it. If a witness is
+  re-transcribed so that it reads differently there, the decision is not applied, and the place is marked for review.
+
+#### The apparatus
+
+**Apparatus**, in the table, shows the edited text of the block and its apparatus; **Edited text and apparatus…** on
+the edition screen shows the whole work.
+
+- **How it is written:** negative, positive, or negative with a switch to positive where few witnesses have the lemma;
+  Latin or English abbreviations, each of which you can rewrite in any language or script; a group siglum for a whole
+  group (the Group of each witness in the witness list), with the group's lacking members named if you like; singular
+  readings in a tier of their own; spelling variants listed or not.
+- **Entries** read `lemma ] reading witnesses`: `om.` for an omission, `post X add. Y` for an addition, `a.c.` for a
+  text before correction, `lac. X (what survives)` for a lost passage, `em.` and `conj.` with their source, and hyphens
+  for part of a word. Long additions go to an appendix of additional passages, numbered as `c2.1*1`.
+- **Checks:** each witness cited once in each entry, no unknown siglum, group sigla that stand for exactly their
+  witnesses, each lemma the edited text and with a witness unless emended, no witness cited where its text is lost,
+  and decisions waiting for review. Ties settled only by your trust order are listed to look at.
+- **Find where witnesses agree against others**, for instance AK1 and LD1 against AK2. Places where any of them is lost
+  are left out.
+- **Save as TEI** writes TEI P5 with the apparatus in parallel segmentation: `<app>`, `<lem>`, `<rdg>`, with `type` for
+  orthographic, before-correction and partly lost readings, `<witDetail>` for lacunae, `cert` for doubt, and the reasons
+  as `<note>`. Spelling variants are kept even where they are not printed, so that each witness can be read back out of
+  the file. **Save as text** writes the edited text with its apparatus under it.
+
 #### Correcting the letters
 
 Select a cell by clicking it or with the arrow keys; Shift selects several. Everything can be undone, including
@@ -676,6 +714,7 @@ app/js/
   collate.js            collation: the aligner in a Worker, tables, agreement, exchange formats
   collateedit.js        correcting a table: the operation log, locks, places to check, aligning around locks
   collateview.js        the Collation part of the edition screen, and the table
+  apparatus.js          the edited text and apparatus: entries, conventions, checks, search, TEI
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor

@@ -20,7 +20,7 @@
   // These say nothing about what the witness read, so they do not count as agreement or difference.
   const UNKNOWN = new Set(['lac', 'illeg', 'na', 'ambig']);
 
-  const DERIVED = ['ncols', 'colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'lockSeq', 'picks'];
+  const DERIVED = ['ncols', 'colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'lockSeq', 'picks', 'decisions', 'decisionSeq'];
 
   // Tables made before corrections existed get what they lack.
   Edit.ensure = function (table) {
@@ -36,6 +36,8 @@
     if (!table.review) table.review = [];
     if (!table.lockSeq) table.lockSeq = 0;
     if (!table.picks) table.picks = {};
+    if (!table.decisions) table.decisions = [];
+    if (!table.decisionSeq) table.decisionSeq = 0;
     return table;
   };
 
@@ -280,6 +282,30 @@
       if (o.label) t.picks[key] = o.label; else delete t.picks[key];
       addLock(t, a, b, 'edit');
     },
+    /* An editorial decision on one place: which reading (selectio), or the editor's own text (emendatio,
+       conjecture), or that the text is lost (lacuna), with optional reasons, confidence and crux. A decision
+       is never overwritten: a new one on the same place supersedes it, and both stay. With o.type 'votes'
+       the place goes back to what the votes propose. */
+    decide(t, o) {
+      const at = posMap(t);
+      const a = at.get(o.from), b = at.get(o.to);
+      if (a === undefined || b === undefined) throw new Error('No such column');
+      if (o.type === 'selectio' && !t.states[o.label]) throw new Error('There is no witness ' + o.label);
+      if ((o.type === 'emendatio' || o.type === 'conjecture') && !String(o.text || '').trim()) throw new Error('Write the text first');
+      const key = o.from + ':' + o.to;
+      const prev = t.decisions.find((d) => d.key === key && d.status === 'accepted');
+      if (prev) prev.status = 'superseded';
+      delete t.picks[key];
+      if (o.type === 'votes') { addLock(t, a, b, 'edit'); return; }
+      t.decisionSeq = (t.decisionSeq || 0) + 1;
+      const d = { id: 'd' + t.decisionSeq, key, from: o.from, to: o.to, type: o.type, status: 'accepted', when: o.when || null };
+      for (const k of ['label', 'text', 'source', 'note', 'confidence', 'quote', 'resp']) if (o[k] !== undefined && o[k] !== '' && o[k] !== null) d[k] = o[k];
+      if (o.reasons && o.reasons.length) d.reasons = o.reasons.slice();
+      if (o.crux) d.crux = true;
+      if (prev) d.supersedes = prev.id;
+      t.decisions.push(d);
+      addLock(t, a, b, 'edit');
+    },
     // The editor has read this block through: it is all locked, and counts towards measuring the aligner.
     check(t, o) {
       t.checked = !!o.on;
@@ -287,7 +313,7 @@
     },
   };
 
-  const OP_NAMES = { shift: 'Move', merge: 'Merge columns', split: 'Split column', swap: 'Swap columns', state: 'Set cell state', link: 'Mark transposition', unlink: 'Remove transposition', cut: 'Change boundary', lock: 'Lock', unlock: 'Unlock', check: 'Mark as read', pick: 'Choose a reading' };
+  const OP_NAMES = { shift: 'Move', merge: 'Merge columns', split: 'Split column', swap: 'Swap columns', state: 'Set cell state', link: 'Mark transposition', unlink: 'Remove transposition', cut: 'Change boundary', lock: 'Lock', unlock: 'Unlock', check: 'Mark as read', pick: 'Choose a reading', decide: 'Decision' };
   Edit.opName = (op) => OP_NAMES[op.op] || op.op;
 
   /* Does an operation: it goes in the log only if it works, and if it does not the table is as it was.
@@ -515,6 +541,7 @@
     });
     starts.sort((x, y) => x - y);
 
+    const active = new Map(t.decisions.filter((d) => d.status === 'accepted').map((d) => [d.key, d]));
     const units = [];
     const lowerK = (cols, v) => { let lo = 0, hi = cols.length; while (lo < hi) { const m = (lo + hi) >> 1; if (cols[m] < v) lo = m + 1; else hi = m; } return lo; };
     starts.forEach((a, i) => {
@@ -530,7 +557,7 @@
           if (linked[l] && linked[l].has(c)) why = 'transposed';
           if (g[c] >= 0 && st.n[g[c]] === Norm.GAP) why = 'lac';
         }
-        if (why) { missing.push({ label: l, siglum: st.siglum, why }); continue; }
+        if (why) { missing.push({ label: l, siglum: st.siglum, why, text: why === 'lac' ? textOf(st, k1, k2) : '', layer: st.layer }); continue; }
         const text = textOf(st, k1, k2);
         members.push({ label: l, siglum: st.siglum, layer: st.layer, n: k1 <= k2 ? st.n.slice(k1, k2 + 1).join('') : '', text, raw: text.replace(NOT_LETTERS, ''), k1, k2, votes: st.layer !== 'ac' });
       }
@@ -561,20 +588,46 @@
         const g = groups.find((x) => x.members.some((m) => m.label === picked));
         if (g) { winner = g; decided = 'chosen'; }
       }
-      const others = voting.length > 1 || (voting.length === 1 && groups.length > 1) || missing.length > 0;
+      // a decision holds only while the witnesses still read here what they read when it was made
+      const d = active.get(key);
+      let decision = null, review = null;
+      if (d) {
+        const changed = d.quote && Object.entries(d.quote).find(([l, q]) => { const m = members.find((x) => x.label === l); return m ? m.text !== q : rows.some((r) => r.l === l) && !missing.some((x) => x.label === l); });
+        if (changed) review = { decision: d, why: changed[0] + ' no longer reads here what it read when you decided' };
+        else {
+          decision = d;
+          if (d.type === 'selectio') {
+            const g = groups.find((x) => x.members.some((m) => m.label === d.label));
+            if (g) { winner = g; decided = 'chosen'; } else review = { decision: d, why: d.label + ' has nothing here now' };
+          } else decided = d.type;
+        }
+      }
+      const others = voting.length > 1 || (voting.length === 1 && groups.length > 1) || missing.length > 0 || !!decision;
+      let text = winner ? winner.form.text : '';
+      if (decision && (decision.type === 'emendatio' || decision.type === 'conjecture')) {
+        const tail = (text.match(/[\s।॥|]*$/) || [''])[0];
+        text = decision.text.trim() + (tail || ' ');
+        winner = null;
+      } else if (decision && decision.type === 'lacuna') {
+        text = '[…]' + ((text.match(/\s*$/) || [''])[0] || ' ');
+        winner = null;
+      }
       units.push({
-        from: a, to: z, fromId: t.colIds[a], toId: t.colIds[z], decided, differs: voting.length > 1, others,
-        text: winner ? winner.form.text : '', form: winner ? winner.form.label : null, reading: winner ? winner.form.n : '', winner, groups: voting.concat(groups.filter((g) => !g.votes)), missing, total,
+        from: a, to: z, fromId: t.colIds[a], toId: t.colIds[z], key, decided, differs: voting.length > 1, others, decision, review,
+        text, form: winner ? winner.form.label : null, reading: winner ? winner.form.n : '', winner, groups: voting.concat(groups.filter((g) => !g.votes)), missing, total,
       });
     });
-    const count = { words: 0, differ: 0, majority: 0, plurality: 0, trust: 0, chosen: 0 };
+    const count = { words: 0, differ: 0, majority: 0, plurality: 0, trust: 0, chosen: 0, decided: 0, review: 0 };
     for (const u of units) {
       if (u.text.replace(NOT_LETTERS, '')) count.words++;
-      if (u.differs) { count.differ++; count[u.decided]++; }
+      if (u.differs) { count.differ++; if (count[u.decided] !== undefined) count[u.decided]++; else count.chosen++; }
+      if (u.decision) count.decided++;
+      if (u.review) count.review++;
     }
     // a choice whose columns no longer make up one word has not been lost: it is told
     const live = new Set(units.map((u) => u.fromId + ':' + u.toId));
-    const orphaned = Object.keys(t.picks).filter((k) => !live.has(k));
+    const orphaned = Object.keys(t.picks).filter((k) => !live.has(k)).concat(Array.from(active.keys()).filter((k) => !live.has(k)));
+    count.review += Array.from(active.keys()).filter((k) => !live.has(k)).length;
     return { units, count, orphaned, text: units.map((u) => u.text).join('') };
   };
 
@@ -974,6 +1027,16 @@
     next.linkSeq = old.linkSeq || 0;
     next.cuts = { add: {}, remove: {} };
     for (const side of ['add', 'remove']) for (const id of Object.keys((old.cuts && old.cuts[side]) || {})) if (live.has(+id)) next.cuts[side][id] = 1;
+    next.decisions = (old.decisions || []).map((d) => {
+      if (d.status !== 'accepted' || (live.has(d.from) && live.has(d.to))) return Object.assign({}, d);
+      return Object.assign({}, d, { status: 'review', why: 'its text was aligned again and its columns are gone' });
+    });
+    next.decisionSeq = old.decisionSeq || 0;
+    for (const d of next.decisions) if (d.status === 'review' && !(old.decisions || []).some((x) => x.id === d.id && x.status === 'review')) {
+      seq++;
+      review.push({ id: seq, why: 'A decision (' + d.type + ') lost its place: ' + (d.label || d.text || ''), was: JSON.stringify(d.quote || {}), when: now || Date.now(), from: d.from, to: d.to });
+    }
+    next.lockSeq = seq;
     next.picks = {};
     for (const [key, label] of Object.entries(old.picks || {})) {
       const [f, z] = key.split(':').map(Number);
