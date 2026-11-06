@@ -697,3 +697,10 @@ details.menu > summary { list-style: none; }
 details.menu > summary::-webkit-details-marker { display: none; }
 details.menu > summary::after { content: ' ▾'; }
 details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 160px; }
+
+/* the table window: tool groups, the folded decision panel */
+.cv-tgroup { display: inline-flex; gap: 4px; align-items: center; padding: 2px 6px; border: 1px solid var(--line); border-radius: 8px; }
+.cv-tlabel { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-right: 2px; }
+.ct-more { margin: 8px 0 4px; }
+.ct-more > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.ct-wit { cursor: pointer; }

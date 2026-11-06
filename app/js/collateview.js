@@ -833,6 +833,23 @@
     const linkBtn = U.el('button', { class: 'btn small', title: 'Mark that a witness has a passage in another place: select one, click here, select the other, click again (T)', onclick: () => ui.transpose() }, 'Transposition');
     const undoBtn = U.el('button', { class: 'btn small', title: 'Undo (Ctrl or Cmd+Z)', onclick: () => ui.undo() }, 'Undo');
     const redoBtn = U.el('button', { class: 'btn small', title: 'Redo (Ctrl or Cmd+Shift+Z)', onclick: () => ui.redo() }, 'Redo');
+    // the blocks of the work, to go through them without closing the window
+    const blockIds = await (async () => {
+      const reg = Edition.register(ed, list)[workId];
+      const sums = await Collate.summaries(ed.id);
+      return (reg ? reg.order : []).filter((id) => sums.has(Collate.keyOf(ed.id, workId, id)));
+    })();
+    const at = blockIds.indexOf(table.unit);
+    const goBlock = (d) => {
+      const id = blockIds[at + d];
+      if (!id) { U.toast(d > 0 ? 'This is the last block' : 'This is the first block'); return; }
+      CollateView.goNext = id;
+      const close = body.closest('.modal') && body.closest('.modal').querySelector('.modal-foot .btn');
+      if (close) close.click();
+    };
+    const prevBlock = U.el('button', { class: 'btn small', title: 'The block before ([)', disabled: at <= 0, dataset: { action: 'block-prev' }, onclick: () => goBlock(-1) }, '‹ Block');
+    const nextBlock = U.el('button', { class: 'btn small', title: 'The next block (])', disabled: at < 0 || at >= blockIds.length - 1, dataset: { action: 'block-next' }, onclick: () => goBlock(1) }, 'Block ›');
+    CollateView.goBlock = goBlock;
     const checkBtn = U.el('button', { class: 'btn small', title: 'You have read this whole block against the witnesses. It locks the block, and measures how close the aligner came to your version.', onclick: () => ui.checked() }, 'Mark as read');
     ui.buttons = () => {
       undoBtn.disabled = !table.ops.length;
@@ -940,7 +957,7 @@
           const n = metreOf ? metreOf.fit(g.form.text) : null;
           const backing = support.for.get(g.form.text.trim()) || [];
           const isWinner = g === winners;
-          const members = g.members.map((m) => U.el('button', { class: 'link ct-wit', title: 'See this line in the scan', onclick: () => text.showScanOf(m) }, m.label + (m.layer === 'ac' ? ' (before correction)' : '')));
+          const members = g.members.map((m) => U.el('span', { class: 'link ct-wit', role: 'button', tabindex: '0', title: 'See this line in the scan', onclick: () => text.showScanOf(m), onkeydown: (e) => { if (e.key === 'Enter') text.showScanOf(m); } }, m.label + (m.layer === 'ac' ? ' (before correction)' : '')));
           return U.el('li', { class: isWinner ? 'win' : '' },
             U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && u.decided === 'chosen', onclick: () => text.decide(u, { type: 'selectio', label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
             ' ', U.el('span', { class: 'ct-reading' }, g.form.text.trim() || '(omits)'), ' ',
@@ -967,13 +984,12 @@
         });
         const note = U.el('input', { type: 'text', class: 'ct-note', value: d && d.note ? d.note : '', placeholder: 'a note on the reason (optional)', 'aria-label': 'Note', onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, note: note.value.trim() }) });
         const history = table.decisions.filter((x) => x.key === u.key && x.status !== 'accepted');
-        textPanel.append(...[
-          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : SETTLED[u.decided] || '', !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
-          u.review && u.review.conflict ? conflictBox(u) : u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
-          U.el('ol', { class: 'ct-readings' }, rows, missing),
+        // the everyday decision in view; emending behind Emend…; the rest under More
+        const emendGroup = U.el('span', { class: 'ct-group', hidden: !(d && (d.type === 'emendatio' || d.type === 'conjecture')) }, emendText, emendKind, source, U.el('button', { class: 'btn small', onclick: () => text.decide(u, { type: emendKind.value, text: emendText.value, source: source.value.trim() }) }, 'Use my text'));
+        const emendBtn = U.el('button', { class: 'btn small', title: 'Your own text for this place: an emendation or a conjecture', onclick: () => { emendGroup.hidden = !emendGroup.hidden; if (!emendGroup.hidden) emendText.focus(); } }, 'Emend…');
+        const said = !!(d && (d.crux || (d.reasons && d.reasons.length) || d.note || d.confidence || d.type === 'lacuna'));
+        const more = U.el('details', { class: 'ct-more', open: said || evs.length > 0 || !!CollateView.moreOpen }, U.el('summary', null, 'More: crux, lacuna, certainty, reasons' + (ME.Features.on('evidence') ? ', evidence' : '')),
           U.el('div', { class: 'ct-decide' },
-            !d ? U.el('button', { class: 'btn small', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept the proposal') : null,
-            U.el('span', { class: 'ct-group' }, emendText, emendKind, source, U.el('button', { class: 'btn small', onclick: () => text.decide(u, { type: emendKind.value, text: emendText.value, source: source.value.trim() }) }, 'Use my text')),
             U.el('button', { class: 'btn small' + (d && d.crux ? ' on' : ''), title: 'Mark this place as corrupt, between daggers', onclick: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, crux: !(d && d.crux) }) }, '† crux'),
             U.el('button', { class: 'btn small', title: 'The text is lost here in every witness', onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
             confidence),
@@ -983,7 +999,16 @@
           U.el('div', { class: 'nv-head' },
             d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, 'Follow the votes again') : null,
             i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: 'This and the next word are one unit of variation', onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
-            U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'See the letters'))].filter(Boolean));
+            ME.Features.on('letters') ? U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'Correct the alignment here') : null));
+        more.addEventListener('toggle', () => { CollateView.moreOpen = more.open; });
+        textPanel.append(...[
+          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : SETTLED[u.decided] || '', !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
+          u.review && u.review.conflict ? conflictBox(u) : u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
+          U.el('ol', { class: 'ct-readings' }, rows, missing),
+          U.el('div', { class: 'ct-decide' },
+            !d ? U.el('button', { class: 'btn small primary', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept') : null,
+            emendBtn, emendGroup),
+          more].filter(Boolean));
         const first = (winners && winners.members.find((m) => m.votes)) || (winners && winners.members[0]);
         if (first) text.showScanOf(first); else textScan.innerHTML = '';
       },
@@ -1034,6 +1059,7 @@
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) ui.redo(); else ui.undo(); return; }
       if (mod || e.altKey) return;
       const k = e.key.toLowerCase();
+      if (k === ']' || k === '[') { e.preventDefault(); CollateView.goBlock(k === ']' ? 1 : -1); return; }
       if (k === 'n' || k === 'arrowdown' || k === 'j') { e.preventDefault(); text.jump(1); }
       else if (k === 'p' || k === 'arrowup' || k === 'k') { e.preventDefault(); text.jump(-1); }
       else if (/^[1-9]$/.test(k) && text.sel) {
@@ -1135,13 +1161,14 @@
         U.el('button', { class: 'btn small', title: 'P', onclick: () => state.jump(-1) }, '‹ Previous difference'),
         U.el('button', { class: 'btn small', title: 'N', onclick: () => state.jump(1) }, 'Next difference ›')),
       U.el('div', { class: 'nv-head cv-tools' },
-        moveBtn(-1), moveBtn(1),
-        U.el('button', { class: 'btn small', title: 'Make this column and the next one, if no witness has text in both (M)', onclick: () => ui.merge() }, 'Merge'),
-        U.el('button', { class: 'btn small', title: 'This witness’s reading is not the same as the others’ here: give it its own column (S)', onclick: () => ui.split() }, 'Split'),
-        U.el('button', { class: 'btn small', title: 'Change the order of this column and the next, if no witness has text in both (W)', onclick: () => ui.swap() }, 'Swap'),
-        stateSel,
-        U.el('button', { class: 'btn small', title: 'Add or remove a word or lemma boundary before this column (B)', onclick: () => ui.cut() }, 'Boundary'),
-        lockBtn, linkBtn, undoBtn, redoBtn,
+        // two groups: what moves letters between columns, and what marks them
+        U.el('span', { class: 'cv-tgroup' }, U.el('span', { class: 'cv-tlabel' }, 'Move'), moveBtn(-1), moveBtn(1),
+          U.el('button', { class: 'btn small', title: 'Make this column and the next one, if no witness has text in both (M)', onclick: () => ui.merge() }, 'Merge'),
+          U.el('button', { class: 'btn small', title: 'This witness’s reading is not the same as the others’ here: give it its own column (S)', onclick: () => ui.split() }, 'Split'),
+          U.el('button', { class: 'btn small', title: 'Change the order of this column and the next, if no witness has text in both (W)', onclick: () => ui.swap() }, 'Swap'),
+          U.el('button', { class: 'btn small', title: 'Add or remove a word or lemma boundary before this column (B)', onclick: () => ui.cut() }, 'Boundary')),
+        U.el('span', { class: 'cv-tgroup' }, U.el('span', { class: 'cv-tlabel' }, 'Mark'), stateSel, lockBtn, linkBtn),
+        undoBtn, redoBtn,
         U.el('span', { class: 'cv-spacer' }),
         U.el('button', { class: 'btn small danger-ghost', title: 'Take back all corrections to this block', onclick: () => ui.reset() }, 'Take back all')),
       host, detailBox, scanBox, unitBox, placesBox,
@@ -1149,7 +1176,7 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn,
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, checkBtn,
         U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));
@@ -1163,6 +1190,8 @@
     clearTimeout(places.timer);
     await saveNow();
     CollateView.lastOpen = null;
+    // on to another block, in a new window
+    if (CollateView.goNext) { const id = CollateView.goNext; CollateView.goNext = null; return CollateView.open(ed, list, workId, id, redraw); }
     if (redraw) redraw();
   };
 
