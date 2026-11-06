@@ -143,7 +143,7 @@
     return recs.map((r) => Object.assign({ table: ME.CollateEdit.ensure(r.table) }, A.entries(ed, r.table)));
   }
 
-  /* only: one part of the workbench, as the Analyse step opens it ('agreement', 'trees', 'network', 'copies',
+  /* only: one part of the workbench, as the Tools menu of the Collate step opens it ('agreement', 'trees', 'network', 'copies',
      'stemma'), with the settings above it; without it, all of it. */
   StemmaView.PARTS = { agreement: 'Agreement', trees: 'Trees', network: 'Network and coherence', copies: 'Copies and contamination', stemma: 'Your stemma' };
   StemmaView.open = async function (ed, list, workId, only) {

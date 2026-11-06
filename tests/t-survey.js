@@ -39,7 +39,7 @@ const COUNT = (sel) => {
     window.edId = ed.id;
   });
   T.check('the edition bar has at most 6 controls', (await page.evaluate(COUNT, '.ed-bar')) <= 6, await page.evaluate(COUNT, '.ed-bar'));
-  const step = (k) => page.evaluate(async (k) => { document.querySelector('[data-action="step-' + k + '"]').click(); await new Promise((r) => setTimeout(r, 400)); }, k);
+  
   const nextLabel = () => page.evaluate(() => { const b = document.querySelector('[data-action="next"]'); return b ? b.textContent : null; });
   // the walk: only what the screen offers next
   const labels = [];
@@ -52,12 +52,9 @@ const COUNT = (sel) => {
   T.check('following it collates every block', await page.evaluate(async () => (await ME.Collate.summaries(window.edId)).size === 2));
   T.check('step 2 shows at most 10 controls besides its rows', (await page.evaluate(COUNT, '.ed-stepbody')) <= 10, await page.evaluate(COUNT, '.ed-stepbody'));
   labels.push(await nextLabel());
-  T.check('then the next thing is Edit', labels[1] === 'Edit', labels);
+  T.check('then the next thing is to decide, in the first block', labels[1] === 'Decide in m1', labels);
+  // decide one place, with the keys, in the block the prompt opens
   await page.evaluate(() => document.querySelector('[data-action="next"]').click());
-  await sleep(600);
-  T.check('step 3 shows at most 10 controls besides its rows', (await page.evaluate(COUNT, '.ed-stepbody')) <= 10, await page.evaluate(COUNT, '.ed-stepbody'));
-  // decide one place, with the keys
-  await page.evaluate(() => document.querySelector('[data-action="open-block"]').click());
   await sleep(900);
   await page.evaluate(() => document.querySelector('.ct-text').focus());
   await page.keyboard.press('n'); await sleep(200);
@@ -69,10 +66,8 @@ const COUNT = (sel) => {
   T.check('with a decision made, the next thing is Publish', labels[2] === 'Publish', labels);
   await page.evaluate(() => document.querySelector('[data-action="next"]').click());
   await sleep(600);
-  T.check('step 5 shows at most 10 controls besides its rows', (await page.evaluate(COUNT, '.ed-stepbody')) <= 10, await page.evaluate(COUNT, '.ed-stepbody'));
-  await step('analyse');
-  T.check('step 4 shows at most 10 controls', (await page.evaluate(COUNT, '.ed-stepbody')) <= 10, await page.evaluate(COUNT, '.ed-stepbody'));
-  await step('publish');
+  T.check('step 3 shows at most 10 controls besides its rows', (await page.evaluate(COUNT, '.ed-stepbody')) <= 10, await page.evaluate(COUNT, '.ed-stepbody'));
+  T.check('there are three steps', await page.evaluate(() => document.querySelectorAll('.ed-step').length === 3));
   // and export it
   const dl = path.join(WORK, 'downloads-survey');
   fs.rmSync(dl, { recursive: true, force: true }); fs.mkdirSync(dl, { recursive: true });

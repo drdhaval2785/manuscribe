@@ -579,9 +579,9 @@ To open it, use Import edition package on Manuscribe's start screen.
       r.order.length > GRID_LIMIT ? U.el('p', { class: 'help' }, 'Showing the first ' + GRID_LIMIT + ' of ' + r.order.length + ' IDs.') : null);
   }
 
-  /* The edition screen: five steps, Witnesses, Collate, Edit, Analyse, Publish, each showing only its own work, under
-     a sentence that says where the edition stands and offers the next thing to do. */
-  Edition.STEPS = [['witnesses', 'Witnesses'], ['collate', 'Collate'], ['edit', 'Edit'], ['analyse', 'Analyse'], ['publish', 'Publish']];
+  /* The edition screen: three steps, Witnesses, Collate (deciding included) and Publish, each showing only its own
+     work, under a sentence that says where the edition stands and offers the next thing to do. */
+  Edition.STEPS = [['witnesses', 'Witnesses'], ['collate', 'Collate'], ['publish', 'Publish']];
   Edition.stepOf = {};
 
   // Where the edition stands, for the work in view.
@@ -593,20 +593,23 @@ To open it, use Import edition package on Manuscribe's start screen.
     const ids = r ? r.order : [];
     const sums = ids.map((id) => summaries.get(ME.Collate.keyOf(ed.id, r.work.id, id))).filter(Boolean);
     const stale = sums.filter((x) => ME.Collate.isCurrent(ed, list, x) === false).length;
-    return { witnesses: ed.witnesses.length, blocks: ids.length, collated: sums.length, stale,
+    // the first block with something to look at: a decision to review, else a difference not yet decided
+    const firstOf = (f) => { const x = sums.find(f); return x ? x.unit : null; };
+    const open = firstOf((x) => x.review) || firstOf((x) => (x.differ || 0) > (x.decided || 0));
+    return { witnesses: ed.witnesses.length, blocks: ids.length, collated: sums.length, stale, open, work: r ? r.work.id : null,
       decided: sums.reduce((a, x) => a + (x.decided || 0), 0), differ: sums.reduce((a, x) => a + (x.differ || 0), 0), review: sums.reduce((a, x) => a + (x.review || 0), 0) };
   }
 
   // What to say, and what to offer next.
   const n = (k, one, many) => k + ' ' + (k === 1 ? one : many);
-  function advice(st, go) {
+  function advice(st, go, openBlock) {
     if (!st.witnesses) return { sentence: 'Begin with the transcriptions of the manuscripts you are editing: add them as witnesses.', next: { label: 'Add witnesses…', run: () => go('witnesses', 'add') } };
     if (st.witnesses < 2) return { sentence: 'One witness so far: add the others, to compare them.', next: { label: 'Add witnesses…', run: () => go('witnesses', 'add') } };
     if (!st.blocks) return { sentence: 'The witnesses have no citation IDs in common yet. Mark each paragraph and verse with the same xml:id in every witness, so that they can be compared block by block.', next: null };
     if (st.collated < st.blocks) return { sentence: (st.blocks === 1 ? 'The block is' : (st.blocks - st.collated) + ' of ' + st.blocks + ' blocks are') + ' not yet collated.', next: { label: 'Collate', run: () => go('collate', 'collate') } };
     if (st.stale) return { sentence: n(st.stale, 'block was', 'blocks were') + ' aligned before a change of settings: collate again.', next: { label: 'Collate', run: () => go('collate', 'collate') } };
-    if (st.review) return { sentence: (st.blocks === 1 ? 'The block is' : 'All ' + st.blocks + ' blocks are') + ' collated; ' + n(st.review, 'place waits', 'places wait') + ' for your review.', next: { label: 'Edit', run: () => go('edit') } };
-    return { sentence: (st.blocks === 1 ? 'The block is' : 'All ' + st.blocks + ' blocks are') + ' collated: ' + n(st.differ, 'place', 'places') + ' where the witnesses differ, ' + st.decided + ' decided by you.', next: st.decided || st.differ === 0 ? { label: 'Publish', run: () => go('publish') } : { label: 'Edit', run: () => go('edit') } };
+    if (st.review) return { sentence: (st.blocks === 1 ? 'The block is' : 'All ' + st.blocks + ' blocks are') + ' collated; ' + n(st.review, 'place waits', 'places wait') + ' for your review.', next: { label: 'Review ' + st.open, run: () => openBlock(st.open) } };
+    return { sentence: (st.blocks === 1 ? 'The block is' : 'All ' + st.blocks + ' blocks are') + ' collated: ' + n(st.differ, 'place', 'places') + ' where the witnesses differ, ' + st.decided + ' decided by you.', next: st.decided || st.differ === 0 || !st.open ? { label: 'Publish', run: () => go('publish') } : { label: 'Decide in ' + st.open, run: () => openBlock(st.open) } };
   }
 
   Edition.draw = async function () {
@@ -622,7 +625,8 @@ To open it, use Import edition package on Manuscribe's start screen.
     const reg = Edition.register(ed, list);
     if (!ME.CollateView.work || !reg[ME.CollateView.work]) { const first = Object.values(reg).find((x) => x.order.length); if (first) ME.CollateView.work = first.work.id; }
     const st = await standing(ed, list, reg);
-    const step = Edition.stepOf[ed.id] || (st.witnesses < 2 ? 'witnesses' : st.collated < st.blocks || st.stale ? 'collate' : 'edit');
+    const known = Edition.STEPS.some(([k]) => k === Edition.stepOf[ed.id]);
+    const step = known ? Edition.stepOf[ed.id] : st.witnesses < 2 ? 'witnesses' : 'collate';
     const go = async (k, then) => {
       Edition.stepOf[ed.id] = k;
       await Edition.draw();
@@ -634,17 +638,16 @@ To open it, use Import edition package on Manuscribe's start screen.
     const remind = due === null ? null : U.el('div', { class: 'ed-remind' }, due === 'never'
       ? 'This edition has never been saved outside this browser. Clearing the browser’s data would delete it: Export › Edition package.'
       : 'Your last package export was ' + due + ' days ago, and the work has changed since: Export › Edition package.');
-    const count = { witnesses: String(st.witnesses), collate: st.blocks ? st.collated + '/' + st.blocks : '', edit: st.differ ? st.decided + '/' + st.differ : '', analyse: '', publish: ed.issued ? ed.issued.version : '' };
+    const count = { witnesses: String(st.witnesses), collate: st.blocks ? st.collated + '/' + st.blocks : '', publish: ed.issued ? ed.issued.version : '' };
     const steps = U.el('nav', { class: 'ed-steps', 'aria-label': 'Steps of the edition' }, Edition.STEPS.map(([k, label], i) => U.el('button', { class: 'ed-step' + (k === step ? ' on' : ''), dataset: { action: 'step-' + k }, 'aria-current': k === step ? 'step' : null, onclick: () => go(k) },
       U.el('span', { class: 'ed-step-n' }, String(i + 1)), ' ' + label, count[k] ? U.el('span', { class: 'ed-step-c' }, count[k]) : null)));
-    const a = advice(st, go);
-    const here = a.next && ((a.next.label === 'Edit' && step === 'edit') || (a.next.label === 'Publish' && step === 'publish'));
+    const openBlock = (unit) => ME.CollateView.open(ed, list, st.work, unit, redraw);
+    const a = advice(st, go, openBlock);
+    const here = a.next && a.next.label === 'Publish' && step === 'publish';
     const status = U.el('div', { class: 'ed-status' }, U.el('span', null, a.sentence), a.next && !here ? U.el('button', { class: 'btn small primary', dataset: { action: 'next' }, onclick: a.next.run }, a.next.label) : null);
     let body;
     if (step === 'witnesses') body = witnessesStep(ed, list, reg, redraw);
-    else if (step === 'collate') body = await ME.CollateView.section(ed, list, redraw, 'collate');
-    else if (step === 'edit') body = await ME.CollateView.section(ed, list, redraw, 'edit');
-    else if (step === 'analyse') body = await ME.Steps.analyse(ed, list, redraw);
+    else if (step === 'collate') body = await ME.CollateView.section(ed, list, redraw);
     else body = await ME.Steps.publish(ed, list, redraw);
     host.innerHTML = '';
     host.append(...[

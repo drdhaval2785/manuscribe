@@ -532,6 +532,8 @@
       const z = w + 1 < wordStarts.length ? wordStarts[w + 1] : t.ncols; // the word is a..z-1
       starts.push(a);
       if (z - a <= longWord) return;
+      // words the editor joined into one place stay one place
+      for (let c = a + 1; c < z; c++) if (t.cuts.remove[t.colIds[c]]) return;
       // a long compound: agreeing stretches, its ends too, are set apart, so that a small difference stays small
       let last = a - 1;
       for (let c = a; c <= z; c++) {

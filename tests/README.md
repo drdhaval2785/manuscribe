@@ -31,7 +31,8 @@ apart from `t-features.js`, which starts at the default.
 | `t-print.js` | Arabic, Japanese, English and Sanskrit editions from witnesses to print: letters compared as written; the print page laid out with every note on the page of its marker, Arabic right to left; the browser's PDF of it searchable; markers in the direct PDF; notes by line instead |
 | `t-export.js` | One Export: each format the same as from its old button; offered only where it fits; the choice saved and remembered |
 | `t-edit.js` | The table window at Simple: a place shows at most 6 controls; Accept, Emend…, More; going through the blocks; the letter tools in two groups |
-| `t-analyse.js` | The Analyse cards, nothing computed until opened, and the workbench in its parts |
+| `t-emend.js` | Emending a word every witness agrees on: chosen, emended (E), in the edited text and the apparatus as an emendation; two words joined and emended as one; taken back |
+| `t-tools.js` | The three steps; the Tools menu of Collate, each tool switched on, nothing computed until chosen; the workbench in its parts; at Simple, Tools leads to Settings |
 | `t-tidy.js` | The start screen's three actions and Open…; the transcription bar, the PDF's View menu, the Manuscript tab in folds |
 | `t-survey.js` | At Simple, every screen within the targets of the usability roadmap; and a walk from witnesses to a PDF that follows only the prompts |
 | `t-screens.js` | Copying several lines; with the sample, the trust order, text view, apparatus, workbench, and the reader opened offline |

@@ -1,7 +1,7 @@
 'use strict';
-/* The later steps of the edition screen: Analyse, a card for each way of looking at the witnesses, computed only
-   when it is opened; and Publish, the citation, the conventions of the apparatus, its checks, and the outputs. And
-   the Share menu. */
+/* Parts of the edition screen: the optional tools of the Collate step, each computed only when it is chosen; the
+   Publish step, with the citation, the conventions of the apparatus, its checks, and the outputs; the Share menu;
+   and the help. */
 (function (ME) {
   const { U, UI, Edition } = ME;
   const Steps = {};
@@ -23,32 +23,34 @@
     else if (choice === 'kept') X.kept(ed);
   };
 
-  /* ---------- Analyse ---------- */
+  /* ---------- the optional tools of the Collate step ---------- */
 
   async function builtOf(ed, list) {
     const works = await ME.Release.works(ed, list);
     return works.find((w) => w.work.id === ME.CollateView.work) || works[0] || null;
   }
-
-  // a card: its title, what it shows, and what opening it does
-  const card = (title, desc, open, action) => U.el('div', { class: 'an-card' }, U.el('h3', null, title), U.el('p', { class: 'help' }, desc),
-    U.el('button', { class: 'btn small', dataset: { action }, onclick: open }, 'Open'));
-
   const panel = (title, body) => UI.modal({ title, body, wide: true, buttons: [{ label: 'Close', value: null }] });
 
-  Steps.analyse = async function (ed, list, redraw) {
-    const w = await builtOf(ed, list);
-    if (!w) return U.el('p', { class: 'help' }, 'Collate first: then the witnesses can be compared here.');
-    const workId = w.work.id;
-    const cards = [];
-    if (F().on('agreement')) cards.push(card('Agreement', 'How often each pair of witnesses reads alike, in the corrected text; and where some agree against others.', () => {
+  /* The tools switched on in Settings, each computed only when it is chosen. -> [{label, title, action, run}] */
+  Steps.tools = function (ed, list, redraw) {
+    const tools = [];
+    const add = (action, label, title, run) => tools.push({ action, label, title, run: async () => {
+      const w = await builtOf(ed, list);
+      if (!w) { U.toast('Collate first'); return; }
+      run(w);
+    } });
+    if (F().on('metre')) add('an-metre', 'Metre…', 'The metre of each verse block of the edited text, and what does not fit it', (w) => {
+      const rows = w.built.map((b) => { const r = ME.Metre.identify(b.text.trim()); return U.el('tr', null, U.el('td', null, b.table.unit), U.el('td', null, r.metre ? r.names.slice(0, 2).join(', ') : '—'), U.el('td', { class: 'num' }, r.metre ? String(r.faults.length) : ''), U.el('td', { class: 'help' }, r.metre ? r.faults.slice(0, 3).map((f) => 'pāda ' + f.pada + ', ' + (f.pos ? 'syllable ' + f.pos + ': ' : '') + f.why).join('; ') : r.why || '')); });
+      panel('Metre', U.el('table', { class: 'ed-table' }, U.el('thead', null, U.el('tr', null, ['Block', 'Metre', 'Faults', ''].map((h) => U.el('th', null, h)))), U.el('tbody', null, rows)));
+    });
+    if (F().on('agreement')) add('an-agreement', 'Agreement…', 'How often each pair of witnesses reads alike, in the corrected text; and where some agree against others', (w) => {
       const built = w.built;
       const A = ME.Apparatus;
       const sigla = ed.witnesses.map((x) => x.siglum);
       const pickBox = (name) => U.el('span', { class: 'ap-pick' }, sigla.map((x) => U.el('label', null, U.el('input', { type: 'checkbox', value: x, name }), ' ' + x)));
       const withBox = pickBox('with'), againstBox = pickBox('against');
       const found = U.el('ul', { class: 'ap-entries' });
-      panel('Agreement', U.el('div', null, ME.CollateView.agreement(ed, list, workId),
+      panel('Agreement', U.el('div', null, ME.CollateView.agreement(ed, list, w.work.id),
         U.el('h3', null, 'Where witnesses agree against others'),
         U.el('div', { class: 'nv-head' }, U.el('span', null, 'These agree:'), withBox),
         U.el('div', { class: 'nv-head' }, U.el('span', null, 'against:'), againstBox, U.el('button', { class: 'btn small primary', onclick: () => {
@@ -58,33 +60,22 @@
           const res = A.agreements(ed, built, a, g);
           found.append(U.el('li', { class: 'help' }, res.length + ' place(s). Places where any of them is lost are left out.'), ...res.map((r) => U.el('li', null, r.ref + ' ' + (r.reading || '(omits)') + ' — ' + A.format(ed, r.entry).replace(/<\/?sup>/g, ''))));
         } }, 'Find')), found));
-    }, 'an-agreement'));
+    });
     if (F().on('stemmatics')) {
-      // the workbench in its parts, each opened on its own
+      // the stemmatic workbench in its parts, each opened on its own
       const SV = ME.StemmaView;
-      cards.push(card('Trees', 'A tree by distance (neighbour joining) with how sure each group is, a map of the witnesses, and the shortest tree (parsimony).', () => SV.open(ed, list, workId, 'trees'), 'an-trees'));
-      cards.push(card('Network and coherence', 'A NeighborNet, where the variants pull two ways; and each witness’s closest relatives and potential ancestors.', () => SV.open(ed, list, workId, 'network'), 'an-network'));
-      cards.push(card('Copies and contamination', 'Possible copies, each witness left out in turn, and passage by passage how far one witness agrees with each other.', () => SV.open(ed, list, workId, 'copies'), 'an-copies'));
-      cards.push(card('Your stemma', 'Write your stemma, see the archetype it implies, and the variants that do not fit it.', () => SV.open(ed, list, workId, 'stemma'), 'an-stemma'));
-      cards.push(card('The whole workbench', 'All of the above, and agreement, on one page.', () => SV.open(ed, list, workId), 'stemmatics'));
+      add('an-trees', 'Trees…', 'A tree by distance (neighbour joining) with how sure each group is, a map of the witnesses, and the shortest tree (parsimony)', (w) => SV.open(ed, list, w.work.id, 'trees'));
+      add('an-network', 'Network and coherence…', 'A NeighborNet, where the variants pull two ways; and each witness’s closest relatives and potential ancestors', (w) => SV.open(ed, list, w.work.id, 'network'));
+      add('an-copies', 'Copies and contamination…', 'Possible copies, each witness left out in turn, and passage by passage how far one witness agrees with each other', (w) => SV.open(ed, list, w.work.id, 'copies'));
+      add('an-stemma', 'Your stemma…', 'Write your stemma, see the archetype it implies, and the variants that do not fit it', (w) => SV.open(ed, list, w.work.id, 'stemma'));
+      add('stemmatics', 'The whole stemmatic workbench…', 'All of the stemmatic tools, and agreement, on one page', (w) => SV.open(ed, list, w.work.id));
     }
-    if (F().on('registers')) cards.push(card('Testimonia, parallels, concordance', 'Passages elsewhere that quote this text or run beside it, and where else a passage occurs, in your witnesses and in texts you bring in.', () => {
+    if (F().on('registers')) add('an-registers', 'Testimonia, parallels, concordance…', 'Passages elsewhere that quote this text or run beside it, and where else a passage occurs', (w) => {
       const folds = ME.LayersView.folds(ed, w.built, list, redraw).filter((x) => !/Indices/.test(x.textContent));
       for (const f of folds) f.open = true;
       panel('Testimonia, parallels, concordance', U.el('div', null, ...folds));
-    }, 'an-registers'));
-    if (F().on('indices')) cards.push(card('Indices', 'Every word of the edited text, in the order of the alphabet, with where it stands' + (F().on('metre') ? '; and every pāda of its verse' : '') + '.', () => {
-      const f = ME.LayersView.folds(ed, w.built, list, redraw).find((x) => /Indices/.test(x.textContent));
-      if (f) { panel('Indices', U.el('div', null, f)); f.open = true; f.dispatchEvent(new Event('toggle')); }
-    }, 'an-indices'));
-    if (F().on('metre')) cards.push(card('Metre', 'The metre of each verse block of the edited text, and what does not fit it.', () => {
-      const rows = w.built.map((b) => { const r = ME.Metre.identify(b.text.trim()); return U.el('tr', null, U.el('td', null, b.table.unit), U.el('td', null, r.metre ? r.names.slice(0, 2).join(', ') : '—'), U.el('td', { class: 'num' }, r.metre ? String(r.faults.length) : ''), U.el('td', { class: 'help' }, r.metre ? r.faults.slice(0, 3).map((f) => 'pāda ' + f.pada + ', ' + (f.pos ? 'syllable ' + f.pos + ': ' : '') + f.why).join('; ') : r.why || '')); });
-      panel('Metre', U.el('table', { class: 'ed-table' }, U.el('thead', null, U.el('tr', null, ['Block', 'Metre', 'Faults', ''].map((h) => U.el('th', null, h)))), U.el('tbody', null, rows)));
-    }, 'an-metre'));
-    const off = ['agreement', 'stemmatics', 'registers'].filter((id) => !F().on(id)).map((id) => ({ agreement: 'agreement', stemmatics: 'stemmatics', registers: 'testimonia, parallels and the concordance' }[id]));
-    const more = off.length ? U.el('p', { class: 'help' }, 'Also: ' + off.join(', ') + '. Switch them on under ⚙ Settings, or choose the Full level there.') : null;
-    if (!cards.length) return U.el('div', null, more);
-    return U.el('div', null, U.el('div', { class: 'an-cards' }, cards), more);
+    });
+    return tools;
   };
 
   /* ---------- Publish ---------- */
@@ -121,16 +112,15 @@
     return UI.modal({ title: 'The edition, step by step', wide: true, body: U.el('div', { class: 'help-body' },
       U.el('ol', { class: 'st-list' },
         U.el('li', null, U.el('strong', null, 'Witnesses: '), 'add the transcriptions of your manuscripts, and check that their citation IDs match.'),
-        U.el('li', null, U.el('strong', null, 'Collate: '), 'line them up, block by block. Change… says what counts as the same reading.'),
-        U.el('li', null, U.el('strong', null, 'Edit: '), 'open a block, and decide where the witnesses differ. The proposal is the reading of most witnesses, or of the most trusted.'),
-        U.el('li', null, U.el('strong', null, 'Analyse: '), 'agreement, trees, a network, copies, your stemma, the concordance and indices, each opened when you need it.'),
+        U.el('li', null, U.el('strong', null, 'Collate: '), 'line them up, block by block, then open a block to decide. Where the witnesses differ, choose a reading; the proposal is the reading of most witnesses, or of the most trusted. Any word, even one every witness agrees on, can be clicked and emended. Change… says what counts as the same reading.'),
         U.el('li', null, U.el('strong', null, 'Publish: '), 'say how the edition is cited, check the apparatus, and Export… it: a PDF, a reader, TEI, LaTeX and more.')),
-      U.el('p', { class: 'help' }, 'The line under the steps says where the edition stands and offers what comes next. Less used tools are switched on under ⚙ Settings, or all at once with the Full level.'),
+      U.el('p', { class: 'help' }, 'The line under the steps says where the edition stands and offers what comes next. Optional tools (metre, agreement, the stemmatic workbench, testimonia) are in the Collate step’s Tools menu once they are switched on under ⚙ Settings, or all at once with the Full level.'),
       U.el('h3', null, 'In a block'),
       rows([
         ['N  P', 'The next or previous place where the witnesses differ'],
         ['1 … 9', 'Choose that reading'],
         ['A', 'Accept the proposal as your decision'],
+        ['E', 'Emend the chosen word: your own text for it'],
         [']  [', 'The next or previous block'],
         [(U.isMac ? '⌘' : 'Ctrl') + '+Z', 'Undo; with Shift, redo'],
       ])), buttons: [{ label: 'Close', value: null }] });

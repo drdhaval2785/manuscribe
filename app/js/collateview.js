@@ -77,10 +77,9 @@
     return true;
   };
 
-  /* The collation of a work, for one step of the edition: 'collate' (settings in a line, Collate, the blocks and
-     their state) or 'edit' (the blocks, each opening its table, with what is decided and what is to review). */
-  CollateView.section = async function (ed, list, redraw, mode) {
-    mode = mode || 'collate';
+  /* The Collate step: how witnesses are compared, in a line; Collate; the blocks, each opening its table to decide,
+     with what is decided and what is to review; the edited text of the work; and the tools switched on in Settings. */
+  CollateView.section = async function (ed, list, redraw) {
     if (Store.fallback) return U.el('p', { class: 'help' }, 'Collation needs the browser’s database, which this browser does not allow for a page opened from disk. Try another browser, or the copy on the web.');
     const works = worksWithText(ed, list);
     if (!works.length) return U.el('p', { class: 'help' }, 'Appears when the edition has witnesses with text.');
@@ -127,36 +126,37 @@
       const idCell = U.el('td', { class: 'cv-unit' }, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, workId, id, redraw) }, id) : id);
       const state = U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text));
       const has = s && s.words !== undefined;
-      if (mode === 'edit') return U.el('tr', null, idCell, state, num(has ? s.differ : ''), num(has ? s.decided : ''), num(s && s.review ? s.review : ''));
-      return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''),
+      return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''), num(has ? s.decided : ''), num(s && s.review ? s.review : ''),
         ...(full ? [num(s ? s.labels : ''), num(has ? s.ties : ''), num(s && s.corrections ? s.corrections : ''), num(s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : '')] : []));
     });
-    const heads = mode === 'edit' ? ['Block', '', 'Places that differ', 'Decided', 'To review']
-      : (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
+    const heads = (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ', 'Decided', 'To review'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
     const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
       U.el('thead', null, U.el('tr', null, heads.map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
       U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
     const anyTable = [...summaries.values()].some((s) => s.work === workId);
     const workPick = works.length > 1 ? U.el('label', null, 'Work ', pick) : null;
-    if (mode === 'edit') {
-      return U.el('div', null,
-        U.el('p', { class: 'help' }, anyTable ? 'Open a block to read its text word by word, and decide where the witnesses differ. The edited text and apparatus of the whole work are one click away.' : 'Collate first: then each block can be opened here.'),
-        U.el('div', { class: 'nv-head' }, workPick,
-          U.el('button', { class: 'btn small', disabled: !anyTable, title: 'The edited text of the whole work, its apparatus, checks and search', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
-          ed.works.length > 1 && F.on('layers') ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: () => ME.LayersView.links(ed, list, workId) }, 'Links to the base text…') : null),
-        table);
-    }
     // the comparison in a line, with everything about it behind Change…
     const norm = Norm.settings(ed.norm);
     const comparison = U.el('p', { class: 'help cv-trustline' }, 'Compared as ', U.el('strong', null, norm.profile.name), ', by ', U.el('strong', null, Norm.TOKENIZERS[kind].label.toLowerCase()), '; ties go to ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? ' ' : ' (not set yet) ',
       U.el('button', { class: 'btn small', dataset: { action: 'comparison' }, onclick: () => CollateView.comparison(ed, list, redraw) }, 'Change…'));
-    const more = F.on('alignMore') ? U.el('details', { class: 'menu' }, U.el('summary', { class: 'btn small' }, 'More'), U.el('div', { class: 'menu-items' }, again,
-      U.el('button', { class: 'btn small', disabled: !anyTable, title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'))) : null;
+    // the optional tools, in one menu; what is not switched on is a click away in Settings
+    const close = (e) => { const d = e.target.closest('details'); if (d) d.open = false; };
+    const item = (t) => U.el('button', { class: 'btn small', title: t.title, dataset: { action: t.action }, onclick: (e) => { close(e); t.run(); } }, t.label);
+    const tools = U.el('details', { class: 'menu cv-tools' }, U.el('summary', { class: 'btn small', title: 'Optional tools: switch them on or off under ⚙ Settings' }, 'Tools'), U.el('div', { class: 'menu-items' },
+      again,
+      F.on('alignMore') ? U.el('button', { class: 'btn small', disabled: !anyTable, title: 'Replace this work’s tables with an alignment made elsewhere', onclick: (e) => { close(e); CollateView.importInto(ed, list, workId, summaries, redraw); } }, 'Import alignment…') : null,
+      ed.works.length > 1 && F.on('layers') ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: (e) => { close(e); ME.LayersView.links(ed, list, workId); } }, 'Links to the base text…') : null,
+      anyTable ? ME.Steps.tools(ed, list, redraw).map(item) : null,
+      U.el('button', { class: 'btn small ghost', title: 'Choose which optional tools are shown', dataset: { action: 'tools-settings' }, onclick: (e) => { close(e); ME.App.showSettings(); } }, 'Switch tools on or off…')));
     void trustLine; void tok;
     return U.el('div', null,
-      U.el('p', { class: 'help' }, 'Lines up the witnesses, block by block, by their citation IDs, with Charles Li’s aligner from Saktumiva. It only reads your transcriptions; a block whose text has not changed keeps its table.'),
+      U.el('p', { class: 'help' }, anyTable
+        ? 'Open a block to read its text word by word: choose a reading where the witnesses differ, or click any word to emend it. Collate again after changing a transcription; a block whose text has not changed keeps its table and your decisions.'
+        : 'Lines up the witnesses, block by block, by their citation IDs, with Charles Li’s aligner from Saktumiva. It only reads your transcriptions.'),
       comparison,
-      U.el('div', { class: 'nv-head' }, workPick, go, more),
+      U.el('div', { class: 'nv-head' }, workPick, go,
+        U.el('button', { class: 'btn small', disabled: !anyTable, title: 'The edited text of the whole work, its apparatus, checks, search and indices', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
+        tools),
       progress, table);
   };
 
@@ -180,7 +180,7 @@
     if (redraw) redraw();
   };
 
-  // How far the witnesses agree, in the corrected text, for the Analyse step.
+  // How far the witnesses agree, in the corrected text, for the Tools menu of the Collate step.
   CollateView.agreement = function (ed, list, workId) {
     const samples = new Set((ed.samples && ed.samples[workId]) || []);
     const box = U.el('div');
@@ -894,8 +894,9 @@
         let h = '';
         P.units.forEach((u, i) => {
           const shown = escHtml(u.text);
-          if (!u.others) { h += shown; return; }
           const dd = u.decision;
+          // a word every witness agrees on is plain, but can be chosen too, to emend it
+          if (!u.others && !u.review) { h += '<span class="ct-u d-same' + (text.sel && text.sel.fromId === u.fromId ? ' sel' : '') + '" data-u="' + i + '">' + shown + '</span>'; return; }
           const cls = 'ct-u ' + (u.review ? 'd-review' : dd ? 'd-decided d-' + dd.type : u.differs ? 'd-' + u.decided : 'd-lost') + (dd && dd.confidence === 'low' ? ' unsure' : '') + (text.sel && text.sel.fromId === u.fromId ? ' sel' : '');
           let inner = shown.trim() ? shown : '<span class="ct-om">⌀</span>' + shown;
           if (dd && dd.crux) inner = '†' + inner.replace(/(\s*)$/, '†$1');
@@ -908,7 +909,7 @@
         }
       },
       wanted(u) {
-        if (!u.differs) return false;
+        if (!u.differs) return !!(u.decision || u.review) && text.filter !== 'trust';
         if (text.filter === 'trust') return u.decided === 'trust';
         if (text.filter === 'open') return u.decided !== 'chosen';
         return true;
@@ -958,20 +959,20 @@
         })();
         const evs = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
         const support = ME.Layers ? ME.Layers.supportOf(evs) : { for: new Map(), other: [] };
+        const d = u.decision;
         const rows = u.groups.map((g, gi) => {
           const n = metreOf ? metreOf.fit(g.form.text) : null;
           const backing = support.for.get(g.form.text.trim()) || [];
           const isWinner = g === winners;
           const members = g.members.map((m) => U.el('span', { class: 'link ct-wit', role: 'button', tabindex: '0', title: 'See this line in the scan', onclick: () => text.showScanOf(m), onkeydown: (e) => { if (e.key === 'Enter') text.showScanOf(m); } }, m.label + (m.layer === 'ac' ? ' (before correction)' : '')));
           return U.el('li', { class: isWinner ? 'win' : '' },
-            U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && u.decided === 'chosen', onclick: () => text.decide(u, { type: 'selectio', label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
+            U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && (u.decided === 'chosen' || (!u.differs && !d)), onclick: () => text.decide(u, { type: 'selectio', label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
             ' ', U.el('span', { class: 'ct-reading' }, g.form.text.trim() || '(omits)'), ' ',
             U.el('span', { class: 'help' }, g.votes ? g.votes + ' vote' + (g.votes > 1 ? 's' : '') + ': ' : 'no vote: '), members,
             metreOf ? U.el('span', { class: 'ct-metre ' + (n === 0 ? 'ok' : 'bad'), title: 'The verse with this reading, in ' + metreOf.metre }, n === 0 ? ' metre ✓' : n === Infinity ? ' out of metre' : ' metre: ' + n + ' fault' + (n > 1 ? 's' : '')) : null,
             backing.length ? U.el('span', { class: 'ct-backing', title: backing.map(ME.Layers.formatEvidence).join('\n') }, ' + ' + backing.map((x) => x.source.label + ' (' + ME.Layers.label(x.type) + ')').join(', ')) : null);
         });
         const missing = u.missing.map((m) => U.el('li', { class: 'muted' }, m.label + ': ' + ({ lac: 'text lost', illeg: 'illegible', na: 'outside its coverage', ambig: 'uncertain', transposed: 'has this elsewhere' }[m.why] || m.why) + ', so no vote'));
-        const d = u.decision;
         // the editor's own text, a crux, doubt and reasons: all optional, all one step
         const emendText = U.el('input', { type: 'text', class: 'ct-emend', value: d && d.text ? d.text : '', placeholder: 'your text for this place', 'aria-label': 'Emended text' });
         const emendKind = U.el('select', { 'aria-label': 'Kind of correction' }, U.el('option', { value: 'emendatio' }, 'emendation'), U.el('option', { value: 'conjecture', selected: d && d.type === 'conjecture' }, 'conjecture'));
@@ -991,7 +992,7 @@
         const history = table.decisions.filter((x) => x.key === u.key && x.status !== 'accepted');
         // the everyday decision in view; emending behind Emend…; the rest under More
         const emendGroup = U.el('span', { class: 'ct-group', hidden: !(d && (d.type === 'emendatio' || d.type === 'conjecture')) }, emendText, emendKind, source, U.el('button', { class: 'btn small', onclick: () => text.decide(u, { type: emendKind.value, text: emendText.value, source: source.value.trim() }) }, 'Use my text'));
-        const emendBtn = U.el('button', { class: 'btn small', title: 'Your own text for this place: an emendation or a conjecture', onclick: () => { emendGroup.hidden = !emendGroup.hidden; if (!emendGroup.hidden) emendText.focus(); } }, 'Emend…');
+        const emendBtn = U.el('button', { class: 'btn small' + (!u.differs && !d ? ' primary' : ''), title: 'Your own text for this place: an emendation or a conjecture (E)', dataset: { action: 'emend' }, onclick: () => { emendGroup.hidden = !emendGroup.hidden; if (!emendGroup.hidden) emendText.focus(); } }, 'Emend…');
         const said = !!(d && (d.crux || (d.reasons && d.reasons.length) || d.note || d.confidence || d.type === 'lacuna'));
         const more = U.el('details', { class: 'ct-more', open: said || evs.length > 0 || !!CollateView.moreOpen }, U.el('summary', null, 'More: crux, lacuna, certainty, reasons' + (ME.Features.on('evidence') ? ', evidence' : '')),
           U.el('div', { class: 'ct-decide' },
@@ -1002,16 +1003,16 @@
           ME.Layers && (ME.Features.on('evidence') || evs.length) ? evidenceBox(u, evs) : null,
           history.length ? U.el('details', { class: 'ct-history' }, U.el('summary', null, history.length + ' earlier decision(s) here'), U.el('ul', null, history.map((h) => U.el('li', null, h.id + ': ' + (h.type === 'selectio' ? h.label : h.type + ' ' + (h.text || '')) + (h.reasons ? ' · ' + h.reasons.join(', ') : '') + ' · ' + h.status + (h.why ? ' (' + h.why + ')' : ''))))) : null,
           U.el('div', { class: 'nv-head' },
-            d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, 'Follow the votes again') : null,
+            d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, u.differs ? 'Follow the votes again' : 'Back to the witnesses’ text') : null,
             i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: 'This and the next word are one unit of variation', onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
             ME.Features.on('letters') ? U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'Correct the alignment here') : null));
         more.addEventListener('toggle', () => { CollateView.moreOpen = more.open; });
         textPanel.append(...[
-          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : SETTLED[u.decided] || '', !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
+          U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : (SETTLED[u.decided] || '') + (!u.differs ? ' If they are all wrong here, Emend… gives your own text; to emend several words at once, More › Join with the next word first.' : ''), !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
           u.review && u.review.conflict ? conflictBox(u) : u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
           U.el('ol', { class: 'ct-readings' }, rows, missing),
           U.el('div', { class: 'ct-decide' },
-            !d ? U.el('button', { class: 'btn small primary', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept') : null,
+            !d && u.differs ? U.el('button', { class: 'btn small primary', title: 'Make the proposed reading your decision (A)', onclick: () => text.decide(u, { type: 'selectio', label: u.form }) }, 'Accept') : null,
             emendBtn, emendGroup),
           more].filter(Boolean));
         const first = (winners && winners.members.find((m) => m.votes)) || (winners && winners.members[0]);
@@ -1070,7 +1071,8 @@
       else if (/^[1-9]$/.test(k) && text.sel) {
         const g = text.sel.groups[+k - 1];
         if (g) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: g.form.label }); }
-      } else if (k === 'a' && text.sel && !text.sel.decision && text.sel.form) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: text.sel.form }); }
+      } else if (k === 'e' && text.sel) { const b = textPanel.querySelector('[data-action="emend"]'); if (b) { e.preventDefault(); b.click(); }
+      } else if (k === 'a' && text.sel && !text.sel.decision && text.sel.differs && text.sel.form) { e.preventDefault(); text.decide(text.sel, { type: 'selectio', label: text.sel.form }); }
     });
 
     /* ---------- places to check ---------- */
@@ -1135,7 +1137,7 @@
         U.el('label', null, 'Go through ', filterSel),
         U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) { text.render(); showStatus(); } } }, 'Trust order…'),
         U.el('button', { class: 'btn small', title: 'Undo (Ctrl or Cmd+Z)', onclick: () => ui.undo() }, 'Undo')),
-      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words differ between witnesses: click one to see the readings, or press N. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
+      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words differ between witnesses: click one to see the readings, or press N. Click any other word to emend it, where every witness is wrong. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
       textBox, textPanel, textScan,
       U.el('p', { class: 'nv-legend' }, U.el('span', { class: 'ct-u d-majority' }, 'most witnesses'), ' ', U.el('span', { class: 'ct-u d-plurality' }, 'most votes, not most witnesses'), ' ', U.el('span', { class: 'ct-u d-trust' }, 'a tie, settled by trust'), ' ', U.el('span', { class: 'ct-u d-chosen' }, 'your choice'), ' ', U.el('span', { class: 'ct-u d-lost' }, 'a witness cannot be read here'), ' · ⌀ the proposed reading omits the word'));
     const letterPane = U.el('div', { class: 'cv-letters', hidden: true });

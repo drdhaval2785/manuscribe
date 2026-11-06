@@ -177,7 +177,7 @@ const { launch, sleep, checks } = require('./h');
   await sleep(900);
   const panel = await page.evaluate(() => {
     const read = () => ({ metre: [...document.querySelectorAll('.ct-metre')].map((x) => x.textContent.trim()), backing: [...document.querySelectorAll('.ct-backing')].map((x) => x.textContent.trim()) });
-    const us = [...document.querySelectorAll('.ct-text .ct-u')];
+    const us = [...document.querySelectorAll('.ct-text .ct-u:not(.d-same)')];
     if (!us.length) return null;
     const got = us.map((u) => { u.click(); return read(); });
     return { metre: got.flatMap((g) => g.metre), backing: got.flatMap((g) => g.backing), evidence: !!document.querySelector('.ct-evidence') };

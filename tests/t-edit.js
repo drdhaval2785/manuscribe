@@ -1,4 +1,4 @@
-// The Edit step's table window, at the Simple level: a place shows its readings, Accept and Emend… and folds the
+// The table window of a block, at the Simple level: a place shows its readings, Accept and Emend… and folds the
 // rest under More; the blocks of a work are gone through without closing the window; and, at Full, the tools of the
 // letter view are in two groups.
 const { launch, sleep, checks } = require('./h');
@@ -33,7 +33,7 @@ const { launch, sleep, checks } = require('./h');
   });
   await sleep(900);
   const vis = () => page.evaluate(() => { const p = document.querySelector('.ct-panel'); const v = (e) => { const r = e.getBoundingClientRect(); const shut = e.closest('details'); return r.width > 0 && r.height > 0 && !e.hidden && !e.closest('[hidden]') && !(shut && !shut.open && !e.closest('summary')); }; return { controls: [...p.querySelectorAll('button, select, input')].filter(v).length, text: p.innerText }; });
-  await page.evaluate(() => document.querySelector('.ct-text .ct-u').click());
+  await page.evaluate(() => document.querySelector('.ct-text .ct-u:not(.d-same)').click());
   await sleep(300);
   const panel = await vis();
   T.check('a place shows at most six controls at the Simple level (' + panel.controls + ')', panel.controls <= 6, panel);

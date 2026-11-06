@@ -397,9 +397,10 @@ An edition brings together several transcriptions of a text. Each witness stays 
 transcription that you can open and type in, and the edition adds what holds them together. Start with
 **＋ New edition** on the start screen.
 
-**The edition goes in five steps,** shown across the top of its screen, each with a count: **1 Witnesses**,
-**2 Collate**, **3 Edit**, **4 Analyse**, **5 Publish**. Each step shows only its own work. The line under the
-steps says where the edition stands, and its button does the next thing: add witnesses, collate, edit, publish.
+**The edition goes in three steps,** shown across the top of its screen, each with a count: **1 Witnesses**,
+**2 Collate** and **3 Publish**. Each step shows only its own work. The line under the steps says where the edition
+stands, and its button does the next thing: add witnesses, collate, open the first block with a place to decide,
+publish.
 Above the steps: **‹ Start**, the title, **Export…** (every output, see [Publishing](#publishing)),
 **Share…** (at the Full level: compare and merge, GitHub, kept copies), **⚙** Settings and **?** help.
 
@@ -413,7 +414,13 @@ Above the steps: **‹ Start**, the title, **Export…** (every output, see [Pub
     Opened, it lists duplicate IDs, automatic IDs, lines outside any paragraph or verse, and IDs a witness
     lacks, with links to the place. In the grid, click an empty cell to explain the gap: lacuna, not yet
     transcribed, or outside that witness's scope.
-- **2 Collate**, **3 Edit**, **4 Analyse** and **5 Publish** are described below.
+- **2 Collate:** how the witnesses are compared, in one line with **Change…**; **Collate**; the blocks, each with
+  its words, the places where the witnesses differ, how many you have decided and how many wait for review (click
+  a block to open it and decide); **Edited text and apparatus…** for the whole work, with its indices; and
+  **Tools**, the optional tools switched on under ⚙ Settings: metre (with the South Asian pack), agreement, the
+  stemmatic workbench in its parts, testimonia, parallels and the concordance, Align again and Import alignment.
+  Its last item, **Switch tools on or off…**, opens Settings.
+- **3 Publish** is described below.
 - **Export › Edition package** saves a ZIP of plain files, for backup and for moving between computers or
   editors; **Open…** on the start screen reads it back. The edition reminds you when it has never been exported,
   or when the last export is 7 days old and the work has changed. PDFs are never in the package: each is
@@ -503,7 +510,9 @@ line up, so if a word's readings look wrong, **See the letters** opens the lette
 #### Decisions
 
 In **Text**, every place where the witnesses differ can carry your decision. All of it is optional except the
-choice itself, and each part is one click.
+choice itself, and each part is one click. **Where every witness is wrong,** click any word, even one they all agree
+on, and **Emend…** (or E) gives your own text for it; it is printed as an emendation, with what the witnesses read.
+To emend several words as one, **More › Join with the next word** first.
 
 - **Choose a reading** with its button or the keys 1 to 9; **Accept** (A) makes the proposed one yours. **Emend…** opens a field for your own text; the crux, lacuna, certainty, reasons, evidence and history are under **More**. **‹ Block** and **Block ›**, or [ and ], go through the blocks of the work without closing the window.
 - **Use my text** for an emendation or a conjecture, with whose it is if not yours.
@@ -518,7 +527,7 @@ choice itself, and each part is one click.
 
 #### The apparatus
 
-**Apparatus**, in the table, shows the edited text of the block and its apparatus; **Edited text and apparatus…** in the Edit step, on
+**Apparatus**, in the table, shows the edited text of the block and its apparatus; **Edited text and apparatus…** in the Collate step, on
 the edition screen shows the whole work.
 
 - **How it is written:** negative, positive, or negative with a switch to positive where few witnesses have the lemma;
@@ -584,7 +593,7 @@ Every output below is in **Export…**, by block or by work.
 
 #### Stemmatics
 
-The **Analyse** step weighs what the variants say about how the witnesses are related. Each analysis is a card, computed only when it is opened: *Agreement*, *Trees*, *Network and coherence*, *Copies and contamination*, *Your stemma* and *The whole workbench* (at the Full level, or switched on in Settings), with *Testimonia, parallels, concordance*, *Indices* and, with the South Asian pack, *Metre*. It
+The stemmatic tools weigh what the variants say about how the witnesses are related. They are in the **Tools** menu of the Collate step, at the Full level or once *The stemmatic workbench* is switched on in Settings, each computed only when it is chosen: *Trees…*, *Network and coherence…*, *Copies and contamination…*, *Your stemma…* and *The whole stemmatic workbench…*; *Agreement…* is beside them. The workbench
 proposes nothing as the stemma: it shows agreement, computed trees and what contradicts your own stemma, so that you
 can judge. A witness whose text is lost at a variant is missing there, and never counts as agreeing.
 
@@ -619,8 +628,8 @@ can judge. A witness whose text is lost at a variant is missing there, and never
 
 #### Commentaries, evidence and indices
 
-A commentary is a work of its own, with its own witnesses, collation and apparatus. **Links to the base text…**, in the Edit step at the Full level, on
-the edition screen says which work it comments on (the main text, unless you say otherwise; a gloss may comment on
+A commentary is a work of its own, with its own witnesses, collation and apparatus. **Links to the base text…**, in the Tools menu of the Collate step at the Full level,
+says which work it comments on (the main text, unless you say otherwise; a gloss may comment on
 the commentary) and which of its blocks comments on which base blocks. **Propose links where the numbers agree**
 suggests `c2.1` for `2.1`, and sets nothing until you accept. A block may comment on several base blocks, or be marked
 as having its base text absent, passing over part of it, having none, implying one not known otherwise, or letting it
@@ -634,8 +643,9 @@ carry both texts. Where blocks are linked, the apparatus window and the reader s
   says nothing about a place is not counted for any reading of it**: nothing is inferred from the commentary's text.
   Evidence is printed in a testimonia tier, in TEI as `<note type="testimonium">`, and in print as series B. If the
   place it was recorded for is lost after a recollation, the apparatus checks say so.
-- **Metre:** where a block is verse, each reading in the text view shows whether the verse with that reading fits its
-  metre, or how many faults it has. Manuscribe knows 1,366 metres counted by syllables: 1,197 with one pattern for
+- **Metre** (with the South Asian pack): where a block is verse, each reading in the text view shows whether the verse
+  with that reading fits its metre, or how many faults it has, and **Tools › Metre…** in the Collate step lists the
+  metre of every block. Manuscribe knows 1,366 metres counted by syllables: 1,197 with one pattern for
   all four pādas, 134 with one for the odd and one for the even, and 35 with four, from the lists of Shreevatsa
   Rajagopalan's *Sanskrit metres* (the Vṛttaratnākara and a large list, both input by Dr. Dhaval Patel). It checks
   by their rules the śloka with its vipulās, upajāti, the āryā, gīti, upagīti, udgīti and āryāgīti by their gaṇas,

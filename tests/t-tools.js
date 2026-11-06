@@ -1,10 +1,10 @@
-// The Analyse step: a card for each analysis, nothing computed until a card is opened, and each part of the
-// stemmatic workbench on its own.
+// The optional tools, in the Collate step's Tools menu: each switched on in Settings, nothing computed until one is
+// chosen, and each part of the stemmatic workbench on its own.
 const { launch, sleep, checks } = require('./h');
 
 (async () => {
-  const T = checks('Analyse');
-  const { browser, page } = await launch('analyse');
+  const T = checks('The tools of Collate');
+  const { browser, page } = await launch('tools');
   const id = await page.evaluate(async () => {
     const { Model, Store, Edition, Collate } = ME;
     const P = (x) => '<x-marker type="p-start" id="' + x + '"/>';
@@ -29,13 +29,15 @@ const { launch, sleep, checks } = require('./h');
     await Edition.show(ed.id);
     return ed.id;
   });
-  await page.evaluate(() => document.querySelector('[data-action="step-analyse"]').click());
+  await page.evaluate(() => document.querySelector('[data-action="step-collate"]').click());
   await sleep(500);
-  const cards = await page.evaluate(() => ({ actions: [...document.querySelectorAll('.an-card .btn')].map((b) => b.dataset.action), drawn: document.querySelectorAll('.sv-heat, .sv-tree, .sv-net').length }));
-  T.check('Analyse shows a card for each analysis, and has computed nothing yet', ['an-agreement', 'an-trees', 'an-network', 'an-copies', 'an-stemma', 'an-registers', 'an-indices', 'an-metre', 'stemmatics'].every((a) => cards.actions.includes(a)) && cards.drawn === 0, cards);
+  const steps = await page.evaluate(() => [...document.querySelectorAll('.ed-step')].map((b) => b.textContent.replace(/\d+/g, '').replace(/\//g, '').trim()));
+  T.check('the edition has three steps: Witnesses, Collate, Publish', steps.join() === 'Witnesses,Collate,Publish', steps);
+  const cards = await page.evaluate(() => ({ actions: [...document.querySelectorAll('.cv-tools .menu-items .btn')].map((b) => b.dataset.action), drawn: document.querySelectorAll('.sv-heat, .sv-tree, .sv-net').length }));
+  T.check('the Tools menu of Collate has each tool switched on, and nothing is computed yet', ['an-agreement', 'an-trees', 'an-network', 'an-copies', 'an-stemma', 'an-registers', 'an-metre', 'stemmatics', 'tools-settings'].every((a) => cards.actions.includes(a)) && !cards.actions.includes('an-indices') && cards.drawn === 0, cards);
   const part = async (action) => {
     await page.evaluate((a) => document.querySelector('[data-action="' + a + '"]').click(), action);
-    await sleep(900);
+    await sleep(1200);
     const r = await page.evaluate(() => ({ title: document.querySelector('.modal-head h2').textContent, heads: [...document.querySelectorAll('.modal h3')].map((h) => h.textContent) }));
     await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
     await sleep(300);
@@ -53,6 +55,15 @@ const { launch, sleep, checks } = require('./h');
   T.check('the whole workbench is still there, with all its parts', ['How far the witnesses agree', 'Your stemma', 'For other programs'].every((h) => all.heads.includes(h)), all.heads);
   const agree = await part('an-agreement');
   T.check('Agreement shows the table and the search for witnesses agreeing against others', agree.heads.some((h) => /agree against others/.test(h)), agree);
+  // at Simple, with no Sanskrit witness, the menu has only the way to Settings
+  await page.evaluate(async () => { ME.Features.save({ level: 'simple', packs: { 'south-asian': 'off' } }); await ME.Edition.draw(); });
+  await sleep(500);
+  const simple = await page.evaluate(() => [...document.querySelectorAll('.cv-tools .menu-items .btn')].map((b) => b.dataset.action));
+  T.check('at Simple without the South Asian pack, Tools only leads to Settings', simple.join() === 'tools-settings', simple);
+  await page.evaluate(() => document.querySelector('[data-action="tools-settings"]').click());
+  await sleep(500);
+  T.check('which opens the switches of the tools', await page.evaluate(() => !!document.querySelector('.modal .ft-panel')));
+  await page.evaluate(() => { ME.Features.save({ packs: {} }); const b = document.querySelector('.modal-foot .btn, .modal-head .icon-btn'); if (b) b.click(); });
   void id;
   T.done(page);
   await browser.close();
