@@ -196,7 +196,7 @@
     return { el: wrap, draw, values: () => { const o = {}; for (const [b, i] of Object.entries(inputs)) o[b] = Math.max(1, parseInt(i.value, 10) || 1); return o; } };
   }
 
-  App.newProject = async function () {
+  App.newProject = async function (opts) {
     let file = null;
     let type = 'linear';
     const fileInput = U.el('input', { type: 'file', accept: 'application/pdf,.pdf', class: 'file-input' });
@@ -215,6 +215,8 @@
       xmlFile = xmlInput.files[0] || null;
       xmlName.textContent = xmlFile ? xmlFile.name : 'None — I will type the transcription';
     });
+    // opened with a transcription in XML
+    if (opts && opts.xml) { xmlFile = opts.xml; setTimeout(() => { xmlName.textContent = xmlFile.name; }, 0); }
     const title = U.el('input', { type: 'text', placeholder: 'e.g. Haimanāmamālā with ṭīkā' });
     const siglum = U.el('input', { type: 'text', placeholder: 'e.g. P1', style: { maxWidth: '8em' } });
     const lines = linesInputs(type, {});
@@ -374,9 +376,11 @@
 
   App.importProject = function () {
     const inp = U.el('input', { type: 'file', accept: '.json,application/json' });
-    inp.addEventListener('change', async () => {
-      const f = inp.files[0];
-      if (!f) return;
+    inp.addEventListener('change', () => { if (inp.files[0]) App.importProjectFile(inp.files[0]); });
+    inp.click();
+  };
+  App.importProjectFile = async function (f) {
+    {
       try {
         const data = JSON.parse(await f.text());
         const p = Model.upgrade(data.project || data);
@@ -397,8 +401,7 @@
       } catch (e) {
         U.toast('Could not import: ' + e.message, 'err', 5000);
       }
-    });
-    inp.click();
+    }
   };
 
   /* ---------- opening ---------- */
@@ -498,6 +501,8 @@
     App.pdfShown = PdfView.doc ? PdfView.show(e, g.leaf).catch((err) => console.warn(err)) : Promise.resolve();
     Editor.render(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size));
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
+    // once a folio side is calibrated, Calibrate is in the Folio tab
+    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc;
     PdfView.setGuide(null);
     App.refreshSidebar();
     updateStatus();
@@ -684,6 +689,8 @@
     if (PdfView.doc) App.pdfShown = PdfView.show(e, g.leaf);
     Editor.render(App.project, e, App.pageSizes[e.pdfPage] || (App.project.pdf && App.project.pdf.size));
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
+    // once a folio side is calibrated, Calibrate is in the Folio tab
+    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc;
     App.refreshSidebar();
     if (pos && g.lines[pos.box] && Editor.lineEl(pos.box, Math.min(pos.i, g.lines[pos.box] - 1))) {
       Editor.focusLine(pos.box, Math.min(pos.i, g.lines[pos.box] - 1), pos.offset === undefined ? 'end' : pos.offset);
@@ -904,6 +911,7 @@
     U.download(baseName() + '-cited-works.tsv', lines.join('\n') + '\n', 'text/tab-separated-values');
   }
 
+  const msOpen = new Set(['about']);
   function renderMsTab() {
     const p = App.project;
     const host = $('tab-ms');
@@ -1001,28 +1009,39 @@
       storageNote.textContent = st.limited ? 'This browser only allows limited storage here, and the PDF is not kept: use Backup regularly.'
         : used + (st.persisted ? 'The browser has agreed to keep this data.' : 'The browser has not promised to keep this data and may clear it, so keep a backup file.');
     });
-    host.append(
-      U.el('h4', null, 'Manuscript & text'), f.el,
-      U.el('h4', null, 'Default layout'), U.el('p', { class: 'help' }, Model.LAYOUTS[p.layout.type].label + ' (change it in the top bar). Usual lines per folio side:'), lines.el,
-      U.el('h4', null, 'Folio numbering'), numbering.el,
-      U.el('h4', null, 'PDF'),
-      U.el('p', { class: 'help' }, p.pdf && p.pdf.name ? p.pdf.name + ' · ' + (p.pdf.pages || '?') + ' pages' : 'No PDF'),
-      U.el('button', { class: 'btn small', onclick: () => App.pickPdf() }, 'Replace PDF…'),
-      U.el('h4', null, 'Transcription XML'),
-      U.el('p', { class: 'help' }, 'Bring in a transcription you already have, to add markup to it. <pb n="0005_1"> is folio 5, first side; <pb n="0005_2"> its back side. Line numbers in <lb n="…"> are kept; on a folio side without <lb> each carriage return starts a new line, and a line that does not end in a space continues its word on the next.'),
-      U.el('button', { class: 'btn small', onclick: () => App.pickXml() }, 'Import transcription XML…'),
-      U.el('h4', null, 'Text proposed by a program'),
-      U.el('p', { class: 'help' }, 'Bring in what handwriting or print recognition made (PAGE-XML, as from Transkribus, eScriptorium or Kraken; or ALTO), or the output of any other program, AI included, as plain text. It goes into empty lines only, marked as proposed: read and correct each line, then accept it with ' + Commands.keyLabel('Y') + '. Until then it is not collated. Manuscribe sends nothing to any AI service.'),
-      U.el('button', { class: 'btn small', onclick: () => App.importProposed() }, 'Import recognised text…'),
-      sourcesTable(p),
-      ...(ME.Features.on('tagSummary') ? [U.el('h4', null, 'Tags and attributes'), ME.TagSummary.panel(p, () => App.flush(), App.goPlace)] : []),
-      U.el('h4', null, 'Project file'),
-      storageNote,
-      U.el('p', { class: 'help' }, 'Everything is saved automatically in this browser. Keep a backup file as well (Ctrl+S), especially before clearing browser data or moving to another computer.'),
-      U.el('div', { class: 'btn-row' },
-        U.el('button', { class: 'btn small', onclick: () => App.saveToFile() }, 'Save backup file'),
-        U.el('button', { class: 'btn small ghost', onclick: () => App.showBackups() }, 'Restore an automatic backup…')),
-    );
+    // four folds, the first open; each stays as you leave it
+    const fold = (key, title, ...body) => {
+      // while text proposed by a program waits to be read, its sources are in view
+      const waiting = key === 'bring' && ME.HTR && Object.values(p.pages).some((pg) => Object.values(pg.proposed || {}).some((l) => Object.values(l).some((x) => !x.accepted)));
+      const d = U.el('details', { class: 'ms-fold', open: msOpen.has(key) || waiting || (key === 'bring' && (p.sources || []).length > 0) }, U.el('summary', null, title), ...body);
+      d.addEventListener('toggle', () => { if (d.open) msOpen.add(key); else msOpen.delete(key); });
+      return d;
+    };
+    const layoutSel = U.el('select', { 'aria-label': 'Default layout of the folios', onchange: () => App.setLayout(layoutSel.value, 'default') },
+      Object.entries(Model.LAYOUTS).map(([k, L]) => U.el('option', { value: k, selected: k === p.layout.type }, L.label)));
+    host.append(...[
+      fold('about', 'About the manuscript', f.el),
+      fold('folios', 'Folios and numbering',
+        U.el('label', { class: 'field' }, U.el('span', null, 'Default layout'), layoutSel),
+        U.el('p', { class: 'help' }, Model.LAYOUTS[p.layout.type].desc + ' A folio side can have its own layout, in the Folio tab. Usual lines per folio side:'), lines.el,
+        U.el('h4', null, 'Folio numbering'), numbering.el,
+        U.el('h4', null, 'PDF'),
+        U.el('p', { class: 'help' }, p.pdf && p.pdf.name ? p.pdf.name + ' · ' + (p.pdf.pages || '?') + ' pages' : 'No PDF'),
+        U.el('button', { class: 'btn small', onclick: () => App.pickPdf() }, 'Replace PDF…')),
+      fold('bring', 'Bring in text',
+        U.el('p', { class: 'help' }, 'A transcription you already have, in XML, to add markup to it. <pb n="0005_1"> is folio 5, first side; <pb n="0005_2"> its back side. Line numbers in <lb n="…"> are kept; on a folio side without <lb> each carriage return starts a new line, and a line that does not end in a space continues its word on the next.'),
+        U.el('button', { class: 'btn small', onclick: () => App.pickXml() }, 'Import transcription XML…'),
+        U.el('p', { class: 'help' }, 'Or what handwriting or print recognition made (PAGE-XML, as from Transkribus, eScriptorium or Kraken; or ALTO), or the output of any other program, AI included, as plain text. It goes into empty lines only, marked as proposed: read and correct each line, then accept it with ' + Commands.keyLabel('Y') + '. Until then it is not collated. Manuscribe sends nothing to any AI service.'),
+        U.el('button', { class: 'btn small', onclick: () => App.importProposed() }, 'Import recognised text…'),
+        sourcesTable(p)),
+      ME.Features.on('tagSummary') ? fold('tags', 'Tags and attributes', ME.TagSummary.panel(p, () => App.flush(), App.goPlace)) : null,
+      fold('file', 'Project file and backups',
+        storageNote,
+        U.el('p', { class: 'help' }, 'Everything is saved automatically in this browser. Keep a backup file as well (Ctrl+S, or Export › Backup file), especially before clearing browser data or moving to another computer.'),
+        U.el('div', { class: 'btn-row' },
+          U.el('button', { class: 'btn small', onclick: () => App.saveToFile() }, 'Save backup file'),
+          U.el('button', { class: 'btn small ghost', onclick: () => App.showBackups() }, 'Restore an automatic backup…'))),
+    ].filter(Boolean));
   }
 
   /* ---------- text proposed by a program ---------- */
@@ -1281,7 +1300,7 @@
 
   function wireChrome() {
     $('btn-new').onclick = () => App.newProject();
-    $('btn-import').onclick = () => App.importProject();
+
     $('btn-projects').onclick = () => App.showStart();
     $('btn-export').onclick = () => { App.flush(); ME.ExportView.open({ kind: 'project', project: App.project, entry: entry() }); };
     $('btn-settings').onclick = () => App.showSettings();

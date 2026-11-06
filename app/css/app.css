@@ -704,3 +704,31 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .ct-more { margin: 8px 0 4px; }
 .ct-more > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .ct-wit { cursor: pointer; }
+
+/* the Manuscript tab, in folds; the PDF view menu */
+.ms-fold { border-top: 1px solid var(--line); padding: 4px 0; }
+.ms-fold > summary { cursor: pointer; font: 600 13px var(--ui); padding: 6px 0; }
+.pdf-view { display: inline-block; }
+.pdf-view .menu-items { min-width: 140px; }
+.pdf-view .menu-items .pbtn { width: 100%; text-align: left; }
+
+/* the Manuscript tab, in folds; the PDF view menu */
+.ms-fold { border-top: 1px solid var(--line); padding: 4px 0; }
+.ms-fold > summary { cursor: pointer; font: 600 13px var(--ui); padding: 6px 0; }
+.pdf-view { display: inline-block; }
+.pdf-view .menu-items { min-width: 140px; }
+.pdf-view .menu-items .pbtn { width: 100%; text-align: left; }
+
+/* the Manuscript tab, in folds; the PDF view menu */
+.ms-fold { border-top: 1px solid var(--line); padding: 4px 0; }
+.ms-fold > summary { cursor: pointer; font: 600 13px var(--ui); padding: 6px 0; }
+.pdf-view { display: inline-block; }
+.pdf-view .menu-items { min-width: 140px; }
+.pdf-view .menu-items .pbtn { width: 100%; text-align: left; }
+
+/* the Manuscript tab, in folds; the PDF view menu */
+.ms-fold { border-top: 1px solid var(--line); padding: 4px 0; }
+.ms-fold > summary { cursor: pointer; font: 600 13px var(--ui); padding: 6px 0; }
+.pdf-view { display: inline-block; }
+.pdf-view .menu-items { min-width: 140px; }
+.pdf-view .menu-items .pbtn { width: 100%; text-align: left; }

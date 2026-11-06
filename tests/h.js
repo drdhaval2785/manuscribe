@@ -64,7 +64,7 @@ function checks(title) {
 // The owner's package imported through the start screen; null if it is not on this computer.
 async function importSample(page) {
   if (!fs.existsSync(SAMPLE)) return null;
-  const [chooser] = await Promise.all([page.waitForFileChooser(), page.click('#btn-import-edition')]);
+  const [chooser] = await Promise.all([page.waitForFileChooser(), page.click('#btn-open')]);
   await chooser.accept([SAMPLE]);
   await sleep(1500);
   return SAMPLE;

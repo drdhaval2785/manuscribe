@@ -728,9 +728,14 @@ To open it, use Import edition package on Manuscribe's start screen.
       await Store.putEdition(ed);
       Edition.show(ed.id);
     };
-    document.getElementById('btn-import-edition').onclick = async () => {
-      const [file] = await pickFiles('.zip,application/zip', false);
+    document.getElementById('btn-open').onclick = async () => {
+      const [file] = await pickFiles('.json,.zip,.xml,.txt,application/json,application/zip,application/xml,text/xml', false);
       if (!file) return;
+      if (/\.json$/i.test(file.name)) { ME.App.importProjectFile(file); return; }
+      if (/\.(xml|txt)$/i.test(file.name)) { ME.App.newProject({ xml: file }); return; }
+      Edition.importFile(file);
+    };
+    Edition.importFile = async (file) => {
       try {
         const ed = await Edition.importPackage(file, (old, head) => UI.modal({
           title: 'This edition is already here',

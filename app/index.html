@@ -16,7 +16,7 @@
   <button id="btn-edition" class="tbtn" title="Back to this witness's edition" hidden>‹ Edition</button>
   <div id="proj-title" class="proj-title"></div>
   <div class="spacer"></div>
-  <label class="tb-select" title="Default layout of the folios">Layout <select id="sel-layout"></select></label>
+  <label class="tb-select" title="Default layout of the folios" hidden>Layout <select id="sel-layout"></select></label>
   <span id="save-status" class="save-status saved">Saved</span>
   <button id="btn-export" class="tbtn primary" title="TEI XML, an HTML page, or a backup file (Ctrl+S saves a backup)" data-action="export">Export…</button>
   <button id="btn-settings" class="tbtn icon" title="Settings">⚙</button>
@@ -32,9 +32,11 @@
         <button id="btn-zoom-out" class="pbtn" title="Zoom out (Ctrl+wheel)">−</button>
         <button id="pdf-zoom" class="pbtn zoom" title="Reset zoom">100%</button>
         <button id="btn-zoom-in" class="pbtn" title="Zoom in (Ctrl+wheel)">+</button>
-        <button id="btn-pdf-mode" class="pbtn" title="Show only the leaf (as calibrated) or the whole PDF page">Leaf</button>
-        <button id="btn-rotate" class="pbtn" title="Rotate the page">⟳</button>
-        <button id="btn-filters" class="pbtn" title="Brightness / contrast">◐</button>
+        <details class="menu pdf-view"><summary class="pbtn" title="Leaf or page, rotation, brightness">View</summary><div class="menu-items">
+          <button id="btn-pdf-mode" class="pbtn" title="Show only the leaf (as calibrated) or the whole PDF page">Leaf</button>
+          <button id="btn-rotate" class="pbtn" title="Rotate the page">⟳ Rotate</button>
+          <button id="btn-filters" class="pbtn" title="Brightness / contrast">◐ Brightness</button>
+        </div></details>
         <button id="btn-calibrate" class="pbtn accent" title="Draw the leaf and the text blocks on the PDF">⌖ Calibrate</button>
         <div id="filters-pop" class="filters-pop" hidden>
           <label>Brightness <input id="f-b" type="range" min="40" max="200" value="100"></label>
@@ -102,19 +104,16 @@
       <img class="logo big" src="img/logo.png" alt="">
       <div>
         <h1>Manuscribe</h1>
-        <p class="tagline">Diplomatic transcription of Sanskrit manuscripts — linear, tripāṭha, pañcapāṭha and interlinear — exported as Saktumiva TEI XML.</p>
+        <p class="tagline">Transcribe manuscripts, in any script, line by line beside their images; then make a critical edition from them: collation, apparatus, analysis and print.</p>
       </div>
     </div>
     <div class="start-actions">
-      <button id="btn-new" class="btn primary big">＋ New transcription</button>
-      <button id="btn-import" class="btn big">Import project file…</button>
+      <button id="btn-new" class="btn primary big" data-action="new-transcription">＋ New transcription</button>
+      <button id="btn-new-edition" class="btn primary big" data-action="new-edition">＋ New edition</button>
+      <button id="btn-open" class="btn big" data-action="open" title="A project file (.json), an edition package (.zip) or a transcription in XML">Open…</button>
     </div>
     <h2>Your editions</h2>
     <div id="edition-list" class="project-list"></div>
-    <div class="btn-row">
-      <button id="btn-new-edition" class="btn small">＋ New edition</button>
-      <button id="btn-import-edition" class="btn small">Import edition package…</button>
-    </div>
     <h2>Your transcriptions</h2>
     <div id="project-list" class="project-list"></div>
     <p class="start-foot">Everything stays on this computer, saved automatically in this browser. Keep backup files (Ctrl+S) for safety and to move work between computers.</p>
