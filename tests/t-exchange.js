@@ -262,7 +262,7 @@ const SETUP = () => {
     const long = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const stamp = 'version 1.0, issued ' + long;
     o('the citation names the version and its date', ME.Publish.citation(ed).includes(stamp), ME.Publish.citation(ed));
-    o('the release holds the package and every output', ['edition.json', 'manifest.json', 'output/main/reader.html', 'output/main/apparatus.xml', 'output/main/apparatus.txt', 'output/main/indices.txt', 'output/main/latex/edition.tex', 'CITATION.cff', '.zenodo.json', 'RELEASE.txt'].every((n) => zip.has(n)), [...zip.keys()]);
+    o('the release holds the package and every output', ['edition.json', 'manifest.json', 'output/main/reader.html', 'output/main/apparatus.xml', 'output/main/apparatus.txt', 'output/main/indices.txt', 'output/main/latex/edition.tex', 'output/main/edition.pdf', 'CITATION.cff', '.zenodo.json', 'RELEASE.txt'].every((n) => zip.has(n)), [...zip.keys()]);
     o('each output carries the version and date', ['output/main/reader.html', 'output/main/apparatus.xml', 'output/main/apparatus.txt', 'output/main/latex/edition.tex', 'RELEASE.txt'].every((n) => txt(n).includes(stamp)), ['output/main/reader.html', 'output/main/apparatus.xml', 'output/main/apparatus.txt', 'output/main/latex/edition.tex'].filter((n) => !txt(n).includes(stamp)));
     o('CITATION.cff and the Zenodo metadata', /version: "1.0"/.test(txt('CITATION.cff')) && txt('CITATION.cff').includes('date-released: ' + date) && /license: CC-BY-4.0/.test(txt('CITATION.cff')) && JSON.parse(txt('.zenodo.json')).license === 'cc-by-4.0');
     o('the package records the issue', JSON.parse(txt('edition.json')).issued.version === '1.0');

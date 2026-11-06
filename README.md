@@ -542,6 +542,15 @@ draft). Every output then carries the same citation line. To release a version, 
   entry to read it in the text; **Read** shows the text of any one witness instead; switches show or hide spelling
   variants, singular readings and readings before correction, and colour the words by how much the witnesses differ.
   **Print a draft** prints, or saves as PDF, with the apparatus in two columns: a draft, not a typeset edition.
+- **Print edition (PDF):** the print edition typeset here, in the browser, in a moment and with nothing to install
+  or send anywhere. The text is shaped by [HarfBuzz](https://harfbuzz.github.io/) in Tiro Devanagari Sanskrit, so
+  that conjuncts, vowel signs and marks come out as the font draws them. A title page carries the conspectus and the
+  principles; then each block, its lines justified and numbered every five; and at the foot of each page the
+  apparatus of the lines on it, by block and line, in the same series as the LaTeX: A variants, B testimonia, C
+  singular readings, D spelling variants if listed, E the reasons for your decisions. A line goes over to the next
+  page if it and its notes do not fit there, so a note is always on the page of its line. Corrupt places are in
+  daggers, uncertain ones underlined with dots. The font is embedded, and the text can be searched and copied
+  (copied Devanagari comes out letter for letter, but, as from most PDFs, with ि and reph where they are drawn).
 - **Print edition (LaTeX):** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
   variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
@@ -885,6 +894,9 @@ app/js/
   exchangeview.js       the screens for comparing, GitHub, kept copies and issuing
   htr.js                text proposed by recognition or AI: PAGE-XML, ALTO and plain text, error rate, memorisation test
   dts.js                the edition as static files in the shape of DTS 1.0
+  shaper.js             HarfBuzz text shaping, from WebAssembly, for the PDF
+  pdfwrite.js           a small PDF writer: shaped glyphs in an embedded font, searchable
+  typeset.js            the print edition as a PDF: pages, numbered lines, the apparatus at the foot
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor
@@ -938,6 +950,7 @@ It includes these components, which keep their own licences:
 | [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174, Mozilla | Apache License 2.0 |
 | Tiro Devanagari Sanskrit, © The Indigo Project Authors ([Tiro Typeworks](https://github.com/TiroTypeworks/Indigo)) | SIL Open Font License 1.1 (`app/fonts/OFL.txt`) |
 | The aligner of [Saktumiva 2.0](https://github.com/chchch/saktumiva), Charles Li (`app/vendor/saktumiva-aligner.js`), and its normalisation rules, rewritten as data in `app/js/normalize.js` | GNU GPL 3.0 |
+| [HarfBuzz](https://github.com/harfbuzz/harfbuzz), as compiled to WebAssembly by [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) 1.6.4 (`app/vendor/harfbuzz.wasm.js`, made by `tools/bundle-harfbuzz.mjs`) | MIT (harfbuzzjs) and "Old MIT" (HarfBuzz) |
 | Metre lists of [Sanskrit metres](https://github.com/shreevatsa/sanskrit), Shreevatsa Rajagopalan, from the Vṛttaratnākara and a large list input by Dr. Dhaval Patel, the latter after Anand Mishra's [Chanda](http://sanskrit.sai.uni-heidelberg.de/Chanda/HTML/) as scraped by Mārcis Gasūns (`app/vendor/metres.js`, made by `tools/bundle-metres.mjs`) | GNU GPL 2.0, as in that project |
 | Element and attribute lists from the [TEI P5 Guidelines](https://tei-c.org/) | CC BY 3.0 and BSD 2-Clause, © TEI Consortium |
 

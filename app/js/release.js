@@ -128,6 +128,7 @@
       out.push({ name: dir + 'apparatus.txt', data: ME.Apparatus.text(ed, built) });
       if (ME.LayersView) out.push({ name: dir + 'indices.txt', data: ME.LayersView.indicesText(ed, built) });
       for (const f of await ME.Publish.texFiles(ed, list, built)) out.push({ name: dir + 'latex/' + f.name, data: f.data });
+      if (ME.Typeset) { const pdf = await ME.Typeset.pdf(ed, list, built); out.push({ name: dir + 'edition.pdf', data: new Uint8Array(await pdf.blob.arrayBuffer()) }); }
     }
     if (ME.DTS) out.push(...ME.DTS.files(ed, works, 'output/dts/'));
     out.push({ name: 'CITATION.cff', data: R.cff(ed) });

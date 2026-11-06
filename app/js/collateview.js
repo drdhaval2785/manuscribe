@@ -330,8 +330,13 @@
       U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
       U.el('div', { class: 'nv-head' },
         U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built, layered), 'text/html') }, 'Reader (one HTML file)'),
-        U.el('button', { class: 'btn small primary', title: 'A reledmac file for XeLaTeX, with its font, to typeset on your computer or on Overleaf', onclick: async () => download(base + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ed, witnesses || [], built)), 'application/zip') }, 'Print edition (LaTeX)')),
-      U.el('p', { class: 'help' }, 'The print edition is a folder for XeLaTeX with reledmac: run xelatex three times, or upload it to Overleaf with the XeLaTeX compiler. The reader’s “Print a draft” is quicker, but it is not typeset.'));
+        U.el('button', { class: 'btn small primary', title: 'The print edition as a PDF, typeset here in the browser: nothing to install', onclick: async (ev) => {
+          const btn = ev.currentTarget; btn.disabled = true; const was = btn.textContent; btn.textContent = 'Typesetting…';
+          try { const r = await ME.Typeset.pdf(ed, witnesses || [], built); U.download(base + '.pdf', r.blob); U.toast('PDF of ' + r.pages + ' page(s)' + (r.overfull ? '; ' + r.overfull + ' page(s) with more notes than fit' : ''), r.overfull ? 'warn' : 'ok'); } catch (e) { U.toast('No PDF: ' + e.message, 'err', 8000); }
+          btn.disabled = false; btn.textContent = was;
+        } }, 'Print edition (PDF)'),
+        U.el('button', { class: 'btn small', title: 'A reledmac file for XeLaTeX, with its font, to typeset on your computer or on Overleaf', onclick: async () => download(base + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ed, witnesses || [], built)), 'application/zip') }, 'Print edition (LaTeX)')),
+      U.el('p', { class: 'help' }, 'The PDF is typeset here, in the browser, with the text shaped by HarfBuzz in the edition’s font: the text with numbered lines, and the apparatus of each page at its foot. For the finest print, the LaTeX folder runs on XeLaTeX with reledmac: run xelatex three times, or upload it to Overleaf.'));
     const exports = U.el('div', { class: 'nv-head' },
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'),
