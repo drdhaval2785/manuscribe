@@ -1,0 +1,48 @@
+// Tokens and normalisation: every token maps back to its line; the layers; the rules and their published examples.
+const { launch, checks } = require('./h');
+(async () => {
+  const { browser, page } = await launch('normalize');
+  const T = checks('Tokens and normalisation');
+  const res = await page.evaluate(() => {
+    const { Model, Norm, Tokens, TEI } = ME;
+    const out = [];
+    const ok = (n, c, x) => out.push([n, !!c, x]);
+    const mk = (boxes, lb) => { const p = Model.upgrade(Model.newProject({ meta: { title: 'T', siglum: 'T' }, layoutType: 'linear', lines: { main: 8 }, folios: {} })); p.pages['1r'] = { boxes: { main: boxes } }; if (lb) p.pages['1r'].lb = { main: lb }; return p; };
+    const P = (id, t) => '<x-marker type="p-start" id="' + id + '"/>' + t + '<x-marker type="p-end"/>';
+    const stateOf = (p, id, layer, kind, rules) => Tokens.state(Tokens.read(p, ['main']).blocks.get(id)[layer], { kind: kind || 'word', rules: rules || new Set(Norm.settings().on) });
+    const back = (p, t) => t.src.map((s) => (s.sep !== undefined ? s.sep : TEI.plainText(p.pages[s.folio].boxes[s.box][s.line]).slice(s.offs, s.offs + s.len))).join('');
+    const allBack = (p, st) => st.tokens.every((t) => back(p, t) === t.t) && st.tokens.map((t) => t.t).join('') === st.dip;
+    let p = mk(['<x-marker type="p-start" id="a"/>धर्म', 'क्षेत्रे कुरु<x-marker type="p-end"/>'], { 1: { n: '2', brk: true } });
+    let st = stateOf(p, 'a', 'pc');
+    ok('a word over a line break is one token with two places', st.tokens[0].t === 'धर्मक्षेत्रे ' && st.tokens[0].src.length === 2, st.tokens[0]);
+    ok('it maps back', allBack(p, st));
+    p = mk([P('a', 'स्वाहा<gap reason="damaged" unit="akṣara" quantity="2"/>स्वधा')]);
+    st = stateOf(p, 'a', 'pc', 'letter');
+    ok('a gap is lost text, as many marks as its quantity', st.tokens.filter((t) => t.gap).length === 2);
+    p = mk([P('a', 'राम<pc>।</pc> कृष्ण')]);
+    st = stateOf(p, 'a', 'pc');
+    ok('<pc> stays in the text but is not compared', st.tokens[0].t.includes('।') && !st.tokens[0].n.includes('|'));
+    p = mk([P('a', 'भा॰ पृ॰ कृष्ण')]);
+    st = stateOf(p, 'a', 'pc');
+    ok('॰ is kept and flagged as an abbreviation', st.tokens[0].t.includes('॰') && st.tokens[0].flags.includes('abbr') && allBack(p, st));
+    p = mk([P('a', 'क<subst><del rend="crossed out">ख</del><add place="above">ग</add></subst>घ<add place="left-margin">ङ</add><note place="right-margin">टीका</note><note resp="editorial" xml:lang="en">Doubtful</note><supplied reason="omitted">च</supplied><surplus reason="repeated">छ</surplus>ज')]);
+    const b = Tokens.read(p, ['main']);
+    const blk = b.blocks.get('a');
+    ok('before correction: with del, without add and editor', blk.ac.dip === 'कखघछज', blk.ac.dip);
+    ok('after correction: with add, without del and editor', blk.pc.dip === 'कगघङछज', blk.pc.dip);
+    ok('a marginal note is kept apart', blk.marginal.length === 1 && blk.marginal[0].dip === 'टीका');
+    const lt = TEI.plainText(p.pages['1r'].boxes.main[0]).length, a = b.account;
+    ok('every character is accounted for', a.total === lt && a.shared + a.acOnly + a.pcOnly + a.marginal + a.editorial === lt, a);
+    const cl = new Set(Norm.settings({ profile: 'sa-classical' }).on);
+    const same = (x, y, rules) => Norm.sameReading(x, y, rules || cl);
+    for (const [x, y] of [['mārgga', 'mārga'], ['karmma', 'karma'], ['karttā', 'kartā'], ['tiṣṭati', 'tiṣṭhati'], ['satva', 'sattva'], ['gachati', 'gacchati'], ['saṃgati', 'saṅgati'], ['तोऽपि', 'तोपि']]) ok('merges ' + x + ' / ' + y, same(x, y));
+    for (const [x, y] of [['atty annam', 'aty annam'], ['bala', 'vala'], ['śiva', 'siva'], ['7984', '8884'], ['rāma', 'rāmā']]) ok('keeps apart ' + x + ' / ' + y, !same(x, y));
+    ok('Devanagari and IAST give the same', Norm.apply('कृष्णं वन्दे जगद्गुरुम्', { rules: cl }).text === Norm.apply('kṛṣṇaṃ vande jagadgurum', { rules: cl }).text);
+    ok('a declaration applies to its witness', Norm.sameReading('bala', 'vala', cl, ['decl-bv'], []));
+    ok('five profiles, two provisional', Norm.PROFILES.length === 5 && Norm.PROFILES.filter((x) => x.provisional).length === 2);
+    return out;
+  });
+  for (const [n, ok, x] of res) T.check(n, ok, x);
+  T.done(page);
+  await browser.close();
+})().catch((e) => { console.log('  FAIL crashed :: ' + e.message); process.exitCode = 1; });

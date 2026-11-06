@@ -1,0 +1,11 @@
+{
+  "name": "manuscribe-tests",
+  "private": true,
+  "description": "Browser tests for Manuscribe. Install once with: cd tests && PUPPETEER_SKIP_DOWNLOAD=1 npm install",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}
