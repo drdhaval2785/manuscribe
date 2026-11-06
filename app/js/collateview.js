@@ -192,6 +192,11 @@
   };
 
   CollateView.collate = async function (ed, list, workId, box, button, redraw, force) {
+    if (!ed.norm && !ME.Features.pack('south-asian', ME.Features.langsOf(list), { auto: true }).active) {
+      ed.norm = { profile: 'any' };
+      await Edition.save(ed);
+      U.toast('The witnesses are not in a language of South Asia, so they are compared letter by letter as written (Collate › Change… to choose otherwise)', 'info', 7000);
+    }
     if (CollateView.running) { U.toast('A collation is already running'); return; }
     ME.App.flush();
     const ctl = new AbortController();
@@ -963,7 +968,7 @@
             ' ', U.el('span', { class: 'ct-reading' }, g.form.text.trim() || '(omits)'), ' ',
             U.el('span', { class: 'help' }, g.votes ? g.votes + ' vote' + (g.votes > 1 ? 's' : '') + ': ' : 'no vote: '), members,
             metreOf ? U.el('span', { class: 'ct-metre ' + (n === 0 ? 'ok' : 'bad'), title: 'The verse with this reading, in ' + metreOf.metre }, n === 0 ? ' metre ✓' : n === Infinity ? ' out of metre' : ' metre: ' + n + ' fault' + (n > 1 ? 's' : '')) : null,
-            backing.length ? U.el('span', { class: 'ct-backing', title: backing.map(ME.Layers.formatEvidence).join('\n') }, ' + ' + backing.map((x) => x.source.label + ' (' + ME.Layers.EVIDENCE[x.type].label + ')').join(', ')) : null);
+            backing.length ? U.el('span', { class: 'ct-backing', title: backing.map(ME.Layers.formatEvidence).join('\n') }, ' + ' + backing.map((x) => x.source.label + ' (' + ME.Layers.label(x.type) + ')').join(', ')) : null);
         });
         const missing = u.missing.map((m) => U.el('li', { class: 'muted' }, m.label + ': ' + ({ lac: 'text lost', illeg: 'illegible', na: 'outside its coverage', ambig: 'uncertain', transposed: 'has this elsewhere' }[m.why] || m.why) + ', so no vote'));
         const d = u.decision;
@@ -1027,7 +1032,7 @@
     function evidenceBox(u, evs) {
       const L = ME.Layers;
       const readings = [...new Set(u.groups.map((g) => g.form.text.trim()))];
-      const type = U.el('select', { 'aria-label': 'Kind of evidence' }, Object.entries(L.EVIDENCE).map(([k, v]) => U.el('option', { value: k, title: v.desc }, v.label + ' — ' + v.desc)));
+      const type = U.el('select', { 'aria-label': 'Kind of evidence' }, Object.entries(L.EVIDENCE).map(([k, v]) => U.el('option', { value: k, title: v.desc }, L.label(k) + ' — ' + v.desc)));
       const reading = U.el('select', { 'aria-label': 'For which reading' }, readings.map((r) => U.el('option', { value: r }, r || '(omits)')), U.el('option', { value: '\u0000' }, 'another reading…'));
       const other = U.el('input', { type: 'text', placeholder: 'the reading it has', 'aria-label': 'Its reading', hidden: true });
       reading.addEventListener('change', () => { other.hidden = reading.value !== '\u0000'; });

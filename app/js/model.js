@@ -9,16 +9,16 @@
       boxes: ['main'], streams: [{ key: 'main', boxes: ['main'] }],
     },
     tripatha: {
-      label: 'Tripāṭha', desc: 'Main text in the centre; commentary continues from the top block to the bottom block.',
+      label: 'Commentary above and below (tripāṭha)', desc: 'Main text in the centre; commentary continues from the top block to the bottom block.',
       boxes: ['top', 'main', 'bottom'], streams: [{ key: 'main', boxes: ['main'] }, { key: 'commentary', boxes: ['top', 'bottom'] }],
     },
     pancapatha: {
-      label: 'Pañcapāṭha', desc: 'Main text in the centre; commentary runs top → right → left → bottom.',
+      label: 'Commentary on four sides (pañcapāṭha)', desc: 'Main text in the centre; commentary runs top → right → left → bottom.',
       boxes: ['top', 'left', 'main', 'right', 'bottom'], streams: [{ key: 'main', boxes: ['main'] }, { key: 'commentary', boxes: ['top', 'right', 'left', 'bottom'] }],
       tabOrder: ['main', 'top', 'right', 'left', 'bottom'],
     },
     interlinear: {
-      label: 'Interlinear', desc: 'Main text in lines; the commentary is written above each line.',
+      label: 'Commentary between the lines (interlinear)', desc: 'Main text in lines; the commentary is written above each line.',
       boxes: ['main', 'gloss'], streams: [{ key: 'main', boxes: ['main'] }, { key: 'gloss', boxes: ['gloss'] }],
     },
   };

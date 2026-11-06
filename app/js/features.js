@@ -69,6 +69,7 @@
   // What the screen is about: the witnesses of an edition, or one transcription. Set by the screens as they open.
   let context = { langs: [] };
   F.setContext = (langs) => { context = { langs: (langs || []).filter(Boolean) }; };
+  F.contextLangs = () => context.langs.slice();
   F.langsOf = (list) => list.map((x) => (x.p && x.p.meta && x.p.meta.textLang) || 'sa-Latn');
 
   // Does a language tag call for a pack?
@@ -78,8 +79,8 @@
     return P.langs.includes(parts[0].toLowerCase()) || parts.slice(1).some((x) => P.scripts.includes(x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()));
   };
   /* Is a pack in force? By hand ('on' or 'off'), else by the languages in view. -> {active, why} */
-  F.pack = function (pack, langs) {
-    const set = F.prefs().packs[pack];
+  F.pack = function (pack, langs, opts) {
+    const set = opts && opts.auto ? undefined : F.prefs().packs[pack];
     if (set === 'on') return { active: true, why: 'switched on by hand' };
     if (set === 'off') return { active: false, why: 'switched off by hand' };
     const ls = langs || context.langs;

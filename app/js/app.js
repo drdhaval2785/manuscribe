@@ -1254,7 +1254,7 @@
             ['Tab / Shift+Tab', 'Next / previous block'],
             ['Shift+arrows, drag, Shift+click', 'Select over several lines, then press a tag shortcut'],
             ['Backspace / Delete', 'On a selection over several lines: delete its text (asks you to confirm twice)'],
-            ['→ · ← · Shift+← →', '→ jumps a whole akṣara (conjuncts too); ← and Backspace go one sign at a time, e.g. between क and ि of कि; Shift+← → select sign by sign, and go on to the next line at the end of a line'],
+            ...(ME.Features.pack('south-asian').active ? [['→ · ← · Shift+← →', '→ jumps a whole akṣara (conjuncts too); ← and Backspace go one sign at a time, e.g. between क and ि of कि; Shift+← → select sign by sign, and go on to the next line at the end of a line']] : []),
             ['In a marginal note', 'Click its text and type or tag as in a line. Enter or Esc goes back to the line; its number opens the place, language and hand'],
             [k('Period'), 'Mark where a tag starts; then press the tag shortcut where it ends (any line or folio)'],
             ['← at start · → at end', 'Previous / next line'],

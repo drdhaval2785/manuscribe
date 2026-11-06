@@ -22,12 +22,23 @@
   /* What evidence says of a reading. supports: whether it speaks for the reading. After Ajotikar, Ajotikar and
      Scharf on the Kāśikāvṛtti, with two plainer kinds. */
   Layers.EVIDENCE = {
-    pratika: { label: 'pratīka', supports: true, desc: 'quotes it as its lemma' },
-    explains: { label: 'explains', supports: true, desc: 'explains or glosses this reading' },
-    quotes: { label: 'quotes', supports: true, desc: 'a testimonium quotes it' },
-    kvacit: { label: 'kvacit', supports: false, desc: 'reports it as found elsewhere' },
-    apapatha: { label: 'apapāṭha', supports: false, desc: 'rejects it as a wrong reading' },
-    yukta: { label: 'yukta', supports: false, desc: 'proposes it, though not received' },
+    pratika: { label: 'pratīka', plain: 'lemma', supports: true, desc: 'quotes it as its lemma' },
+    explains: { label: 'explains', plain: 'explains', supports: true, desc: 'explains or glosses this reading' },
+    quotes: { label: 'quotes', plain: 'quotes', supports: true, desc: 'a testimonium quotes it' },
+    kvacit: { label: 'kvacit', plain: 'reports', supports: false, desc: 'reports it as found elsewhere' },
+    apapatha: { label: 'apapāṭha', plain: 'rejects', supports: false, desc: 'rejects it as a wrong reading' },
+    yukta: { label: 'yukta', plain: 'proposes', supports: false, desc: 'proposes it, though not received' },
+  };
+  /* The name of a kind: the Sanskrit term where the witnesses are in a language of South Asia, a plain one elsewhere.
+     It follows the witnesses' languages alone, not what this browser shows, so that an edition prints the same for
+     everyone. */
+  Layers.label = (type) => {
+    const k = Layers.EVIDENCE[type];
+    if (!k) return type;
+    const F = ME.Features;
+    // with no language known yet, the names Manuscribe has always printed
+    const sa = !F || !F.contextLangs().length || F.pack('south-asian', undefined, { auto: true }).active;
+    return sa ? k.label : k.plain;
   };
 
   // Which work a work comments on: the editor's word, else commentaries and glosses on the main text.
@@ -92,7 +103,7 @@
   Layers.removeEvidence = (ed, id) => { ed.evidence = Layers.evidence(ed).filter((x) => x.id !== id); };
 
   // One piece of evidence, printed: Comm. (pratīka) x
-  Layers.formatEvidence = (ev) => ev.source.label + (ev.source.locus ? ' ' + ev.source.locus : '') + ' (' + Layers.EVIDENCE[ev.type].label + ')' + (ev.reading !== undefined ? ' ' + (ev.reading || 'om.') : '') + (ev.quote ? ': “' + ev.quote + '”' : '');
+  Layers.formatEvidence = (ev) => ev.source.label + (ev.source.locus ? ' ' + ev.source.locus : '') + ' (' + Layers.label(ev.type) + ')' + (ev.reading !== undefined ? ' ' + (ev.reading || 'om.') : '') + (ev.quote ? ': “' + ev.quote + '”' : '');
 
   /* For each reading of a place, the evidence that speaks for it, and what speaks otherwise. Never more than
      was recorded. -> {for: Map(reading -> [ev]), other: [ev]} */

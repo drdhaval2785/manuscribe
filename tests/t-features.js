@@ -120,6 +120,36 @@ const { launch, sleep, checks } = require('./h');
   const tools = await page.evaluate(() => ME.Features.LIST.length);
   T.check('Settings shows the level, the language features and a switch for each tool', dlg.radios === 2 && dlg.switches === tools && /South Asian scripts/.test(dlg.text) && /Now on: the text is sa-Deva/.test(dlg.text), { radios: dlg.radios, switches: dlg.switches, tools });
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  // the names of commentary evidence follow the witnesses' languages, not this browser's switches
+  const names = await page.evaluate(() => {
+    const F = ME.Features, L = ME.Layers;
+    F.setContext(['ar']); const ar = [L.label('kvacit'), L.label('pratika')];
+    F.save({ packs: { 'south-asian': 'on' } }); const arOn = L.label('kvacit');
+    F.save({ packs: {} }); F.setContext(['sa-Deva']); const sa = [L.label('kvacit'), L.label('pratika')];
+    return { ar, arOn, sa };
+  });
+  T.check('evidence has plain names outside South Asian languages, the Sanskrit ones within, whatever is switched on', names.ar.join() === 'reports,lemma' && names.arOn === 'reports' && names.sa.join() === 'kvacit,pratīka', names);
+  // the first collation of an edition in another language compares letters as written
+  const en = await page.evaluate(async () => {
+    const { Model, Store, Edition } = ME;
+    const ed = Edition.create('English');
+    for (const [s, t] of Object.entries({ A: 'The quick brown fox', B: 'The quicke brown fox' })) {
+      const p = Model.upgrade(Model.newProject({ meta: { title: s, siglum: s, textLang: 'en' }, layoutType: 'linear', lines: { main: 2 }, folios: {} }));
+      p.pdf = { name: s + '.pdf', pages: 1 };
+      p.pages = { '1r': { boxes: { main: ['<x-marker type="p-start" id="b1"/>' + t + '<x-marker type="p-end"/>', ''] } } };
+      await Store.putProject(p);
+      ed.witnesses.push({ siglum: s, projectId: p.id, streams: {} });
+    }
+    ed.trust = ['A', 'B'];
+    await Store.putEdition(ed);
+    ME.Edition.stepOf[ed.id] = 'collate';
+    await ME.Edition.show(ed.id);
+    document.querySelector('#edition-view [data-action="collate"]').click();
+    for (let k = 0; k < 50 && (ME.CollateView.running || !(await ME.Collate.summaries(ed.id)).size); k++) await new Promise((r) => setTimeout(r, 200));
+    const saved = await Store.getEdition(ed.id);
+    return { profile: saved.norm && saved.norm.profile, tables: (await ME.Collate.summaries(ed.id)).size };
+  });
+  T.check('the first collation of an English edition compares letters as written', en.profile === 'any' && en.tables === 1, en);
   // nothing shown or hidden changes the edition
   const same = await page.evaluate(async (id) => {
     const ed = await ME.Store.getEdition(id);
