@@ -1,7 +1,7 @@
 // The screens, driven as an editor would: copying several lines; and, with the owner's package, the trust order,
 // the text view, the apparatus, the workbench and the reader file opened from disk with no network.
 const fs = require('fs'), path = require('path');
-const { launch, sleep, checks, importSample, WORK } = require('./h');
+const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
 (async () => {
   const { browser, page } = await launch('screens');
   const T = checks('Screens');
@@ -47,7 +47,7 @@ const { launch, sleep, checks, importSample, WORK } = require('./h');
   await act('apparatus'); await sleep(500);
   const lit = await page.evaluate(() => { const w = document.querySelector('.ap-text .ap-u'); w.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); return document.querySelectorAll('.ap-hl').length; });
   T.check('pointing at a word lights up its entry', lit >= 2, lit);
-  await act('reader'); await sleep(1500);
+  T.check('the reader is exported through Export', await exportVia(page, '.modal [data-action="export"]', 'reader')); await sleep(1500);
   await click('Close', '.modal-foot .btn'); await sleep(500);
   await act('stemmatics'); await sleep(1200);
   T.check('the workbench opens with agreement and a tree', await page.evaluate(() => document.querySelectorAll('.sv-heat td.num').length > 0 && document.querySelectorAll('.sv-tree .sv-leaf').length === 3));

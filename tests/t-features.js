@@ -45,20 +45,22 @@ const { launch, sleep, checks } = require('./h');
       buttons: text('.btn'), controls: [...v.querySelectorAll('button, select, input')].filter(vis).length,
       profiles: profiles ? [...profiles.options].map((o) => o.value) : [], tokens: tokens ? [...tokens.options].map((o) => o.value) : [],
       folds: [...v.querySelectorAll('summary')].map((x) => x.textContent),
+      // what the Export dialog would offer here
+      formats: ME.ExportView.available({ kind: 'edition', ed: ME.Edition.current, list: [] }).map((f) => f.id),
     };
   }, id);
   const ar = await look(ids.ar);
   T.check('Simple, Arabic: no stemmatics, sharing, aligning again or importing an alignment', !['Stemmatics…', 'Compare and merge…', 'GitHub…', 'Kept copies', 'Align again', 'Import alignment…'].some((b) => ar.buttons.includes(b)) && ar.buttons.includes('Edited text and apparatus…'), ar.buttons);
-  T.check('Arabic: no South Asian features (Saktumiva, Sanskrit profiles, akṣara tokens)', !ar.buttons.includes('Export for Saktumiva') && ar.profiles.join() === 'any' && !ar.tokens.includes('aksara'), { profiles: ar.profiles, tokens: ar.tokens });
+  T.check('Arabic: no South Asian features (Saktumiva, Sanskrit profiles, akṣara tokens)', !ar.formats.includes('saktumiva') && ar.profiles.join() === 'any' && !ar.tokens.includes('aksara'), { profiles: ar.profiles, tokens: ar.tokens });
   T.check('Simple: normalisation is its profile alone, without the rule folds', !ar.folds.some((f) => /Rules used|What each witness/.test(f)), ar.folds);
   const sa = await look(ids.sa);
-  T.check('Sanskrit: the South Asian pack is on by the language of the witnesses', sa.buttons.includes('Export for Saktumiva') && sa.profiles.includes('sa-classical') && sa.tokens.includes('aksara'), { buttons: sa.buttons, profiles: sa.profiles });
+  T.check('Sanskrit: the South Asian pack is on by the language of the witnesses', sa.formats.includes('saktumiva') && sa.profiles.includes('sa-classical') && sa.tokens.includes('aksara'), { buttons: sa.buttons, profiles: sa.profiles });
   // by hand
   await page.evaluate(() => ME.Features.save({ packs: { 'south-asian': 'on' } }));
   const arOn = await look(ids.ar);
   await page.evaluate(() => ME.Features.save({ packs: { 'south-asian': 'off' } }));
   const saOff = await look(ids.sa);
-  T.check('the pack can be switched on and off by hand', arOn.buttons.includes('Export for Saktumiva') && !saOff.buttons.includes('Export for Saktumiva') && !saOff.tokens.includes('aksara'), { arOn: arOn.buttons, saOff: saOff.buttons });
+  T.check('the pack can be switched on and off by hand', arOn.formats.includes('saktumiva') && !saOff.formats.includes('saktumiva') && !saOff.tokens.includes('aksara'), { arOn: arOn.formats, saOff: saOff.formats });
   await page.evaluate(() => ME.Features.save({ packs: {} }));
   // one tool on its own, then the Full level
   await page.evaluate(() => ME.Features.save({ on: { stemmatics: true } }));

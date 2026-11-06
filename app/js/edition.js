@@ -579,22 +579,6 @@ To open it, use Import edition package on Manuscribe's start screen.
       r.order.length > GRID_LIMIT ? U.el('p', { class: 'help' }, 'Showing the first ' + GRID_LIMIT + ' of ' + r.order.length + ' IDs.') : null);
   }
 
-  async function batchForSaktumiva(ed, list) {
-    ME.App.flush();
-    const candidates = ed.works.filter((k) => Edition.saktumivaFiles(ed, list, k.id).length);
-    if (!candidates.length) { U.toast('No text to export yet', 'warn'); return; }
-    let workId = candidates[0].id;
-    if (candidates.length > 1) {
-      const sel = U.el('select', null, candidates.map((k) => U.el('option', { value: k.id }, k.title)));
-      const ok = await UI.modal({ title: 'Export for Saktumiva', body: U.el('label', { class: 'field' }, U.el('span', null, 'Which work?'), sel), buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Export', value: true, kind: 'primary' }] });
-      if (!ok) return;
-      workId = sel.value;
-    }
-    const files = Edition.saktumivaFiles(ed, list, workId);
-    U.download(safeName(ed.title || 'edition') + '-saktumiva.zip', await Zip.write(files));
-    U.toast('Saved ' + files.length + ' TEI files. Unzip them and load them in Saktumiva.', 'ok', 5000);
-  }
-
   Edition.draw = async function () {
     const ed = Edition.current;
     if (!ed) return;
@@ -618,8 +602,7 @@ To open it, use Import edition package on Manuscribe's start screen.
       U.el('div', { class: 'ed-bar' },
         U.el('button', { class: 'btn small', onclick: () => ME.App.showStart() }, '‹ Start screen'),
         title,
-        U.el('button', { class: 'btn small primary', onclick: () => Edition.exportPackage(ed).then(redraw) }, 'Export package'),
-        F.on('saktumiva') ? U.el('button', { class: 'btn small', onclick: () => batchForSaktumiva(ed, list) }, 'Export for Saktumiva') : null,
+        U.el('button', { class: 'btn small primary', title: 'Every output of the edition: print, read, exchange, archive', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, workId: ME.CollateView.work, redraw }) }, 'Export…'),
         F.on('share') ? U.el('button', { class: 'btn small', title: 'Compare a package from another editor, or an older one, with this copy, and merge it', onclick: () => ME.ExchangeView.compareFile(ed, redraw) }, 'Compare and merge…') : null,
         F.on('share') ? U.el('button', { class: 'btn small', title: 'Send the edition to a GitHub repository, or fetch and merge what is there', onclick: () => ME.ExchangeView.github(ed, redraw) }, 'GitHub…') : null,
         U.el('button', { class: 'btn small', title: 'Freeze a version, check it, and make every output of it at once', onclick: () => ME.ExchangeView.issue(ed, list, redraw) }, 'Issue edition…'),

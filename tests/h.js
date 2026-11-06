@@ -30,6 +30,20 @@ async function launch(name, opts) {
   return { browser, page };
 }
 
+// Exports through the one Export dialog: opens it with the button named, picks the format, and exports.
+async function exportVia(page, opener, format) {
+  await page.evaluate((opener) => { const all = [...document.querySelectorAll(opener)]; all[all.length - 1].click(); }, opener);
+  await sleep(400);
+  const ok = await page.evaluate((format) => {
+    const r = document.querySelector('.modal input[name="xp-format"][value="' + format + '"]');
+    if (!r) return false;
+    r.click();
+    document.querySelector('.modal [data-action="export-go"]').click();
+    return true;
+  }, format);
+  return ok;
+}
+
 // Results: check(name, ok, detail) prints one line; done() prints the count and sets the exit code.
 function checks(title) {
   let pass = 0, fail = 0;
@@ -69,4 +83,4 @@ function sampleProjects() {
   return res;
 }
 
-module.exports = { launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE };
+module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE };

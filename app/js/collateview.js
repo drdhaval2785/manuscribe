@@ -326,30 +326,13 @@
         } }, 'Find')), found);
     const version = U.el('input', { type: 'text', value: ed.version || '', placeholder: 'e.g. 1.0, or empty for a dated draft', 'aria-label': 'Version of the edition', onchange: async () => { ed.version = version.value.trim() || undefined; await Edition.save(ed); redraw(); } });
     const editor = U.el('input', { type: 'text', value: ed.editor || '', placeholder: 'your name', 'aria-label': 'Editor', onchange: async () => { ed.editor = editor.value.trim() || undefined; await Edition.save(ed); redraw(); } });
-    const base = fileSafe(ed.title || 'edition');
     const publish = U.el('div', { class: 'ap-publish' },
       U.el('h3', null, 'Publish'),
       U.el('p', { class: 'help' }, 'Every output carries this citation: ', U.el('em', null, ME.Publish.citation(ed))),
       U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
-      U.el('div', { class: 'nv-head' },
-        U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', dataset: { action: 'reader' }, onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built, layered), 'text/html') }, 'Reader (one HTML file)'),
-        U.el('button', { class: 'btn small primary', title: 'The edition laid out as pages by this browser, in any script and font; then Print, or Save as PDF', onclick: async () => {
-          try { await ME.PrintHTML.open(ed, witnesses || [], built); } catch (e) { U.toast('Could not open the print edition: ' + e.message, 'err', 8000); }
-        } }, 'Print edition (any script)'),
-        U.el('button', { class: 'btn small', title: 'The same print edition as one HTML file, to open and print later, on any computer', onclick: async () => download(base + '.print.html', ME.PrintHTML.html(ed, witnesses || [], built, { fonts: await ME.PrintHTML.fonts(ed, built) }), 'text/html') }, 'Save the print page'),
-        !ME.Features.on('pdfDeva') ? null : U.el('button', { class: 'btn small', title: 'A PDF file made directly, with Manuscribe’s own Devanagari and Latin font: nothing to print', dataset: { action: 'pdf-direct' }, onclick: async (ev) => {
-          const btn = ev.currentTarget; btn.disabled = true; const was = btn.textContent; btn.textContent = 'Typesetting…';
-          try { const r = await ME.Typeset.pdf(ed, witnesses || [], built); U.download(base + '.pdf', r.blob); U.toast('PDF of ' + r.pages + ' page(s)' + (r.overfull ? '; ' + r.overfull + ' page(s) with more notes than fit' : ''), r.overfull ? 'warn' : 'ok'); } catch (e) { U.toast('No PDF: ' + e.message, 'err', 8000); }
-          btn.disabled = false; btn.textContent = was;
-        } }, 'PDF file (Devanagari and Latin)'),
-        U.el('button', { class: 'btn small', title: 'A reledmac file for XeLaTeX, with its font, to typeset on your computer or on Overleaf', onclick: async () => download(base + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ed, witnesses || [], built)), 'application/zip') }, 'Print edition (LaTeX)')),
-      printSettings(ed, redraw),
-      U.el('p', { class: 'help' }, 'Print edition (any script) lays the edition out as pages in this browser, which sets any script, right to left as well, in the fonts you name: the notes of each page at its foot, keyed to markers in the text. Then choose Save as PDF in the print dialog: the PDF has its fonts and its text can be searched. PDF file (Devanagari and Latin) makes a PDF directly, in Manuscribe’s own font. For the finest print, the LaTeX folder runs on XeLaTeX with reledmac.'));
-    const exports = U.el('div', { class: 'nv-head' },
-      U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
-      U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'),
-      ME.DTS && ME.Features.on('dts') ? U.el('button', { class: 'btn small', title: 'The edition as static files in the shape of the Distributed Text Services API 1.0', onclick: async () => { const work = ed.works.find((k) => k.id === (tables[0] && tables[0].work)); download(fileSafe(ed.title || 'edition') + '.dts.zip', await ME.Zip.write(ME.DTS.files(ed, [{ work, built }])), 'application/zip'); } }, 'Save for DTS') : null);
-    return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), exports, publish);
+      printSettings(ed, redraw));
+    const exportBtn = U.el('button', { class: 'btn small primary', title: 'Print, read, exchange or archive: every output, in one place', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list: witnesses || [], tables, workId: tables[0] && tables[0].work, redraw }) }, 'Export…');
+    return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), publish, U.el('div', { class: 'nv-head' }, exportBtn));
   };
 
   // Paper, size and fonts for the print edition: any font on this computer, by name, or a font file of your own.
@@ -1066,20 +1049,6 @@
       U.el('option', { value: 'n' }, 'Normalised'), U.el('option', { value: 'dip' }, 'As written'));
     const params = table.params;
     const stale = statusOf(ed, list, (await Collate.summaries(ed.id)).get(rec.key));
-    const fmt = U.el('select', { 'aria-label': 'Export format' },
-      U.el('option', { value: 'cx-in' }, 'CollateX input (tokens)'), U.el('option', { value: 'cx-out' }, 'CollateX table'), U.el('option', { value: 'tei' }, 'TEI corpus (Saktumiva matrix editor)'), U.el('option', { value: 'text' }, 'Proposed text, with its differences'), U.el('option', { value: 'csv' }, 'CSV (spreadsheet)'), U.el('option', { value: 'native' }, 'Manuscribe table (with all settings)'));
-    const save = U.el('button', { class: 'btn small', onclick: () => {
-      const base = fileSafe(table.unit);
-      if (fmt.value === 'cx-in') download(base + '.collatex-input.json', JSON.stringify(Collate.toCollateXInput(table), null, 1));
-      else if (fmt.value === 'cx-out') download(base + '.collatex.json', JSON.stringify(Collate.toCollateXTable(table)));
-      else if (fmt.value === 'tei') download(base + '.xml', Collate.toTeiCorpus(table), 'application/xml');
-      else if (fmt.value === 'text') {
-        const P = E.proposal(table, Collate.trustOrder(ed));
-        const lines = P.units.filter((u) => u.differs).map((u) => u.text.trim() + ' ] ' + u.groups.filter((g) => g.votes && g !== u.winner).map((g) => (g.form.text.trim() || 'om.') + ' ' + g.members.filter((m) => m.votes).map((m) => m.siglum).join(' ')).join('; ') + '  (' + u.winner.members.filter((m) => m.votes).map((m) => m.siglum).join(' ') + '; ' + u.decided + ')');
-        download(base + '.txt', P.text.trim() + '\n\n' + lines.join('\n') + '\n', 'text/plain');
-      } else if (fmt.value === 'csv') download(base + '.csv', Collate.toCsv(table, state.show), 'text/csv');
-      else download(base + '.manuscribe-table.json', JSON.stringify(table, null, 1));
-    } }, 'Save');
     const textTab = U.el('button', { class: 'btn small', 'aria-pressed': 'true', onclick: () => setMode('text') }, 'Text');
     const letterTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', dataset: { action: 'letters' }, hidden: !ME.Features.on('letters'), onclick: () => setMode('letters') }, 'Letters');
     const appTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', dataset: { action: 'apparatus' }, onclick: () => setMode('apparatus') }, 'Apparatus');
@@ -1144,7 +1113,8 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn, ...(ME.Features.on('exchange') ? [fmt, save] : [])),
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn,
+        U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));
     await UI.modal({

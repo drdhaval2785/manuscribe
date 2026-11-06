@@ -303,10 +303,8 @@
       // exports
       const nx = S.nexus(m, { citation: ME.Publish.citation(ed) });
       body.append(U.el('h3', null, 'For other programs'),
-        U.el('div', { class: 'nv-head' },
-          U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.nex', nx.text) }, 'NEXUS (PAUP*, SplitsTree)'),
-          U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.tree.dot', S.treeDot(shown, m.taxa)) }, 'The tree as DOT'),
-          U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === workId)), 'application/xml') }, 'TEI apparatus (teiphy, open-cbgm)')),
+        U.el('p', { class: 'help' }, 'NEXUS for PAUP* and SplitsTree, the tree in Newick, your stemma in DOT, and the TEI apparatus for teiphy and open-cbgm: under Export.'),
+        U.el('div', { class: 'nv-head' }, U.el('button', { class: 'btn small', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, workId }) }, 'Export…')),
         nx.dropped.length ? U.el('p', { class: 'help' }, nx.dropped.length + ' variant(s) with more than 32 readings are left out of the NEXUS file: ' + nx.dropped.slice(0, 10).join(', ')) : '');
     };
     draw();

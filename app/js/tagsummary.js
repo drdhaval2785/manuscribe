@@ -41,7 +41,7 @@
   function compute(project) {
     const xml = Export.build(project, {}).xml;
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    if (doc.getElementsByTagName('parsererror').length) return { error: 'The exported XML is not well-formed, so it cannot be counted. Open Export XML to see the problem.' };
+    if (doc.getElementsByTagName('parsererror').length) return { error: 'The exported XML is not well-formed, so it cannot be counted. Open Export… to see the problem.' };
     const labelOfPb = {};
     for (const e of Model.entries(project)) labelOfPb[Model.pbValue(project, e.label)] = e.label;
     const streamOfDiv = {};

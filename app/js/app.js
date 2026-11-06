@@ -1283,8 +1283,7 @@
     $('btn-new').onclick = () => App.newProject();
     $('btn-import').onclick = () => App.importProject();
     $('btn-projects').onclick = () => App.showStart();
-    $('btn-export').onclick = () => { App.flush(); Export.open(App.project, entry()); };
-    $('btn-backup').onclick = () => App.saveToFile();
+    $('btn-export').onclick = () => { App.flush(); ME.ExportView.open({ kind: 'project', project: App.project, entry: entry() }); };
     $('btn-settings').onclick = () => App.showSettings();
     $('btn-help').onclick = () => App.showHelp();
     $('btn-sidebar').onclick = () => { App.project.ui.sidebar = !App.project.ui.sidebar; document.body.classList.toggle('sidebar-open', App.project.ui.sidebar); App.changed(true); };

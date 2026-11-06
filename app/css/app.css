@@ -666,3 +666,11 @@ table.sources td .help { font-size: 11px; }
 .ft-auto { opacity: 0.55; }
 .ft-group { font-weight: 600; font-size: 12px; margin: 8px 0 2px; color: var(--muted); }
 .ft-pack { margin: 4px 0 8px; }
+
+/* one Export */
+.xp-list { max-height: 60vh; overflow: auto; }
+.xp-group { font-weight: 600; margin: 10px 0 2px; }
+.xp-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 4px; border-radius: 6px; cursor: pointer; }
+.xp-row:hover { background: rgba(0, 0, 0, 0.04); }
+.xp-row .help { margin-left: 4px; }
+.xp-foot { margin-top: 10px; }

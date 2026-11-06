@@ -119,10 +119,13 @@ const TEXTS = {
   // the buttons and settings on the apparatus screen
   await page.evaluate(() => { const { ed, list } = window.ed_ar; ME.CollateView.workApparatus(ed, list, 'main'); });
   await sleep(900);
-  const ui = await page.evaluate(() => ({ buttons: [...document.querySelectorAll('.modal .btn')].map((b) => b.textContent), keys: !![...document.querySelectorAll('.modal select')].find((s) => [...s.options].some((o) => o.value === 'lines')), settings: /Paper and fonts for printing/.test(document.querySelector('.modal').innerText) }));
+  const ui = await page.evaluate(() => ({ keys: !![...document.querySelectorAll('.modal select')].find((s) => [...s.options].some((o) => o.value === 'lines')), settings: /Paper and fonts for printing/.test(document.querySelector('.modal').innerText) }));
+  await page.evaluate(() => document.querySelector('.modal [data-action="export"]').click());
+  await sleep(400);
+  ui.formats = await page.evaluate(() => [...document.querySelectorAll('.modal input[name="xp-format"]')].map((r) => r.value));
   // for Arabic, the PDF in Manuscribe's Devanagari font is not offered: it belongs to the South Asian pack
-  T.check('the apparatus screen of an Arabic edition offers the print edition, its page and settings, and not the Devanagari PDF', ['Print edition (any script)', 'Save the print page', 'Print edition (LaTeX)'].every((b) => ui.buttons.includes(b)) && !ui.buttons.includes('PDF file (Devanagari and Latin)') && ui.keys && ui.settings, ui);
-  await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  T.check('the Export of an Arabic edition offers the print edition, its page and LaTeX, and not the Devanagari PDF; the apparatus screen has the print settings', ['pdf-any', 'print-page', 'latex'].every((f) => ui.formats.includes(f)) && !ui.formats.includes('pdf-direct') && ui.keys && ui.settings, ui);
+  for (let k = 0; k < 2; k++) { await page.evaluate(() => { const b = [...document.querySelectorAll('.modal-foot .btn')].pop(); if (b) b.click(); }); await sleep(200); }
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });
