@@ -33,24 +33,43 @@ const { launch, sleep, checks } = require('./h');
     window.ids.sa = await make('Sanskrit', 'sa-Deva', { A: 'धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः', B: 'धर्मक्षेत्रे कुरुक्षेत्रे समवेताः युयुत्सवः', C: 'धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवाः' });
   });
   const ids = await page.evaluate(() => window.ids);
+  // everything the edition offers, step by step, with the comparison dialog of the Collate step
   const look = (id) => page.evaluate(async (id) => {
-    await ME.Edition.show(id);
-    await new Promise((r) => setTimeout(r, 500));
-    const v = document.getElementById('edition-view');
-    const text = (sel) => [...v.querySelectorAll(sel)].map((b) => b.textContent);
+    const out = { buttons: [], actions: [], controls: 0, profiles: [], tokens: [], folds: [] };
     const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-    const profiles = [...v.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'any'));
-    const tokens = [...v.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'letter'));
-    return {
-      buttons: text('.btn'), controls: [...v.querySelectorAll('button, select, input')].filter(vis).length,
-      profiles: profiles ? [...profiles.options].map((o) => o.value) : [], tokens: tokens ? [...tokens.options].map((o) => o.value) : [],
-      folds: [...v.querySelectorAll('summary')].map((x) => x.textContent),
-      // what the Export dialog would offer here
-      formats: ME.ExportView.available({ kind: 'edition', ed: ME.Edition.current, list: [] }).map((f) => f.id),
-    };
+    await ME.Edition.show(id);
+    for (const [k] of ME.Edition.STEPS) {
+      ME.Edition.stepOf[id] = k;
+      await ME.Edition.draw();
+      await new Promise((r) => setTimeout(r, 150));
+      const v = document.getElementById('edition-view');
+      out.buttons.push(...[...v.querySelectorAll('.btn, summary')].map((b) => b.textContent.trim()));
+      out.actions.push(...[...v.querySelectorAll('[data-action]')].map((b) => b.dataset.action));
+      out.folds.push(...[...v.querySelectorAll('summary')].map((x) => x.textContent));
+      if (k === 'collate') {
+        out.controls = [...v.querySelectorAll('button, select, input, summary')].filter(vis).length;
+        const b = v.querySelector('[data-action="comparison"]');
+        if (b) {
+          b.click();
+          await new Promise((r) => setTimeout(r, 300));
+          const m = document.querySelector('.modal');
+          const profiles = [...m.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'any'));
+          const tokens = [...m.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'letter'));
+          out.profiles = profiles ? [...profiles.options].map((o) => o.value) : [];
+          out.tokens = tokens ? [...tokens.options].map((o) => o.value) : [];
+          out.folds.push(...[...m.querySelectorAll('summary')].map((x) => x.textContent));
+          m.querySelector('.modal-foot .btn').click();
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+    }
+    delete ME.Edition.stepOf[id];
+    // what the Export dialog would offer here
+    out.formats = ME.ExportView.available({ kind: 'edition', ed: ME.Edition.current, list: [] }).map((f) => f.id);
+    return out;
   }, id);
   const ar = await look(ids.ar);
-  T.check('Simple, Arabic: no stemmatics, sharing, aligning again or importing an alignment', !['Stemmatics…', 'Compare and merge…', 'GitHub…', 'Kept copies', 'Align again', 'Import alignment…'].some((b) => ar.buttons.includes(b)) && ar.buttons.includes('Edited text and apparatus…'), ar.buttons);
+  T.check('Simple, Arabic: no stemmatics, sharing, or More (aligning again, importing)', !ar.actions.includes('stemmatics') && !ar.actions.includes('share') && !ar.buttons.includes('More') && ar.buttons.includes('Edited text and apparatus…'), ar.buttons);
   T.check('Arabic: no South Asian features (Saktumiva, Sanskrit profiles, akṣara tokens)', !ar.formats.includes('saktumiva') && ar.profiles.join() === 'any' && !ar.tokens.includes('aksara'), { profiles: ar.profiles, tokens: ar.tokens });
   T.check('Simple: normalisation is its profile alone, without the rule folds', !ar.folds.some((f) => /Rules used|What each witness/.test(f)), ar.folds);
   const sa = await look(ids.sa);
@@ -65,11 +84,11 @@ const { launch, sleep, checks } = require('./h');
   // one tool on its own, then the Full level
   await page.evaluate(() => ME.Features.save({ on: { stemmatics: true } }));
   const one = await look(ids.sa);
-  T.check('one tool can be switched on by itself', one.buttons.includes('Stemmatics…') && !one.buttons.includes('GitHub…'), one.buttons);
+  T.check('one tool can be switched on by itself', one.actions.includes('stemmatics') && !one.actions.includes('share'), one.actions);
   await page.evaluate(() => ME.Features.save({ on: {}, level: 'full' }));
   const full = await look(ids.sa);
-  T.check('Full shows every tool', ['Stemmatics…', 'Compare and merge…', 'GitHub…', 'Kept copies', 'Align again', 'Import alignment…'].every((b) => full.buttons.includes(b)), full.buttons);
-  T.check('Simple shows fewer controls on the edition screen (' + sa.controls + ' against ' + full.controls + ')', sa.controls < full.controls - 8, { simple: sa.controls, full: full.controls });
+  T.check('Full shows every tool', ['stemmatics', 'share', 'an-agreement', 'an-registers'].every((b) => full.actions.includes(b)) && full.buttons.includes('More'), full.actions);
+  T.check('Simple shows fewer controls in the Collate step (' + sa.controls + ' against ' + full.controls + ')', sa.controls < full.controls, { simple: sa.controls, full: full.controls });
   // the choice is kept in this browser
   await page.evaluate(() => ME.Features.save({ level: 'simple' }));
   await page.reload(); await sleep(800);

@@ -119,12 +119,13 @@ const TEXTS = {
   // the buttons and settings on the apparatus screen
   await page.evaluate(() => { const { ed, list } = window.ed_ar; ME.CollateView.workApparatus(ed, list, 'main'); });
   await sleep(900);
-  const ui = await page.evaluate(() => ({ keys: !![...document.querySelectorAll('.modal select')].find((s) => [...s.options].some((o) => o.value === 'lines')), settings: /Paper and fonts for printing/.test(document.querySelector('.modal').innerText) }));
+  // the print settings and the keying of notes are in the Publish step
+  const ui = await page.evaluate(async () => { const { ed, list } = window.ed_ar; const el = await ME.Steps.publish(ed, list, () => {}); return { keys: !![...el.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'lines')), settings: /Paper and fonts for printing/.test(el.textContent) }; });
   await page.evaluate(() => document.querySelector('.modal [data-action="export"]').click());
   await sleep(400);
   ui.formats = await page.evaluate(() => [...document.querySelectorAll('.modal input[name="xp-format"]')].map((r) => r.value));
   // for Arabic, the PDF in Manuscribe's Devanagari font is not offered: it belongs to the South Asian pack
-  T.check('the Export of an Arabic edition offers the print edition, its page and LaTeX, and not the Devanagari PDF; the apparatus screen has the print settings', ['pdf-any', 'print-page', 'latex'].every((f) => ui.formats.includes(f)) && !ui.formats.includes('pdf-direct') && ui.keys && ui.settings, ui);
+  T.check('the Export of an Arabic edition offers the print edition, its page and LaTeX, and not the Devanagari PDF; the Publish step has the print settings', ['pdf-any', 'print-page', 'latex'].every((f) => ui.formats.includes(f)) && !ui.formats.includes('pdf-direct') && ui.keys && ui.settings, ui);
   for (let k = 0; k < 2; k++) { await page.evaluate(() => { const b = [...document.querySelectorAll('.modal-foot .btn')].pop(); if (b) b.click(); }); await sleep(200); }
   T.done(page);
   await browser.close();

@@ -77,7 +77,10 @@
     return true;
   };
 
-  CollateView.section = async function (ed, list, redraw) {
+  /* The collation of a work, for one step of the edition: 'collate' (settings in a line, Collate, the blocks and
+     their state) or 'edit' (the blocks, each opening its table, with what is decided and what is to review). */
+  CollateView.section = async function (ed, list, redraw, mode) {
+    mode = mode || 'collate';
     if (Store.fallback) return U.el('p', { class: 'help' }, 'Collation needs the browser’s database, which this browser does not allow for a page opened from disk. Try another browser, or the copy on the web.');
     const works = worksWithText(ed, list);
     if (!works.length) return U.el('p', { class: 'help' }, 'Appears when the edition has witnesses with text.');
@@ -109,6 +112,8 @@
       CollateView.collate(ed, list, workId, progress, go, redraw, true);
     } }, 'Align again');
     const samples = new Set((ed.samples && ed.samples[workId]) || []);
+    const full = F.on('agreement');
+    const num = (v) => U.el('td', { class: 'num' }, v === undefined || v === null || v === '' ? '' : String(v));
     const rows = ids.map((id) => {
       const s = summaries.get(Collate.keyOf(ed.id, workId, id));
       const st = statusOf(ed, list, s);
@@ -119,42 +124,71 @@
         await Edition.save(ed);
         redraw();
       } });
-      return U.el('tr', null,
-        U.el('td', null, cb),
-        U.el('td', { class: 'cv-unit' }, s ? U.el('button', { class: 'link', title: 'Open the table', onclick: () => CollateView.open(ed, list, workId, id, redraw) }, id) : id),
-        U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text)),
-        U.el('td', { class: 'num' }, s ? String(s.labels) : ''), U.el('td', { class: 'num' }, s && s.words !== undefined ? String(s.words) : ''),
-        U.el('td', { class: 'num' }, s && s.words !== undefined ? String(s.differ) : ''), U.el('td', { class: 'num' }, s && s.words !== undefined ? String(s.ties) : ''),
-        U.el('td', { class: 'num' }, s && s.corrections ? String(s.corrections) : ''),
-        U.el('td', { class: 'num' }, s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : ''));
+      const idCell = U.el('td', { class: 'cv-unit' }, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, workId, id, redraw) }, id) : id);
+      const state = U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text));
+      const has = s && s.words !== undefined;
+      if (mode === 'edit') return U.el('tr', null, idCell, state, num(has ? s.differ : ''), num(has ? s.decided : ''), num(s && s.review ? s.review : ''));
+      return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''),
+        ...(full ? [num(s ? s.labels : ''), num(has ? s.ties : ''), num(s && s.corrections ? s.corrections : ''), num(s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : '')] : []));
     });
-    const opened = CollateView.agreeOpen;
-    const agreeBox = U.el('div');
-    const fold = U.el('details', { class: 'nv-fold', open: opened }, U.el('summary', null, samples.size ? 'How far the witnesses agree, in the ' + samples.size + ' sample passage(s)' : 'How far the witnesses agree'), agreeBox);
-    const fillAgreement = async () => {
-      if (!fold.open) return;
-      const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId && (!samples.size || samples.has(r.unit)));
-      agreeBox.innerHTML = '';
-      agreeBox.append(U.el('p', { class: 'help' }, 'Places where two witnesses agree, out of the places where both can be read, in the corrected text. A lacuna or a witness without the block counts neither way. An omission counts as a difference. Tick passages below to look only at those.'), agreementTable(recs.map((r) => r.table)));
-    };
-    fold.addEventListener('toggle', () => { CollateView.agreeOpen = fold.open; fillAgreement(); });
-    fillAgreement();
+    const heads = mode === 'edit' ? ['Block', '', 'Places that differ', 'Decided', 'To review']
+      : (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
+    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
+      U.el('thead', null, U.el('tr', null, heads.map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
+      U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
+    const anyTable = [...summaries.values()].some((s) => s.work === workId);
+    const workPick = works.length > 1 ? U.el('label', null, 'Work ', pick) : null;
+    if (mode === 'edit') {
+      return U.el('div', null,
+        U.el('p', { class: 'help' }, anyTable ? 'Open a block to read its text word by word, and decide where the witnesses differ. The edited text and apparatus of the whole work are one click away.' : 'Collate first: then each block can be opened here.'),
+        U.el('div', { class: 'nv-head' }, workPick,
+          U.el('button', { class: 'btn small', disabled: !anyTable, title: 'The edited text of the whole work, its apparatus, checks and search', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
+          ed.works.length > 1 && F.on('layers') ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: () => ME.LayersView.links(ed, list, workId) }, 'Links to the base text…') : null),
+        table);
+    }
+    // the comparison in a line, with everything about it behind Change…
+    const norm = Norm.settings(ed.norm);
+    const comparison = U.el('p', { class: 'help cv-trustline' }, 'Compared as ', U.el('strong', null, norm.profile.name), ', by ', U.el('strong', null, Norm.TOKENIZERS[kind].label.toLowerCase()), '; ties go to ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? ' ' : ' (not set yet) ',
+      U.el('button', { class: 'btn small', dataset: { action: 'comparison' }, onclick: () => CollateView.comparison(ed, list, redraw) }, 'Change…'));
+    const more = F.on('alignMore') ? U.el('details', { class: 'menu' }, U.el('summary', { class: 'btn small' }, 'More'), U.el('div', { class: 'menu-items' }, again,
+      U.el('button', { class: 'btn small', disabled: !anyTable, title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'))) : null;
+    void trustLine; void tok;
     return U.el('div', null,
-      U.el('p', { class: 'help' }, 'Lines up the witnesses, block by block, by their citation IDs, using Charles Li’s aligner from Saktumiva. This only reads your transcriptions. A block whose text has not changed keeps its table.'),
-      U.el('div', { class: 'nv-head' },
-        works.length > 1 ? U.el('label', null, 'Work ', pick) : null,
-        U.el('label', null, 'Align by ', tok),
-        go, again,
-        !F.on('alignMore') ? null : U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'),
-        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'The edited text of the whole work, its apparatus, checks, search, and TEI', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
-        !F.on('stemmatics') ? null : U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Agreement, trees, your stemma and what contradicts it', dataset: { action: 'stemmatics' }, onclick: () => ME.StemmaView.open(ed, list, workId) }, 'Stemmatics…'),
-        ed.works.length > 1 && F.on('layers') ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: () => ME.LayersView.links(ed, list, workId) }, 'Links to the base text…') : null),
-      trustLine,
-      progress,
-      ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
-        U.el('thead', null, U.el('tr', null, ['Sample', 'Citation ID', '', 'Rows', 'Words', 'Words that differ', 'Ties', 'Corrections', 'Aligner against your reading'].map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
-        U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.'),
-      F.on('agreement') ? fold : null);
+      U.el('p', { class: 'help' }, 'Lines up the witnesses, block by block, by their citation IDs, with Charles Li’s aligner from Saktumiva. It only reads your transcriptions; a block whose text has not changed keeps its table.'),
+      comparison,
+      U.el('div', { class: 'nv-head' }, workPick, go, more),
+      progress, table);
+  };
+
+  // How witnesses are compared: normalisation, tokens and the trust order, in one dialog.
+  CollateView.comparison = async function (ed, list, redraw) {
+    const body = U.el('div');
+    const draw = () => {
+      body.innerHTML = '';
+      const kind = Collate.tokenKind(ed);
+      const tok = U.el('select', { 'aria-label': 'Align by', onchange: async () => { ed.collate = Object.assign({}, ed.collate, { tokens: tok.value }); await Edition.save(ed); draw(); } },
+        Object.entries(Norm.TOKENIZERS).filter(([k]) => k === kind || k !== 'aksara' || ME.Features.on('aksara')).map(([k, t]) => U.el('option', { value: k, selected: k === kind }, t.label)));
+      body.append(
+        U.el('h3', null, 'What counts as the same reading'), ME.NormView.section(ed, list, draw),
+        U.el('h3', null, 'Lined up by'), U.el('div', { class: 'nv-head' }, tok),
+        U.el('h3', null, 'Ties between readings'),
+        U.el('p', { class: 'help' }, 'Where readings tie, the reading of the more trusted witness is proposed: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ' ',
+          U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) draw(); } }, 'Change…')));
+    };
+    draw();
+    await UI.modal({ title: 'How witnesses are compared', body, wide: true, buttons: [{ label: 'Close', value: null }] });
+    if (redraw) redraw();
+  };
+
+  // How far the witnesses agree, in the corrected text, for the Analyse step.
+  CollateView.agreement = function (ed, list, workId) {
+    const samples = new Set((ed.samples && ed.samples[workId]) || []);
+    const box = U.el('div');
+    (async () => {
+      const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId && (!samples.size || samples.has(r.unit)));
+      box.append(U.el('p', { class: 'help' }, 'Places where two witnesses agree, out of the places where both can be read, in the corrected text' + (samples.size ? ', in the ' + samples.size + ' sample passage(s) ticked under Collate' : '') + '. A lacuna or a witness without the block counts neither way; an omission counts as a difference.'), agreementTable(recs.map((r) => r.table)));
+    })();
+    return box;
   };
 
   CollateView.collate = async function (ed, list, workId, box, button, redraw, force) {
@@ -242,17 +276,17 @@
   /* ---------- the apparatus ---------- */
 
   // Settings, the apparatus itself, its checks and the search. tables: one or all of a work's tables.
-  CollateView.apparatusView = function (ed, tables, redraw, goRef, witnesses, layered) {
+  // How the apparatus is written: polarity, abbreviations, groups, tiers, and how notes are keyed.
+  CollateView.apparatusSettings = function (ed, redraw, open) {
     const A = ME.Apparatus;
     const s = A.settings(ed);
-    const built = tables.map((t) => Object.assign({ table: t }, A.entries(ed, t)));
     const set = async (k, v) => { ed.apparatus = Object.assign({}, ed.apparatus, { [k]: v }); await Edition.save(ed); redraw(); };
     const sel = (k, label, opts) => U.el('label', null, label + ' ', U.el('select', { onchange: (e) => set(k, e.target.value) }, opts.map(([v, t]) => U.el('option', { value: v, selected: String(s[k]) === String(v) }, t))));
     const tick = (k, label) => U.el('label', null, U.el('input', { type: 'checkbox', checked: !!s[k], onchange: (e) => set(k, e.target.checked) }), ' ' + label);
     const ab = A.abbr(ed);
     const abbrFields = ['om', 'add', 'post', 'transp', 'lac', 'ac', 'em', 'conj', 'deest'];
     const abbrBox = U.el('div', { class: 'ap-abbr' }, abbrFields.map((k) => U.el('label', null, k + ' ', U.el('input', { type: 'text', value: ab[k], 'aria-label': 'Abbreviation for ' + k, onchange: (e) => set('custom', Object.assign({}, s.custom, { [k]: e.target.value })) }))));
-    const settings = U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'How the apparatus is written'),
+    return U.el('details', { class: 'nv-fold', open: !!open }, U.el('summary', null, 'How the apparatus is written'),
       U.el('div', { class: 'nv-head' },
         sel('polarity', 'Polarity', [['auto', 'negative, positive where few have the lemma'], ['negative', 'negative'], ['positive', 'positive']]),
         sel('abbr', 'Abbreviations', Object.entries(A.ABBREVIATIONS).map(([k, v]) => [k, v.name])),
@@ -261,6 +295,13 @@
         sel('keys', 'Notes keyed by', [['markers', 'a numbered marker in the text'], ['lines', 'line numbers']])),
       U.el('p', { class: 'help' }, 'Abbreviations, which you can write in any language or script:'), abbrBox,
       U.el('p', { class: 'help' }, 'Groups are the Group of each witness in the witness list. A group siglum stands for a group only where all its witnesses that can be read agree.'));
+  };
+
+  CollateView.apparatusView = function (ed, tables, redraw, goRef, witnesses, layered) {
+    const A = ME.Apparatus;
+    const s = A.settings(ed);
+    const built = tables.map((t) => Object.assign({ table: t }, A.entries(ed, t)));
+    const settings = ME.Features.on('normRules') ? CollateView.apparatusSettings(ed, redraw) : null;
     const list = U.el('div', { class: 'ap-list' });
     for (const b of built) {
       const { variants, singular, orthographica, testimonia } = A.tiers(ed, b.entries);
@@ -324,15 +365,8 @@
           const res = A.agreements(ed, built, w, g);
           found.append(U.el('li', { class: 'help' }, res.length + ' place(s). Places where any of them is lost are left out.'), ...res.map((r) => U.el('li', null, U.el('button', { class: 'link', onclick: () => goRef && goRef(r.entry) }, r.ref), ' ', r.reading || '(omits)', ' — ' + A.format(ed, r.entry).replace(/<\/?sup>/g, ''))));
         } }, 'Find')), found);
-    const version = U.el('input', { type: 'text', value: ed.version || '', placeholder: 'e.g. 1.0, or empty for a dated draft', 'aria-label': 'Version of the edition', onchange: async () => { ed.version = version.value.trim() || undefined; await Edition.save(ed); redraw(); } });
-    const editor = U.el('input', { type: 'text', value: ed.editor || '', placeholder: 'your name', 'aria-label': 'Editor', onchange: async () => { ed.editor = editor.value.trim() || undefined; await Edition.save(ed); redraw(); } });
-    const publish = U.el('div', { class: 'ap-publish' },
-      U.el('h3', null, 'Publish'),
-      U.el('p', { class: 'help' }, 'Every output carries this citation: ', U.el('em', null, ME.Publish.citation(ed))),
-      U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
-      printSettings(ed, redraw));
     const exportBtn = U.el('button', { class: 'btn small primary', title: 'Print, read, exchange or archive: every output, in one place', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list: witnesses || [], tables, workId: tables[0] && tables[0].work, redraw }) }, 'Export…');
-    return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), publish, U.el('div', { class: 'nv-head' }, exportBtn));
+    return U.el('div', null, settings, checks, list, ME.Features.on('agreement') ? search : null, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), U.el('div', { class: 'nv-head' }, exportBtn));
   };
 
   // Paper, size and fonts for the print edition: any font on this computer, by name, or a font file of your own.
@@ -364,6 +398,8 @@
         s.fontId ? U.el('button', { class: 'btn small', onclick: async () => { await Store.deleteFont(s.fontId); set('fontId', null); } }, 'Stop using it') : null),
       U.el('p', { class: 'help' }, 'Fonts are tried in turn for each letter: a font file of yours first, then the fonts named here, then Manuscribe’s Devanagari font where the text needs it, then the browser’s own. A font file is kept in this browser and put into the print page.'));
   }
+
+  CollateView.printSettings = (ed, redraw) => printSettings(ed, redraw);
 
   CollateView.workApparatus = async function (ed, list, workId) {
     // the languages of these witnesses decide which language features are offered

@@ -674,3 +674,26 @@ table.sources td .help { font-size: 11px; }
 .xp-row:hover { background: rgba(0, 0, 0, 0.04); }
 .xp-row .help { margin-left: 4px; }
 .xp-foot { margin-top: 10px; }
+
+/* the steps of an edition */
+.ed-steps { display: flex; gap: 4px; margin: 10px 0 6px; flex-wrap: wrap; }
+.ed-step { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 14px 5px 6px; font: 600 13px var(--ui); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.ed-step-n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--line); font-size: 11px; }
+.ed-step.on { border-color: var(--accent, #8c2a17); box-shadow: 0 0 0 1px var(--accent, #8c2a17) inset; }
+.ed-step.on .ed-step-n { background: var(--accent, #8c2a17); color: #fff; }
+.ed-step-c { font-weight: 400; color: var(--muted); margin-left: 2px; font-size: 12px; }
+.ed-status { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #f7f3ea; border: 1px solid var(--line); border-radius: 8px; margin: 4px 0 12px; font-size: 14px; }
+.ed-stepbody { margin-top: 6px; }
+.an-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.an-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; display: flex; flex-direction: column; }
+.an-card h3 { margin: 0 0 4px; font-size: 15px; }
+.an-card .help { flex: 1; }
+.an-card .btn { align-self: flex-start; }
+.st-actions { margin-top: 16px; }
+.st-list { padding-left: 18px; font-size: 13px; }
+/* a small menu */
+details.menu { position: relative; display: inline-block; }
+details.menu > summary { list-style: none; }
+details.menu > summary::-webkit-details-marker { display: none; }
+details.menu > summary::after { content: ' ▾'; }
+details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 160px; }

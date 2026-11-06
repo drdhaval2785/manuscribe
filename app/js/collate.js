@@ -206,7 +206,7 @@
     ncols: rec.table.ncols, variants: rec.table.variants, labels: rec.table.order.length, tokens: rec.table.tokens,
     corrections: (rec.table.ops || []).length, locks: (rec.table.locks || []).length, review: (rec.table.review || []).length, checked: !!rec.table.checked,
     accuracy: rec.table.checked ? ME.CollateEdit.againstCorrections(rec.table) : null,
-    ...(() => { try { const c = ME.CollateEdit.proposal(rec.table, []).count; return { words: c.words, differ: c.differ, ties: c.trust }; } catch (e) { return {}; } })() });
+    ...(() => { try { const c = ME.CollateEdit.proposal(rec.table, []).count; return { words: c.words, differ: c.differ, ties: c.trust, decided: c.decided }; } catch (e) { return {}; } })() });
   Collate.summaries = async function (edId) {
     if (known.has(edId)) return known.get(edId);
     const m = new Map();

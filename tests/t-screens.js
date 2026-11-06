@@ -49,6 +49,7 @@ const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
   T.check('pointing at a word lights up its entry', lit >= 2, lit);
   T.check('the reader is exported through Export', await exportVia(page, '.modal [data-action="export"]', 'reader')); await sleep(1500);
   await click('Close', '.modal-foot .btn'); await sleep(500);
+  await act('step-analyse'); await sleep(500);
   await act('stemmatics'); await sleep(1200);
   T.check('the workbench opens with agreement and a tree', await page.evaluate(() => document.querySelectorAll('.sv-heat td.num').length > 0 && document.querySelectorAll('.sv-tree .sv-leaf').length === 3));
   T.check('no stray null on the workbench', await page.evaluate(() => !/(^|\n)null(\n|$)|undefined|NaN/.test(document.querySelector('.sv').innerText)));

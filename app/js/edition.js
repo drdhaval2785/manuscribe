@@ -579,6 +579,36 @@ To open it, use Import edition package on Manuscribe's start screen.
       r.order.length > GRID_LIMIT ? U.el('p', { class: 'help' }, 'Showing the first ' + GRID_LIMIT + ' of ' + r.order.length + ' IDs.') : null);
   }
 
+  /* The edition screen: five steps, Witnesses, Collate, Edit, Analyse, Publish, each showing only its own work, under
+     a sentence that says where the edition stands and offers the next thing to do. */
+  Edition.STEPS = [['witnesses', 'Witnesses'], ['collate', 'Collate'], ['edit', 'Edit'], ['analyse', 'Analyse'], ['publish', 'Publish']];
+  Edition.stepOf = {};
+
+  // Where the edition stands, for the work in view.
+  async function standing(ed, list, reg) {
+    const summaries = await ME.Collate.summaries(ed.id);
+    const work = ME.CollateView.work;
+    const regs = Object.values(reg).filter((r) => r.order.length);
+    const r = regs.find((x) => x.work.id === work) || regs[0];
+    const ids = r ? r.order : [];
+    const sums = ids.map((id) => summaries.get(ME.Collate.keyOf(ed.id, r.work.id, id))).filter(Boolean);
+    const stale = sums.filter((x) => ME.Collate.isCurrent(ed, list, x) === false).length;
+    return { witnesses: ed.witnesses.length, blocks: ids.length, collated: sums.length, stale,
+      decided: sums.reduce((a, x) => a + (x.decided || 0), 0), differ: sums.reduce((a, x) => a + (x.differ || 0), 0), review: sums.reduce((a, x) => a + (x.review || 0), 0) };
+  }
+
+  // What to say, and what to offer next.
+  const n = (k, one, many) => k + ' ' + (k === 1 ? one : many);
+  function advice(st, go) {
+    if (!st.witnesses) return { sentence: 'Begin with the transcriptions of the manuscripts you are editing: add them as witnesses.', next: { label: 'Add witnesses…', run: () => go('witnesses', 'add') } };
+    if (st.witnesses < 2) return { sentence: 'One witness so far: add the others, to compare them.', next: { label: 'Add witnesses…', run: () => go('witnesses', 'add') } };
+    if (!st.blocks) return { sentence: 'The witnesses have no citation IDs in common yet. Mark each paragraph and verse with the same xml:id in every witness, so that they can be compared block by block.', next: null };
+    if (st.collated < st.blocks) return { sentence: (st.blocks === 1 ? 'The block is' : (st.blocks - st.collated) + ' of ' + st.blocks + ' blocks are') + ' not yet collated.', next: { label: 'Collate', run: () => go('collate', 'collate') } };
+    if (st.stale) return { sentence: n(st.stale, 'block was', 'blocks were') + ' aligned before a change of settings: collate again.', next: { label: 'Collate', run: () => go('collate', 'collate') } };
+    if (st.review) return { sentence: (st.blocks === 1 ? 'The block is' : 'All ' + st.blocks + ' blocks are') + ' collated; ' + n(st.review, 'place waits', 'places wait') + ' for your review.', next: { label: 'Edit', run: () => go('edit') } };
+    return { sentence: (st.blocks === 1 ? 'The block is' : 'All ' + st.blocks + ' blocks are') + ' collated: ' + n(st.differ, 'place', 'places') + ' where the witnesses differ, ' + st.decided + ' decided by you.', next: st.decided || st.differ === 0 ? { label: 'Publish', run: () => go('publish') } : { label: 'Edit', run: () => go('edit') } };
+  }
+
   Edition.draw = async function () {
     const ed = Edition.current;
     if (!ed) return;
@@ -590,50 +620,78 @@ To open it, use Import edition package on Manuscribe's start screen.
     F.setContext(F.langsOf(list));
     const redraw = () => Edition.draw();
     const reg = Edition.register(ed, list);
+    if (!ME.CollateView.work || !reg[ME.CollateView.work]) { const first = Object.values(reg).find((x) => x.order.length); if (first) ME.CollateView.work = first.work.id; }
+    const st = await standing(ed, list, reg);
+    const step = Edition.stepOf[ed.id] || (st.witnesses < 2 ? 'witnesses' : st.collated < st.blocks || st.stale ? 'collate' : 'edit');
+    const go = async (k, then) => {
+      Edition.stepOf[ed.id] = k;
+      await Edition.draw();
+      if (then === 'add') addWitnesses(ed, redraw);
+      if (then === 'collate') { const b = document.querySelector('#edition-view [data-action="collate"]'); if (b && !b.disabled) b.click(); }
+    };
     const title = U.el('input', { type: 'text', class: 'ed-title', value: ed.title, placeholder: 'Title of the edition', onchange: async () => { ed.title = title.value.trim(); await saveEdition(ed); } });
     const due = Edition.reminder(ed, list);
     const remind = due === null ? null : U.el('div', { class: 'ed-remind' }, due === 'never'
-      ? 'This edition has never been saved outside this browser. Clearing the browser’s data would delete it, so please export a package.'
-      : 'Your last package export was ' + due + ' days ago, and the work has changed since. Please export a new one.');
-    const normSection = ME.NormView.section(ed, list, redraw);
-    const collationSection = await ME.CollateView.section(ed, list, redraw);
+      ? 'This edition has never been saved outside this browser. Clearing the browser’s data would delete it: Export › Edition package.'
+      : 'Your last package export was ' + due + ' days ago, and the work has changed since: Export › Edition package.');
+    const count = { witnesses: String(st.witnesses), collate: st.blocks ? st.collated + '/' + st.blocks : '', edit: st.differ ? st.decided + '/' + st.differ : '', analyse: '', publish: ed.issued ? ed.issued.version : '' };
+    const steps = U.el('nav', { class: 'ed-steps', 'aria-label': 'Steps of the edition' }, Edition.STEPS.map(([k, label], i) => U.el('button', { class: 'ed-step' + (k === step ? ' on' : ''), dataset: { action: 'step-' + k }, 'aria-current': k === step ? 'step' : null, onclick: () => go(k) },
+      U.el('span', { class: 'ed-step-n' }, String(i + 1)), ' ' + label, count[k] ? U.el('span', { class: 'ed-step-c' }, count[k]) : null)));
+    const a = advice(st, go);
+    const here = a.next && ((a.next.label === 'Edit' && step === 'edit') || (a.next.label === 'Publish' && step === 'publish'));
+    const status = U.el('div', { class: 'ed-status' }, U.el('span', null, a.sentence), a.next && !here ? U.el('button', { class: 'btn small primary', dataset: { action: 'next' }, onclick: a.next.run }, a.next.label) : null);
+    let body;
+    if (step === 'witnesses') body = witnessesStep(ed, list, reg, redraw);
+    else if (step === 'collate') body = await ME.CollateView.section(ed, list, redraw, 'collate');
+    else if (step === 'edit') body = await ME.CollateView.section(ed, list, redraw, 'edit');
+    else if (step === 'analyse') body = await ME.Steps.analyse(ed, list, redraw);
+    else body = await ME.Steps.publish(ed, list, redraw);
     host.innerHTML = '';
     host.append(...[
       U.el('div', { class: 'ed-bar' },
-        U.el('button', { class: 'btn small', onclick: () => ME.App.showStart() }, '‹ Start screen'),
+        U.el('button', { class: 'btn small', onclick: () => ME.App.showStart() }, '‹ Start'),
         title,
         U.el('button', { class: 'btn small primary', title: 'Every output of the edition: print, read, exchange, archive', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, workId: ME.CollateView.work, redraw }) }, 'Export…'),
-        F.on('share') ? U.el('button', { class: 'btn small', title: 'Compare a package from another editor, or an older one, with this copy, and merge it', onclick: () => ME.ExchangeView.compareFile(ed, redraw) }, 'Compare and merge…') : null,
-        F.on('share') ? U.el('button', { class: 'btn small', title: 'Send the edition to a GitHub repository, or fetch and merge what is there', onclick: () => ME.ExchangeView.github(ed, redraw) }, 'GitHub…') : null,
-        U.el('button', { class: 'btn small', title: 'Freeze a version, check it, and make every output of it at once', onclick: () => ME.ExchangeView.issue(ed, list, redraw) }, 'Issue edition…'),
-        F.on('share') ? U.el('button', { class: 'btn small ghost', title: 'Both copies as they were before each merge', onclick: () => ME.ExchangeView.kept(ed) }, 'Kept copies') : null,
+        F.on('share') || (ed.github && ed.github.repo) ? U.el('button', { class: 'btn small', title: 'Compare and merge another copy, GitHub, and the copies kept before merging', dataset: { action: 'share' }, onclick: () => ME.Steps.share(ed, redraw) }, 'Share…') : null,
         U.el('button', { class: 'btn small icon', title: 'Settings: how much is shown, language features', dataset: { action: 'settings' }, onclick: () => ME.App.showSettings() }, '⚙')),
-      ed.issued ? U.el('p', { class: 'help' }, ME.Publish.citation(ed)) : null,
-      remind,
-      U.el('h2', null, 'Witnesses (' + ed.witnesses.length + ')'),
-      witnessTable(ed, list, redraw),
-      U.el('div', { class: 'btn-row' },
-        U.el('button', { class: 'btn small', onclick: () => addFromBrowser(ed).then(redraw) }, 'Add from this browser…'),
-        U.el('button', { class: 'btn small', onclick: () => addFromXml(ed).then(redraw) }, 'Add XML files…'),
-        U.el('button', { class: 'btn small', onclick: () => addFromBackups(ed).then(redraw) }, 'Add backup files…'),
-        U.el('button', { class: 'btn small', title: 'Choose your PDFs; each is matched to its witness by content', onclick: async () => {
-          const files = await pickFiles('application/pdf,.pdf', true);
-          if (!files.length) return;
-          const r = await Edition.relinkPdfs(ed, files);
-          U.toast('Relinked ' + r.done.length + ' PDF(s)' + (r.unused.length ? '. No witness matches: ' + r.unused.join(', ') : ''), r.unused.length ? 'warn' : 'ok', 6000);
-          redraw();
-        } }, 'Relink PDFs…')),
-      U.el('h2', null, 'Works'),
-      streamTable(ed, list, redraw) || U.el('p', { class: 'help' }, 'Appears when the edition has witnesses.'),
-      U.el('h2', null, 'Citation IDs'),
-      problemsList(reg, ed),
-      coverageGrid(ed, reg, redraw),
-      U.el('h2', null, 'Normalisation'),
-      normSection,
-      U.el('h2', null, 'Collation'),
-      collationSection].filter(Boolean)); // append would write an empty value out as "null"
+      steps, status, remind,
+      U.el('div', { class: 'ed-stepbody', dataset: { step } }, body)].filter(Boolean)); // append would write an empty value out as "null"
     scroller.scrollTop = top;
   };
+
+  // Step 1: the witnesses, one way to add them, and their citation IDs in one line.
+  function witnessesStep(ed, list, reg, redraw) {
+    const problems = problemsList(reg, ed);
+    const nProblems = problems && problems.tagName === 'UL' ? problems.children.length : 0;
+    const manyStreams = list.some((x) => x.p && Export.streamsUsed(x.p).length > 1);
+    const ids = Object.values(reg).reduce((a, r) => a + r.order.length, 0);
+    return U.el('div', null,
+      U.el('div', { class: 'nv-head' }, U.el('h2', null, 'Witnesses (' + ed.witnesses.length + ')'),
+        U.el('button', { class: 'btn small primary', dataset: { action: 'add-witnesses' }, onclick: () => addWitnesses(ed, redraw) }, 'Add witnesses…')),
+      ed.witnesses.length ? witnessTable(ed, list, redraw) : U.el('p', { class: 'help' }, 'An edition brings together the transcriptions of several manuscripts of one text. Add them here: from this browser, or from XML or backup files.'),
+      manyStreams ? U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'Works: ' + ed.works.filter((w) => list.some((x) => x.p && Export.streamsUsed(x.p).some((k) => ((x.w.streams && x.w.streams[k]) || k) === w.id))).map((w) => w.title.toLowerCase()).join(', ') + ', in each witness'), streamTable(ed, list, redraw)) : null,
+      ed.witnesses.length ? U.el('details', { class: 'nv-fold', open: nProblems > 0 && nProblems < 8 }, U.el('summary', null, !ids ? 'No citation IDs yet' : nProblems ? 'Citation IDs: ' + nProblems + ' thing(s) to look at' : 'Citation IDs: ' + ids + ' block(s), in every witness'),
+        problems, coverageGrid(ed, reg, redraw)) : null);
+  }
+
+  // One way in for every kind of witness.
+  async function addWitnesses(ed, redraw) {
+    const choice = await UI.modal({ title: 'Add witnesses', body: U.el('div', { class: 'xv' },
+      U.el('p', { class: 'help' }, 'Each witness is a transcription of one manuscript. It stays an ordinary transcription, which you can go on working on.')),
+    buttons: [{ label: 'Cancel', value: null, kind: 'ghost' }, { label: 'From backup files…', value: 'backup' }, { label: 'From XML files…', value: 'xml' }, { label: 'From this browser…', value: 'browser', kind: 'primary' }].concat(ed.witnesses.length ? [{ label: 'Relink PDFs…', value: 'relink', left: true }] : []) });
+    if (choice === 'browser') await addFromBrowser(ed);
+    else if (choice === 'xml') await addFromXml(ed);
+    else if (choice === 'backup') await addFromBackups(ed);
+    else if (choice === 'relink') {
+      const files = await pickFiles('application/pdf,.pdf', true);
+      if (files.length) {
+        const r = await Edition.relinkPdfs(ed, files);
+        U.toast('Relinked ' + r.done.length + ' PDF(s)' + (r.unused.length ? '. No witness matches: ' + r.unused.join(', ') : ''), r.unused.length ? 'warn' : 'ok', 6000);
+      }
+    }
+    if (choice) redraw();
+  }
+  Edition.addWitnesses = addWitnesses;
 
   /* ---------- on the start screen ---------- */
 
