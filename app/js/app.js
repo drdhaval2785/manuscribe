@@ -410,6 +410,7 @@
     App.project = p;
     App.fileHandle = null;
     TEI.setUnanchored(p.settings.noAnchorIds);
+    ME.Features.setContext([p.meta.textLang || 'sa-Latn']);
     localStorage.setItem('lipikara.last', id);
     document.body.classList.remove('no-project');
     $('btn-edition').hidden = !ME.Edition.current;
@@ -1014,8 +1015,7 @@
       U.el('p', { class: 'help' }, 'Bring in what handwriting or print recognition made (PAGE-XML, as from Transkribus, eScriptorium or Kraken; or ALTO), or the output of any other program, AI included, as plain text. It goes into empty lines only, marked as proposed: read and correct each line, then accept it with ' + Commands.keyLabel('Y') + '. Until then it is not collated. Manuscribe sends nothing to any AI service.'),
       U.el('button', { class: 'btn small', onclick: () => App.importProposed() }, 'Import recognised text…'),
       sourcesTable(p),
-      U.el('h4', null, 'Tags and attributes'),
-      ME.TagSummary.panel(p, () => App.flush(), App.goPlace),
+      ...(ME.Features.on('tagSummary') ? [U.el('h4', null, 'Tags and attributes'), ME.TagSummary.panel(p, () => App.flush(), App.goPlace)] : []),
       U.el('h4', null, 'Project file'),
       storageNote,
       U.el('p', { class: 'help' }, 'Everything is saved automatically in this browser. Keep a backup file as well (Ctrl+S), especially before clearing browser data or moving to another computer.'),
@@ -1069,7 +1069,7 @@
         U.el('td', { class: 'num' }, String(r.proposed)), U.el('td', { class: 'num' }, String(r.accepted)),
         U.el('td', { class: 'num', title: 'Characters changed by you, out of those in the accepted lines' }, r.cer === null ? '—' : (100 * r.cer).toFixed(1) + '% of ' + r.chars),
         U.el('td', null, r.src.deviation ? U.el('span', { class: 'ed-tag ' + (r.src.deviation.pass ? '' : 'bad') }, r.src.deviation.pass ? 'passed' : 'failed') : r.src.kind === 'ai' ? U.el('span', { class: 'ed-tag warn' }, 'not tested') : '—'),
-        U.el('td', null, U.el('button', { class: 'btn small', onclick: () => App.testSource(r.src.id) }, 'Test…'))))));
+        U.el('td', null, ME.Features.on('memTest') || r.src.kind === 'ai' ? U.el('button', { class: 'btn small', onclick: () => App.testSource(r.src.id) }, 'Test…') : null)))));
   }
 
   App.importProposed = async function () {
@@ -1172,25 +1172,51 @@
 
   /* ---------- settings & help ---------- */
 
+  /* Settings: how much is shown and the language features, for this browser; and, with a transcription open, its
+     own settings. */
   App.showSettings = async function () {
-    const s = App.project.settings;
-    const f = UI.form([
-      { n: 'modifier', label: 'Shortcut key for tags', type: 'select', options: ['alt', 'ctrlalt'], labels: [U.isMac ? 'Option ⌥ + letter' : 'Alt + letter', U.isMac ? 'Control ⌃ + Option ⌥ + letter (keeps ⌥ free for typing diacritics)' : 'Ctrl + Alt + letter'] },
-      { n: 'translit', label: 'Typing', type: 'select', options: Object.keys(Translit.SCHEMES), labels: Object.values(Translit.SCHEMES).map((x) => x.label), help: 'If an input method such as Keyman misbehaves here, choose the matching built-in scheme and switch Keyman off.' },
-      { n: 'geminate', label: 'Gemination: double the consonant after r while typing (dharmma, sarvva)', type: 'checkbox' },
-      { n: 'paper', label: 'Paper colour of the typing area', type: 'select', options: ['auto', 'cream', 'white'], labels: ['Taken from the PDF', 'Cream', 'White'] },
-      { n: 'guide', label: 'Line guide on the PDF', type: 'select', options: ['band', 'dim', 'off'], labels: ['Highlight the current line', 'Dim everything except the current line', 'Off'] },
-      { n: 'showMarkers', label: 'Show paragraph / verse / quotation markers', type: 'checkbox' },
-      { n: 'noAnchorIds', label: 'Notes without a placeholder in the text (types, separated by commas)', type: 'text', help: 'Notes with one of these types (e.g. the name of the work, the folio number, the author) are shown only in the margin, with no mark in the line.' },
-    ], s);
-    const v = await UI.modal({ title: 'Settings', body: f.el, buttons: [{ label: 'Cancel', kind: 'ghost', value: null }, { label: 'Apply', kind: 'primary', value: () => f.values() }] });
-    if (!v) return;
-    if (v.translit !== 'off') v.translitLast = v.translit;
-    Object.assign(s, v);
-    TEI.setUnanchored(s.noAnchorIds);
-    App.changed(true);
-    Commands.buildToolbar($('toolbar'));
-    rerender();
+    const onProject = !!App.project && !document.body.classList.contains('no-project');
+    const F = ME.Features;
+    const tabs = U.el('div', { class: 'nv-head st-tabs' });
+    const body = U.el('div', { class: 'st-body' });
+    let form = null;
+    const sections = [['interface', 'Interface']].concat(onProject ? [['transcription', 'Transcription']] : []);
+    const show = (k) => {
+      for (const b of tabs.children) b.setAttribute('aria-pressed', String(b.dataset.k === k));
+      body.innerHTML = '';
+      if (k === 'interface') body.append(F.panel(U));
+      else {
+        const s = App.project.settings;
+        if (!form) {
+          form = UI.form([
+            { n: 'modifier', label: 'Shortcut key for tags', type: 'select', options: ['alt', 'ctrlalt'], labels: [U.isMac ? 'Option ⌥ + letter' : 'Alt + letter', U.isMac ? 'Control ⌃ + Option ⌥ + letter (keeps ⌥ free for typing diacritics)' : 'Ctrl + Alt + letter'] },
+            ...(F.on('translit') ? [
+              { n: 'translit', label: 'Typing', type: 'select', options: Object.keys(Translit.SCHEMES), labels: Object.values(Translit.SCHEMES).map((x) => x.label), help: 'If an input method such as Keyman misbehaves here, choose the matching built-in scheme and switch the input method off.' },
+              { n: 'geminate', label: 'Gemination: double the consonant after r while typing (dharmma, sarvva)', type: 'checkbox' },
+            ] : []),
+            { n: 'paper', label: 'Paper colour of the typing area', type: 'select', options: ['auto', 'cream', 'white'], labels: ['Taken from the PDF', 'Cream', 'White'] },
+            { n: 'guide', label: 'Line guide on the PDF', type: 'select', options: ['band', 'dim', 'off'], labels: ['Highlight the current line', 'Dim everything except the current line', 'Off'] },
+            { n: 'showMarkers', label: 'Show paragraph / verse / quotation markers', type: 'checkbox' },
+            { n: 'noAnchorIds', label: 'Notes without a placeholder in the text (types, separated by commas)', type: 'text', help: 'Notes with one of these types (e.g. the name of the work, the folio number, the author) are shown only in the margin, with no mark in the line.' },
+          ], s);
+        }
+        body.append(form.el);
+      }
+    };
+    for (const [k, label] of sections) tabs.append(U.el('button', { class: 'btn small', dataset: { k }, onclick: () => show(k) }, label));
+    show(onProject ? 'transcription' : 'interface');
+    const ok = await UI.modal({ title: 'Settings', body: U.el('div', null, sections.length > 1 ? tabs : null, body), buttons: [{ label: 'Close', kind: 'ghost', value: null }].concat(onProject ? [{ label: 'Apply', kind: 'primary', value: true }] : []) });
+    if (onProject && ok && form) {
+      const v = form.values();
+      const s = App.project.settings;
+      if (v.translit && v.translit !== 'off') v.translitLast = v.translit;
+      Object.assign(s, v);
+      TEI.setUnanchored(s.noAnchorIds);
+      App.changed(true);
+      Commands.buildToolbar($('toolbar'));
+    }
+    // what is shown may have changed
+    if (onProject) { rerender(); App.refreshSidebar(); } else if (ME.Edition.current && !$('edition-view').hidden) ME.Edition.draw();
   };
 
   App.showHelp = function () {

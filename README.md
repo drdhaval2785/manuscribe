@@ -831,11 +831,29 @@ number and sits beside another PDF page. A backup is made first either way.
 
 ## Settings
 
+**⚙** opens Settings, on the transcription screen and on the edition screen.
+
+**Interface** is about this browser, not the edition: it is kept here, and never changes what an edition holds.
+
+- **How much is shown:** *Simple*, the everyday work, with the rest a click away in Settings (the start for a new
+  browser); or *Full*, every tool in view.
+- **Language features:** the *South Asian scripts* pack brings typing schemes and gemination, the Sanskrit, Prakrit
+  and Old Gujarati normalisation, akṣara tokens, metre and the pāda index, the Sanskrit names of commentary
+  evidence, Export for Saktumiva, and the PDF in Manuscribe's Devanagari font. It is on when a witness's language
+  tag calls for it (`sa`, `pra`, `hi`, `gu` and other languages of South Asia, or a Brahmic script such as `Deva` or
+  `Shrd`), and can be switched on or off by hand.
+- **Each tool on its own:** a switch for every tool beyond the everyday ones: normalisation rule by rule, aligning
+  again and importing an alignment, agreement and samples, the letter view, evidence beyond the witnesses, linked
+  commentaries, the stemmatic workbench, testimonia, parallels and the concordance, indices, sharing, DTS, the
+  exchange formats of a table, the tag summary, and the memorisation test. A ticked tool is shown whatever the level.
+
+**Transcription**, with a transcription open, is about that transcription and goes with it:
+
 | Setting | Choices |
 |---|---|
 | Shortcut key for tags | ⌥/Alt + letter, or ⌃⌥ + letter (the Mac default, which keeps ⌥ free for typing diacritics) |
-| Typing | Off, or ITRANS, Harvard-Kyoto or SLP1, into Devanagari or IAST |
-| Gemination | Double the consonant after r while typing (off by default) |
+| Typing (with the South Asian pack) | Off, or ITRANS, Harvard-Kyoto or SLP1, into Devanagari or IAST |
+| Gemination (with the South Asian pack) | Double the consonant after r while typing (off by default) |
 | Paper colour | Taken from the PDF, cream or white |
 | Line guide on the PDF | Highlight the current line, dim everything else, or off |
 | Paragraph, verse and quotation markers | Show or hide |
@@ -909,6 +927,7 @@ app/js/
   github.js             the edition in a GitHub repository, through the REST API
   release.js            issuing a version: the self-check, and every output at once
   exchangeview.js       the screens for comparing, GitHub, kept copies and issuing
+  features.js           what is shown: the level, a switch for each tool, the language packs
   htr.js                text proposed by recognition or AI: PAGE-XML, ALTO and plain text, error rate, memorisation test
   dts.js                the edition as static files in the shape of DTS 1.0
   printhtml.js          the print edition as pages laid out by the browser, in any script, for Save as PDF

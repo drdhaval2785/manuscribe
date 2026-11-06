@@ -10,6 +10,11 @@ node run.js                              # every test file
 node run.js stemma collate               # only those whose names contain these words
 ```
 
+Each check is shown as it runs, with a running count after each file and a line every 20 seconds while a file is
+still at work. A file that runs longer than 5 minutes (`MANUSCRIBE_TEST_LIMIT`, in seconds) is stopped and counted
+as failed, with the line it stopped at; one that crashes is ended at once. The tests see every tool (the Full level),
+apart from `t-features.js`, which starts at the default.
+
 | File | What it checks |
 |---|---|
 | `t-xml.js` | XML out and back in gives the same text in all four layouts; folio and page numbering |
@@ -19,6 +24,7 @@ node run.js stemma collate               # only those whose names contain these 
 | `t-stemma.js` | Trees, copies and the archetype on a tradition with a known stemma; lacunae never agree; NEXUS; timings |
 | `t-metre.js` | Metres recognised in known verses, among them an ardhasama and an āryā; every metre of the list from a verse made to its pattern; seeded faults flagged; no run of words of a prose passage taken for verse |
 | `t-layers.js` | Tripāṭha and pañcapāṭha give the same text; links in every DHARMA case; recorded evidence only, silence never support; metre per reading; concordance, packs and indices; the reader beside its base text |
+| `t-features.js` | At the Simple level, in a fresh browser: what is hidden and shown; the South Asian pack by language and by hand; one tool on its own; the level remembered; the edition package the same whatever is shown |
 | `t-exchange.js` | Two editors in two browsers: packages compared three ways and merged, a seeded conflict settled, nothing lost; sending and fetching through a stand-in for GitHub (`mock-github.js`), behind refused, PDFs never sent; a version issued, its outputs carrying version and date |
 | `t-assists.js` | PAGE-XML, ALTO and text read; proposed lines never over typed ones and not collated until accepted; error rate; the memorisation test tells a source that reads from one that remembers; the shortcut; NeighborNet gives back a tree and draws 50 witnesses without crossings; coherence; DTS files of version 1.0 |
 | `t-pdf.js` | The PDF typeset in the browser: valid and read back by pdf.js, every glyph in the font, every note on the page of its line over many pages, text searchable, the button; and the owner's package |

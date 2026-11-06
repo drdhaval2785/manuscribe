@@ -656,3 +656,13 @@ table.sources td .help { font-size: 11px; }
 .sv-net .sv-edge { stroke: #6b5a3e; stroke-width: 1.4; }
 .sv-net .sv-edge:hover { stroke: #c2410c; stroke-width: 3; }
 .sv-net .sv-node { fill: #6b5a3e; }
+
+/* settings: what is shown */
+.st-tabs .btn[aria-pressed="true"] { background: var(--accent, #8c2a17); color: #fff; }
+.ft-panel h4 { margin: 12px 0 4px; }
+.ft-row { display: block; padding: 2px 0; font-size: 13px; }
+.ft-row .btn { margin-left: 6px; padding: 0 6px; font-size: 11px; }
+.ft-row.ft-off { color: var(--muted); }
+.ft-auto { opacity: 0.55; }
+.ft-group { font-weight: 600; font-size: 12px; margin: 8px 0 2px; color: var(--muted); }
+.ft-pack { margin: 4px 0 8px; }

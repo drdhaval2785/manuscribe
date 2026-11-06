@@ -156,7 +156,7 @@
     const fold = U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'Indices of words and pādas'), box);
     fold.addEventListener('toggle', () => {
       if (!fold.open || box.childNodes.length) return;
-      const words = ME.Concord.wordIndex(built), padas = ME.Concord.padaIndex(built);
+      const words = ME.Concord.wordIndex(built), padas = ME.Features.on('metre') ? ME.Concord.padaIndex(built) : [];
       box.append(U.el('p', { class: 'help' }, words.length + ' different words in the edited text' + (padas.length ? ', and ' + padas.length + ' pādas of verse' : '') + ', in the order of the alphabet. A reference is block and word.'),
         U.el('div', { class: 'nv-head' }, U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.indices.txt', LayersView.indicesText(ed, built)) }, 'Save as text')),
         padas.length ? U.el('div', { class: 'lv-index' }, U.el('h4', null, 'Pādas'), U.el('ul', null, padas.slice(0, 1000).map((p) => U.el('li', null, p.pada + ' ', U.el('span', { class: 'help' }, p.ref))))) : null,
@@ -166,7 +166,7 @@
   }
 
   /* The folds under the apparatus. */
-  LayersView.folds = (ed, built, witnesses, redraw) => [registers(ed, built, redraw), concordance(ed, built, witnesses, redraw), indices(ed, built)];
+  LayersView.folds = (ed, built, witnesses, redraw) => [ME.Features.on('registers') ? registers(ed, built, redraw) : null, ME.Features.on('registers') ? concordance(ed, built, witnesses, redraw) : null, ME.Features.on('indices') ? indices(ed, built) : null].filter(Boolean);
 
   ME.LayersView = LayersView;
 })(window.ME);

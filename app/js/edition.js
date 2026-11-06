@@ -602,6 +602,8 @@ To open it, use Import edition package on Manuscribe's start screen.
     const scroller = document.getElementById('start');
     const top = scroller.scrollTop;
     const list = await loadWitnesses(ed);
+    const F = ME.Features;
+    F.setContext(F.langsOf(list));
     const redraw = () => Edition.draw();
     const reg = Edition.register(ed, list);
     const title = U.el('input', { type: 'text', class: 'ed-title', value: ed.title, placeholder: 'Title of the edition', onchange: async () => { ed.title = title.value.trim(); await saveEdition(ed); } });
@@ -617,11 +619,12 @@ To open it, use Import edition package on Manuscribe's start screen.
         U.el('button', { class: 'btn small', onclick: () => ME.App.showStart() }, '‹ Start screen'),
         title,
         U.el('button', { class: 'btn small primary', onclick: () => Edition.exportPackage(ed).then(redraw) }, 'Export package'),
-        U.el('button', { class: 'btn small', onclick: () => batchForSaktumiva(ed, list) }, 'Export for Saktumiva'),
-        U.el('button', { class: 'btn small', title: 'Compare a package from another editor, or an older one, with this copy, and merge it', onclick: () => ME.ExchangeView.compareFile(ed, redraw) }, 'Compare and merge…'),
-        U.el('button', { class: 'btn small', title: 'Send the edition to a GitHub repository, or fetch and merge what is there', onclick: () => ME.ExchangeView.github(ed, redraw) }, 'GitHub…'),
+        F.on('saktumiva') ? U.el('button', { class: 'btn small', onclick: () => batchForSaktumiva(ed, list) }, 'Export for Saktumiva') : null,
+        F.on('share') ? U.el('button', { class: 'btn small', title: 'Compare a package from another editor, or an older one, with this copy, and merge it', onclick: () => ME.ExchangeView.compareFile(ed, redraw) }, 'Compare and merge…') : null,
+        F.on('share') ? U.el('button', { class: 'btn small', title: 'Send the edition to a GitHub repository, or fetch and merge what is there', onclick: () => ME.ExchangeView.github(ed, redraw) }, 'GitHub…') : null,
         U.el('button', { class: 'btn small', title: 'Freeze a version, check it, and make every output of it at once', onclick: () => ME.ExchangeView.issue(ed, list, redraw) }, 'Issue edition…'),
-        U.el('button', { class: 'btn small ghost', title: 'Both copies as they were before each merge', onclick: () => ME.ExchangeView.kept(ed) }, 'Kept copies')),
+        F.on('share') ? U.el('button', { class: 'btn small ghost', title: 'Both copies as they were before each merge', onclick: () => ME.ExchangeView.kept(ed) }, 'Kept copies') : null,
+        U.el('button', { class: 'btn small icon', title: 'Settings: how much is shown, language features', dataset: { action: 'settings' }, onclick: () => ME.App.showSettings() }, '⚙')),
       ed.issued ? U.el('p', { class: 'help' }, ME.Publish.citation(ed)) : null,
       remind,
       U.el('h2', null, 'Witnesses (' + ed.witnesses.length + ')'),

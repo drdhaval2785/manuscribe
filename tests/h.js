@@ -13,7 +13,9 @@ fs.mkdirSync(WORK, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function launch(name) {
+// level: how much Manuscribe shows. The tests see everything ('full') unless they ask for the default, 'simple'.
+async function launch(name, opts) {
+  const level = (opts && opts.level) || 'full';
   const dir = path.join(WORK, 'profile-' + name);
   fs.rmSync(dir, { recursive: true, force: true });
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000 });
@@ -22,6 +24,7 @@ async function launch(name) {
   page.on('console', (m) => { if (m.type() === 'error') page.errors.push(m.text()); });
   page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + e.message));
   page.on('dialog', (d) => d.accept());
+  await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); } catch (e) { /* none */ } }, level);
   await page.goto('file://' + ROOT + '/app/index.html');
   await sleep(700);
   return { browser, page };

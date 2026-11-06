@@ -90,7 +90,7 @@ const { launch, sleep, checks, importSample, WORK } = require('./h');
   const cdp = await page.createCDPSession(); await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dl });
   await page.evaluate(() => { ME.CollateView.workApparatus(window.ed, window.list, 'main'); });
   await sleep(900);
-  await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find((b) => b.textContent === 'PDF file (Devanagari and Latin)').click());
+  await page.evaluate(() => document.querySelector('.modal [data-action="pdf-direct"]').click());
   for (let k = 0; k < 40 && !fs.readdirSync(dl).some((f) => f.endsWith('.pdf')); k++) await sleep(250);
   const file = fs.readdirSync(dl).find((f) => f.endsWith('.pdf'));
   T.check('PDF file (Devanagari and Latin) saves a PDF', !!file && fs.statSync(path.join(dl, file)).size > 100000, file);

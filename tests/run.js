@@ -21,6 +21,7 @@ function runOne(f, k) {
     console.log('[' + stamp() + '] ' + (k + 1) + '/' + files.length + ' ' + f);
     const child = spawn(process.execPath, [path.join(__dirname, f)], { stdio: ['ignore', 'pipe', 'pipe'] });
     let buf = '';
+    let crashed = null;
     const onData = (d) => {
       buf += d;
       let i;
@@ -32,6 +33,8 @@ function runOne(f, k) {
         else if (/^\s+SKIP /.test(line)) { mine.skip++; total.skip++; }
         if (line.trim()) last = line.trim().slice(0, 100);
         console.log(line);
+        // a test that crashed may leave its browser open, which keeps it alive: end it
+        if (/FAIL crashed/.test(line) && !crashed) { crashed = setTimeout(() => { console.log('  (ended: it crashed and did not exit)'); child.kill('SIGKILL'); }, 5000); }
       }
     };
     child.stdout.on('data', onData);
@@ -45,7 +48,7 @@ function runOne(f, k) {
       child.kill('SIGKILL');
     }, LIMIT);
     child.on('exit', (code) => {
-      clearInterval(beat); clearTimeout(limit);
+      clearInterval(beat); clearTimeout(limit); clearTimeout(crashed);
       if (buf.trim()) onData('\n');
       console.log('  (' + f + ', ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s; so far in all: ' + total.pass + ' passed, ' + total.fail + ' failed' + (total.skip ? ', ' + total.skip + ' skipped' : '') + ')\n');
       if (code !== 0 || mine.fail) failed.push(f);

@@ -29,8 +29,10 @@ const { launch, sleep, checks, importSample, WORK } = require('./h');
   const dl = path.join(WORK, 'downloads');
   fs.rmSync(dl, { recursive: true, force: true }); fs.mkdirSync(dl, { recursive: true });
   const cdp = await page.createCDPSession(); await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dl });
+  // buttons by their stable names, not their labels
+  const act = (name) => page.evaluate((name) => { const b = document.querySelector('[data-action="' + name + '"]'); if (!b) return false; b.click(); return true; }, name);
   const click = (t, sel = '#edition-view .btn') => page.evaluate((t, sel) => { const b = [...document.querySelectorAll(sel)].find((x) => x.textContent === t); if (!b) return false; b.click(); return true; }, t, sel);
-  await click('Collate'); await sleep(400);
+  await act('collate'); await sleep(400);
   T.check('the first Collate asks for the trust order', await page.evaluate(() => /trust most/.test((document.querySelector('.modal-head h2') || {}).textContent || '')));
   await click('Save and collate', '.modal-foot .btn');
   for (let k = 0; k < 40; k++) { await sleep(200); if (await page.evaluate(() => !ME.CollateView.running && !document.querySelector('.modal-backdrop'))) break; }
@@ -42,12 +44,12 @@ const { launch, sleep, checks, importSample, WORK } = require('./h');
   await page.evaluate(() => document.querySelector('.ct-text').focus());
   await page.keyboard.press('n'); await sleep(150); await page.keyboard.press('a'); await sleep(300);
   T.check('A makes the proposal a decision', await page.evaluate(() => /decision/.test(document.querySelector('.cv-count').textContent)));
-  await click('Apparatus', '.cv-view .btn'); await sleep(500);
+  await act('apparatus'); await sleep(500);
   const lit = await page.evaluate(() => { const w = document.querySelector('.ap-text .ap-u'); w.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); return document.querySelectorAll('.ap-hl').length; });
   T.check('pointing at a word lights up its entry', lit >= 2, lit);
-  await click('Reader (one HTML file)', '.cv-view .btn'); await sleep(1500);
+  await act('reader'); await sleep(1500);
   await click('Close', '.modal-foot .btn'); await sleep(500);
-  await click('Stemmatics…'); await sleep(1200);
+  await act('stemmatics'); await sleep(1200);
   T.check('the workbench opens with agreement and a tree', await page.evaluate(() => document.querySelectorAll('.sv-heat td.num').length > 0 && document.querySelectorAll('.sv-tree .sv-leaf').length === 3));
   T.check('no stray null on the workbench', await page.evaluate(() => !/(^|\n)null(\n|$)|undefined|NaN/.test(document.querySelector('.sv').innerText)));
   await browser.close();

@@ -85,7 +85,8 @@
       ed.norm = { profile: pick.value };
       await Edition.save(ed);
       redraw();
-    } }, Norm.PROFILES.map((p) => U.el('option', { value: p.id, selected: p.id === s.profile.id }, p.name + (p.provisional ? ' (provisional)' : ''))));
+    } }, Norm.PROFILES.filter((p) => p.id === s.profile.id || p.id === 'any' || ME.Features.on('saProfiles')).map((p) => U.el('option', { value: p.id, selected: p.id === s.profile.id }, p.name + (p.provisional ? ' (provisional)' : ''))));
+    const full = ME.Features.on('normRules');
     const changed = Object.keys(norm.rules || {}).length + Object.keys(norm.hide || {}).length + (norm.ignoreTags ? 1 : 0);
     const fold = (key, title, ...body) => {
       const d = U.el('details', { class: 'nv-fold', open: NormView.opened.has(key) }, U.el('summary', null, title), ...body);
@@ -98,12 +99,12 @@
         U.el('label', null, 'Profile ', pick),
         s.profile.provisional ? U.el('span', { class: 'ed-tag warn' }, 'provisional') : null,
         changed ? U.el('span', { class: 'ed-tag ok' }, 'adjusted') : null,
-        U.el('button', { class: 'btn small primary', disabled: !list.some((x) => x.p), onclick: () => NormView.preview(ed, list) }, 'Preview on your text…')),
+        full ? U.el('button', { class: 'btn small primary', disabled: !list.some((x) => x.p), onclick: () => NormView.preview(ed, list) }, 'Preview on your text…') : null),
       U.el('p', { class: 'help' }, s.profile.note),
-      fold('rules', 'Rules used when lining witnesses up (' + s.on.size + ' on)', ruleTable(ed, redraw)),
-      fold('witness', 'What each witness is known to do', U.el('p', { class: 'help' }, 'Applied to that witness alone. A witness that writes b for v should not make every other witness’s b count as v.'), declarationTable(ed, list, redraw)),
-      fold('tags', 'Marked text that is not compared', U.el('p', { class: 'help' }, 'Text in these tags stays in the transcription, but collation passes over it.'), tagBoxes(ed, redraw)),
-      fold('hide', 'Differences an apparatus leaves out', U.el('p', { class: 'help' }, 'Used once the apparatus can be generated. Hidden differences are kept, and can be shown again.'), hideBoxes(ed, redraw)));
+      full ? fold('rules', 'Rules used when lining witnesses up (' + s.on.size + ' on)', ruleTable(ed, redraw)) : null,
+      !full ? null : fold('witness', 'What each witness is known to do', U.el('p', { class: 'help' }, 'Applied to that witness alone. A witness that writes b for v should not make every other witness’s b count as v.'), declarationTable(ed, list, redraw)),
+      !full ? null : fold('tags', 'Marked text that is not compared', U.el('p', { class: 'help' }, 'Text in these tags stays in the transcription, but collation passes over it.'), tagBoxes(ed, redraw)),
+      !full ? null : fold('hide', 'Differences an apparatus leaves out', U.el('p', { class: 'help' }, 'Used once the apparatus can be generated. Hidden differences are kept, and can be shown again.'), hideBoxes(ed, redraw)));
   };
 
   /* ---------- the preview ---------- */

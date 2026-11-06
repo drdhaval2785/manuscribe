@@ -144,6 +144,7 @@
   }
 
   StemmaView.open = async function (ed, list, workId) {
+    if (list) ME.Features.setContext(ME.Features.langsOf(list));
     const built = await builtFor(ed, list, workId);
     if (!built.length) { U.toast('Collate first', 'warn'); return; }
     ed.stemma = ed.stemma || {};

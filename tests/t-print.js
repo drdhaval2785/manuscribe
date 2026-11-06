@@ -120,7 +120,8 @@ const TEXTS = {
   await page.evaluate(() => { const { ed, list } = window.ed_ar; ME.CollateView.workApparatus(ed, list, 'main'); });
   await sleep(900);
   const ui = await page.evaluate(() => ({ buttons: [...document.querySelectorAll('.modal .btn')].map((b) => b.textContent), keys: !![...document.querySelectorAll('.modal select')].find((s) => [...s.options].some((o) => o.value === 'lines')), settings: /Paper and fonts for printing/.test(document.querySelector('.modal').innerText) }));
-  T.check('the apparatus screen offers both PDFs, the print page, and its settings', ['Print edition (any script)', 'Save the print page', 'PDF file (Devanagari and Latin)', 'Print edition (LaTeX)'].every((b) => ui.buttons.includes(b)) && ui.keys && ui.settings, ui);
+  // for Arabic, the PDF in Manuscribe's Devanagari font is not offered: it belongs to the South Asian pack
+  T.check('the apparatus screen of an Arabic edition offers the print edition, its page and settings, and not the Devanagari PDF', ['Print edition (any script)', 'Save the print page', 'Print edition (LaTeX)'].every((b) => ui.buttons.includes(b)) && !ui.buttons.includes('PDF file (Devanagari and Latin)') && ui.keys && ui.settings, ui);
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   T.done(page);
   await browser.close();

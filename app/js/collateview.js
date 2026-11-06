@@ -94,15 +94,17 @@
     const kind = Collate.tokenKind(ed);
     const pick = U.el('select', { 'aria-label': 'Work to collate', onchange: () => { CollateView.work = pick.value; redraw(); } }, works.map((k) => U.el('option', { value: k.id, selected: k.id === workId }, k.title)));
     const tok = U.el('select', { 'aria-label': 'Align by', onchange: async () => { ed.collate = Object.assign({}, ed.collate, { tokens: tok.value }); await Edition.save(ed); redraw(); } },
-      Object.entries(Norm.TOKENIZERS).map(([k, t]) => U.el('option', { value: k, selected: k === kind }, t.label)));
+      Object.entries(Norm.TOKENIZERS).filter(([k]) => k === kind || k !== 'aksara' || ME.Features.on('aksara')).map(([k, t]) => U.el('option', { value: k, selected: k === kind }, t.label)));
     const progress = U.el('div', { class: 'cv-progress', hidden: true });
     const go = U.el('button', { class: 'btn small primary', disabled: !ids.length, onclick: async () => {
       if (!ed.trust && ed.witnesses.length > 1 && !(await CollateView.askTrust(ed, true))) return;
       CollateView.collate(ed, list, workId, progress, go, redraw, false);
     } }, 'Collate');
+    go.dataset.action = 'collate';
+    const F = ME.Features;
     const trustLine = U.el('p', { class: 'help cv-trustline' }, 'Trust, most trusted first: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? '' : ' (not set yet: as listed above) ',
       U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) redraw(); } }, 'Change…'));
-    const again = U.el('button', { class: 'btn small', disabled: !ids.length, title: 'Align every block again, even where nothing has changed. What you have corrected or locked stays; an alignment you imported is replaced.', onclick: async () => {
+    const again = !F.on('alignMore') ? null : U.el('button', { class: 'btn small', disabled: !ids.length, title: 'Align every block again, even where nothing has changed. What you have corrected or locked stays; an alignment you imported is replaced.', onclick: async () => {
       if ([...summaries.values()].some((s) => s.work === workId && s.imported) && !(await UI.confirm('This replaces the alignments you imported for this work. Continue?', { ok: 'Align again' }))) return;
       CollateView.collate(ed, list, workId, progress, go, redraw, true);
     } }, 'Align again');
@@ -143,16 +145,16 @@
         works.length > 1 ? U.el('label', null, 'Work ', pick) : null,
         U.el('label', null, 'Align by ', tok),
         go, again,
-        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'),
-        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'The edited text of the whole work, its apparatus, checks, search, and TEI', onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
-        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Agreement, trees, your stemma and what contradicts it', onclick: () => ME.StemmaView.open(ed, list, workId) }, 'Stemmatics…'),
-        ed.works.length > 1 ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: () => ME.LayersView.links(ed, list, workId) }, 'Links to the base text…') : null),
+        !F.on('alignMore') ? null : U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…'),
+        U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'The edited text of the whole work, its apparatus, checks, search, and TEI', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
+        !F.on('stemmatics') ? null : U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Agreement, trees, your stemma and what contradicts it', dataset: { action: 'stemmatics' }, onclick: () => ME.StemmaView.open(ed, list, workId) }, 'Stemmatics…'),
+        ed.works.length > 1 && F.on('layers') ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: () => ME.LayersView.links(ed, list, workId) }, 'Links to the base text…') : null),
       trustLine,
       progress,
       ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
         U.el('thead', null, U.el('tr', null, ['Sample', 'Citation ID', '', 'Rows', 'Words', 'Words that differ', 'Ties', 'Corrections', 'Aligner against your reading'].map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
         U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.'),
-      fold);
+      F.on('agreement') ? fold : null);
   };
 
   CollateView.collate = async function (ed, list, workId, box, button, redraw, force) {
@@ -330,12 +332,12 @@
       U.el('p', { class: 'help' }, 'Every output carries this citation: ', U.el('em', null, ME.Publish.citation(ed))),
       U.el('div', { class: 'nv-head' }, U.el('label', null, 'Edited by ', editor), U.el('label', null, 'Version ', version)),
       U.el('div', { class: 'nv-head' },
-        U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built, layered), 'text/html') }, 'Reader (one HTML file)'),
+        U.el('button', { class: 'btn small primary', title: 'One HTML file that works offline: the edited text, its apparatus, the text of each witness, and a draft for printing', dataset: { action: 'reader' }, onclick: async () => download(base + '.reader.html', await ME.Publish.reader(ed, witnesses || [], built, layered), 'text/html') }, 'Reader (one HTML file)'),
         U.el('button', { class: 'btn small primary', title: 'The edition laid out as pages by this browser, in any script and font; then Print, or Save as PDF', onclick: async () => {
           try { await ME.PrintHTML.open(ed, witnesses || [], built); } catch (e) { U.toast('Could not open the print edition: ' + e.message, 'err', 8000); }
         } }, 'Print edition (any script)'),
         U.el('button', { class: 'btn small', title: 'The same print edition as one HTML file, to open and print later, on any computer', onclick: async () => download(base + '.print.html', ME.PrintHTML.html(ed, witnesses || [], built, { fonts: await ME.PrintHTML.fonts(ed, built) }), 'text/html') }, 'Save the print page'),
-        U.el('button', { class: 'btn small', title: 'A PDF file made directly, with Manuscribe’s own Devanagari and Latin font: nothing to print', onclick: async (ev) => {
+        !ME.Features.on('pdfDeva') ? null : U.el('button', { class: 'btn small', title: 'A PDF file made directly, with Manuscribe’s own Devanagari and Latin font: nothing to print', dataset: { action: 'pdf-direct' }, onclick: async (ev) => {
           const btn = ev.currentTarget; btn.disabled = true; const was = btn.textContent; btn.textContent = 'Typesetting…';
           try { const r = await ME.Typeset.pdf(ed, witnesses || [], built); U.download(base + '.pdf', r.blob); U.toast('PDF of ' + r.pages + ' page(s)' + (r.overfull ? '; ' + r.overfull + ' page(s) with more notes than fit' : ''), r.overfull ? 'warn' : 'ok'); } catch (e) { U.toast('No PDF: ' + e.message, 'err', 8000); }
           btn.disabled = false; btn.textContent = was;
@@ -346,7 +348,7 @@
     const exports = U.el('div', { class: 'nv-head' },
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'),
-      ME.DTS ? U.el('button', { class: 'btn small', title: 'The edition as static files in the shape of the Distributed Text Services API 1.0', onclick: async () => { const work = ed.works.find((k) => k.id === (tables[0] && tables[0].work)); download(fileSafe(ed.title || 'edition') + '.dts.zip', await ME.Zip.write(ME.DTS.files(ed, [{ work, built }])), 'application/zip'); } }, 'Save for DTS') : null);
+      ME.DTS && ME.Features.on('dts') ? U.el('button', { class: 'btn small', title: 'The edition as static files in the shape of the Distributed Text Services API 1.0', onclick: async () => { const work = ed.works.find((k) => k.id === (tables[0] && tables[0].work)); download(fileSafe(ed.title || 'edition') + '.dts.zip', await ME.Zip.write(ME.DTS.files(ed, [{ work, built }])), 'application/zip'); } }, 'Save for DTS') : null);
     return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), exports, publish);
   };
 
@@ -381,6 +383,8 @@
   }
 
   CollateView.workApparatus = async function (ed, list, workId) {
+    // the languages of these witnesses decide which language features are offered
+    if (list) ME.Features.setContext(ME.Features.langsOf(list));
     const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId);
     const order = Edition.register(ed, list)[workId];
     const ids = order ? order.order : [];
@@ -628,6 +632,7 @@
   const placeLine = (s) => s.folio + ' · ' + (s.box === 'main' ? 'main text' : s.box) + ' · line ' + (s.line + 1);
 
   CollateView.open = async function (ed, list, workId, unit, redraw) {
+    if (list) ME.Features.setContext(ME.Features.langsOf(list));
     const E = ME.CollateEdit;
     const rec = await Store.getCollation(Collate.keyOf(ed.id, workId, unit));
     if (!rec) { U.toast('That table is no longer here', 'warn'); return; }
@@ -904,7 +909,7 @@
         const winners = u.winner;
         // how each reading sits in the metre of the verse, if the block is verse
         const metreOf = (() => {
-          if (!ME.Metre) return null;
+          if (!ME.Metre || !ME.Features.on('metre')) return null;
           const whole = ME.Metre.identify(text.proposal.text);
           if (!whole.metre) return null;
           const fit = (reading) => ME.Metre.faultsIn(text.proposal.units.map((x, j) => (j === i ? reading : x.text)).join(''), whole.metre);
@@ -954,7 +959,7 @@
             U.el('button', { class: 'btn small', title: 'The text is lost here in every witness', onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
             confidence),
           U.el('div', { class: 'ct-reasons' }, U.el('span', { class: 'help' }, 'Why (optional): '), chips, note),
-          ME.Layers ? evidenceBox(u, evs) : null,
+          ME.Layers && (ME.Features.on('evidence') || evs.length) ? evidenceBox(u, evs) : null,
           history.length ? U.el('details', { class: 'ct-history' }, U.el('summary', null, history.length + ' earlier decision(s) here'), U.el('ul', null, history.map((h) => U.el('li', null, h.id + ': ' + (h.type === 'selectio' ? h.label : h.type + ' ' + (h.text || '')) + (h.reasons ? ' · ' + h.reasons.join(', ') : '') + ' · ' + h.status + (h.why ? ' (' + h.why + ')' : ''))))) : null,
           U.el('div', { class: 'nv-head' },
             d || u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => (u.decided === 'chosen' && !d ? act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) : text.decide(u, { type: 'votes' })) }, 'Follow the votes again') : null,
@@ -1076,8 +1081,8 @@
       else download(base + '.manuscribe-table.json', JSON.stringify(table, null, 1));
     } }, 'Save');
     const textTab = U.el('button', { class: 'btn small', 'aria-pressed': 'true', onclick: () => setMode('text') }, 'Text');
-    const letterTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', onclick: () => setMode('letters') }, 'Letters');
-    const appTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', onclick: () => setMode('apparatus') }, 'Apparatus');
+    const letterTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', dataset: { action: 'letters' }, hidden: !ME.Features.on('letters'), onclick: () => setMode('letters') }, 'Letters');
+    const appTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', dataset: { action: 'apparatus' }, onclick: () => setMode('apparatus') }, 'Apparatus');
     const appPane = U.el('div', { class: 'ap-pane', hidden: true });
     const drawApparatus = () => {
       appPane.innerHTML = '';
@@ -1139,7 +1144,7 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn, fmt, save),
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn, ...(ME.Features.on('exchange') ? [fmt, save] : [])),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));
     await UI.modal({
