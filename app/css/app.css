@@ -733,3 +733,8 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .pdf-view { display: inline-block; }
 .pdf-view .menu-items { min-width: 140px; }
 .pdf-view .menu-items .pbtn { width: 100%; text-align: left; }
+/* layers of a layered edition */
+.ly-table input[type="text"] { width: 100%; min-width: 10em; }
+.ly-table input.ly-abbr { width: 4.5em; min-width: 0; }
+.ly-code code { font-size: 12.5px; }
+.ly-abbr-tag { color: #8c2a17; font-weight: 600; white-space: nowrap; }

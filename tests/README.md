@@ -31,6 +31,7 @@ apart from `t-features.js`, which starts at the default.
 | `t-print.js` | Arabic, Japanese, English and Sanskrit editions from witnesses to print: letters compared as written; the print page laid out with every note on the page of its marker, Arabic right to left; the browser's PDF of it searchable; markers in the direct PDF; notes by line instead |
 | `t-export.js` | One Export: each format the same as from its old button; offered only where it fits; the choice saved and remembered |
 | `t-edit.js` | The table window at Simple: a place shows at most 6 controls; Accept, Emend…, More; going through the blocks; the letter tools in two groups |
+| `t-layered.js` | Layers by their IDs (b, c, ca, r): found, named, abbreviated and ordered; the parent of an ID; the checks; All layers in Collate, each layer with its own text |
 | `t-emend.js` | Emending any word (E), and a stretch of several chosen by Shift+click or by dragging, typed in Harvard-Kyoto as Devanagari; in the edited text and the apparatus as one emendation; Esc; withdrawing an emendation (Delete) and an accepted reading |
 | `t-tools.js` | The three steps; the Tools menu of Collate, each tool switched on, nothing computed until chosen; the workbench in its parts; at Simple, Tools leads to Settings |
 | `t-tidy.js` | The start screen's three actions and Open…; the transcription bar, the PDF's View menu, the Manuscript tab in folds |

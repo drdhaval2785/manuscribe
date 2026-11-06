@@ -64,7 +64,8 @@
   /* ---------- the citation register ---------- */
 
   // What citation IDs a witness has, per work, and where its text stands outside any of them.
-  Edition.scanWitness = function (w, p) {
+  // layered: whether layer IDs make works of their own (a layered edition), or are ordinary IDs
+  Edition.scanWitness = function (w, p, layered) {
     const works = {};
     const place = (work) => works[work] || (works[work] = { units: new Map(), order: [], outside: [], auto: [] });
     const seen = new Set();
@@ -95,9 +96,12 @@
               if (kind === 'p-start' || kind === 'lg-start') {
                 rec.open[s.key] = true;
                 if (!id) continue;
-                if (/-auto\d+$/.test(id)) rec.auto.push({ id, at });
-                if (!rec.units.has(id)) { rec.units.set(id, []); rec.order.push(id); }
-                rec.units.get(id).push(at);
+                // a layer ID belongs to its layer, wherever on the page it is written
+                const lx = layered && ME.LayerIds && ME.LayerIds.parse(id);
+                const into = lx ? place(ME.LayerIds.workId(lx.code)) : rec;
+                if (/-auto\d+$/.test(id)) into.auto.push({ id, at });
+                if (!into.units.has(id)) { into.units.set(id, []); into.order.push(id); }
+                into.units.get(id).push(at);
               } else if (kind === 'p-end' || kind === 'lg-end') rec.open[s.key] = false;
             }
             check(line.slice(last));
@@ -108,11 +112,24 @@
     return works;
   };
 
+  /* The layers the witnesses' IDs use, in the register of the edition, each a work of it. -> true if it changed */
+  Edition.syncLayers = function (ed, list) {
+    const codes = new Set();
+    for (const { w, p } of list) {
+      if (!p) continue;
+      for (const k of Object.keys(Edition.scanWitness(w, p, true))) { const c = ME.LayerIds.codeOf(k); if (c) codes.add(c); }
+    }
+    // an edition is layered once it has a commentary by layer ID; IDs like b1 alone are ordinary ones
+    if (![...codes].some((c) => c !== ME.LayerIds.BASE) && !ME.LayerIds.layered(ed)) return false;
+    return ME.LayerIds.sync(ed, codes);
+  };
+
   /* All witnesses together: for each work, its units in a common order, and what each witness has.
      A unit a witness lacks is a problem unless the editor has explained it (Edition coverage). */
   Edition.register = function (ed, list) {
     const out = {};
-    const scans = list.filter((x) => x.p).map(({ w, p }) => ({ w, scan: Edition.scanWitness(w, p) }));
+    const layered = ME.LayerIds && ME.LayerIds.layered(ed);
+    const scans = list.filter((x) => x.p).map(({ w, p }) => ({ w, scan: Edition.scanWitness(w, p, layered) }));
     for (const work of ed.works) {
       const order = [];
       for (const { scan } of scans) {
@@ -589,14 +606,17 @@ To open it, use Import edition package on Manuscribe's start screen.
     const summaries = await ME.Collate.summaries(ed.id);
     const work = ME.CollateView.work;
     const regs = Object.values(reg).filter((r) => r.order.length);
-    const r = regs.find((x) => x.work.id === work) || regs[0];
-    const ids = r ? r.order : [];
-    const sums = ids.map((id) => summaries.get(ME.Collate.keyOf(ed.id, r.work.id, id))).filter(Boolean);
+    // all the layers of a layered edition at once, or one work
+    const chosen = work === ME.CollateView.ALL ? regs.filter((x) => ME.LayerIds.codeOf(x.work.id)) : [regs.find((x) => x.work.id === work) || regs[0]].filter(Boolean);
+    const r = chosen[0];
+    const pairs = chosen.flatMap((x) => x.order.map((id) => ({ work: x.work.id, id })));
+    const ids = pairs.map((x) => x.id);
+    const sums = pairs.map((x) => summaries.get(ME.Collate.keyOf(ed.id, x.work, x.id))).filter(Boolean);
     const stale = sums.filter((x) => ME.Collate.isCurrent(ed, list, x) === false).length;
     // the first block with something to look at: a decision to review, else a difference not yet decided
-    const firstOf = (f) => { const x = sums.find(f); return x ? x.unit : null; };
-    const open = firstOf((x) => x.review) || firstOf((x) => (x.differ || 0) > (x.decided || 0));
-    return { witnesses: ed.witnesses.length, blocks: ids.length, collated: sums.length, stale, open, work: r ? r.work.id : null,
+    const first = sums.find((x) => x.review) || sums.find((x) => (x.differ || 0) > (x.decided || 0));
+    const open = first ? first.unit : null;
+    return { witnesses: ed.witnesses.length, blocks: ids.length, collated: sums.length, stale, open, work: first ? first.work : r ? r.work.id : null,
       decided: sums.reduce((a, x) => a + (x.decided || 0), 0), differ: sums.reduce((a, x) => a + (x.differ || 0), 0), review: sums.reduce((a, x) => a + (x.review || 0), 0) };
   }
 
@@ -622,8 +642,11 @@ To open it, use Import edition package on Manuscribe's start screen.
     const F = ME.Features;
     F.setContext(F.langsOf(list));
     const redraw = () => Edition.draw();
+    if (Edition.syncLayers(ed, list)) await saveEdition(ed);
     const reg = Edition.register(ed, list);
-    if (!ME.CollateView.work || !reg[ME.CollateView.work]) { const first = Object.values(reg).find((x) => x.order.length); if (first) ME.CollateView.work = first.work.id; }
+    const layered = ME.LayerIds.layered(ed);
+    if (layered && (!ME.CollateView.work || !reg[ME.CollateView.work])) ME.CollateView.work = ME.CollateView.ALL;
+    else if (!layered && (!ME.CollateView.work || !reg[ME.CollateView.work])) { const first = Object.values(reg).find((x) => x.order.length); if (first) ME.CollateView.work = first.work.id; }
     const st = await standing(ed, list, reg);
     const known = Edition.STEPS.some(([k]) => k === Edition.stepOf[ed.id]);
     const step = known ? Edition.stepOf[ed.id] : st.witnesses < 2 ? 'witnesses' : 'collate';
@@ -675,7 +698,47 @@ To open it, use Import edition package on Manuscribe's start screen.
       ed.witnesses.length ? witnessTable(ed, list, redraw) : U.el('p', { class: 'help' }, 'An edition brings together the transcriptions of several manuscripts of one text. Add them here: from this browser, or from XML or backup files.'),
       manyStreams ? U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'Works: ' + ed.works.filter((w) => list.some((x) => x.p && Export.streamsUsed(x.p).some((k) => ((x.w.streams && x.w.streams[k]) || k) === w.id))).map((w) => w.title.toLowerCase()).join(', ') + ', in each witness'), streamTable(ed, list, redraw)) : null,
       ed.witnesses.length ? U.el('details', { class: 'nv-fold', open: nProblems > 0 && nProblems < 8 }, U.el('summary', null, !ids ? 'No citation IDs yet' : nProblems ? 'Citation IDs: ' + nProblems + ' thing(s) to look at' : 'Citation IDs: ' + ids + ' block(s), in every witness'),
-        problems, coverageGrid(ed, reg, redraw)) : null);
+        problems, coverageGrid(ed, reg, redraw)) : null,
+      ME.LayerIds.layered(ed) ? layersFold(ed, reg, redraw) : null);
+  }
+
+  /* The layers of a layered edition: what each letter of the IDs stands for, its abbreviation in [ ], and the
+     order of commentaries on the same text; with what is wrong in the IDs. */
+  function layersFold(ed, reg, redraw) {
+    const LI = ME.LayerIds;
+    const problems = LI.check(ed, reg);
+    const count = (code) => { const r = reg[LI.workId(code)]; return r ? r.order.length : 0; };
+    const siblings = (code) => ed.layers.filter((l) => LI.parentCode(l.code) === LI.parentCode(code));
+    const move = async (code, d) => {
+      const sib = siblings(code);
+      const i = sib.findIndex((l) => l.code === code), j = i + d;
+      if (j < 0 || j >= sib.length) return;
+      const a = ed.layers.indexOf(sib[i]), b = ed.layers.indexOf(sib[j]);
+      [ed.layers[a], ed.layers[b]] = [ed.layers[b], ed.layers[a]];
+      await saveEdition(ed); redraw();
+    };
+    const save = async () => { await saveEdition(ed); redraw(); };
+    const rows = ed.layers.slice().sort((x, y) => (x.code === LI.BASE ? -1 : y.code === LI.BASE ? 1 : 0) || LI.order(ed, x.code, y.code)).map((l) => {
+      const depth = l.code === LI.BASE ? 0 : l.code.length;
+      const name = U.el('input', { type: 'text', value: l.name, 'aria-label': 'Name of layer ' + l.code, onchange: () => { LI.rename(ed, l.code, name.value); save(); } });
+      const abbr = l.code === LI.BASE ? U.el('span', { class: 'help' }, '—') : U.el('input', { type: 'text', class: 'ly-abbr', value: l.abbr || '', maxlength: 8, 'aria-label': 'Abbreviation of layer ' + l.code, onchange: () => { LI.rename(ed, l.code, undefined, abbr.value); save(); } });
+      const sib = siblings(l.code), i = sib.indexOf(l);
+      return U.el('tr', null,
+        U.el('td', { class: 'ly-code', style: 'padding-inline-start: ' + (0.4 + depth * 1.1) + 'em' }, U.el('code', null, l.code)),
+        U.el('td', null, name), U.el('td', null, abbr),
+        U.el('td', { class: 'num' }, String(count(l.code))),
+        U.el('td', { class: 'help' }, l.code === LI.BASE ? '' : LI.name(ed, LI.parentCode(l.code))),
+        U.el('td', null, l.code === LI.BASE || sib.length < 2 ? null : [
+          U.el('button', { class: 'btn small', title: 'Before the commentary above it', disabled: i === 0, onclick: () => move(l.code, -1) }, '↑'),
+          U.el('button', { class: 'btn small', title: 'After the commentary below it', disabled: i === sib.length - 1, onclick: () => move(l.code, 1) }, '↓')]));
+    });
+    return U.el('details', { class: 'nv-fold ly-fold', open: problems.length > 0 && problems.length < 12 },
+      U.el('summary', null, 'Layers: ' + ed.layers.length + (problems.length ? ' · ' + problems.length + ' thing(s) to look at' : '')),
+      U.el('p', { class: 'help' }, 'The IDs say which layer each block is in and what it comments on: b2.47 is the base, c2.47-1 a commentary on it, ca2.47-1-1 a commentary on c2.47-1. Name each layer here, and give it the one or two letters printed in [ ] before its blocks.'),
+      U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table ly-table' },
+        U.el('thead', null, U.el('tr', null, ['Letters', 'Layer', 'In [ ]', 'Blocks', 'Comments on', ''].map((h) => U.el('th', null, h)))),
+        U.el('tbody', null, rows))),
+      problems.length ? U.el('ul', { class: 'ap-problems' }, problems.slice(0, 200).map((p) => U.el('li', { class: 'warn' }, U.el('span', { class: 'ed-tag warn' }, 'look'), ' ', p.text))) : null);
   }
 
   // One way in for every kind of witness.

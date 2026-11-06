@@ -9,7 +9,16 @@
   const ROW = 30, LABEL = 96, BUFFER = 12;
   const ABSENT = { missing: 'does not have this block', lacuna: 'lacuna', pending: 'not yet transcribed', outside: 'outside its scope' };
 
-  const worksWithText = (ed, list) => ed.works.filter((k) => list.some(({ w, p }) => p && ME.Export.streamsUsed(p).some((s) => ((w.streams && w.streams[s]) || s) === k.id)));
+  /* The works there is text of. A layer of a layered edition is there if a witness has a block of it; in a layered
+     edition, a part of the page counts only if it has blocks that are not of any layer. */
+  const worksWithText = (ed, list) => {
+    const LI = ME.LayerIds;
+    const reg = LI.layered(ed) ? Edition.register(ed, list) : null;
+    return ed.works.filter((k) => (LI.codeOf(k.id) ? !!(reg && reg[k.id] && reg[k.id].order.length)
+      : list.some(({ w, p }) => p && ME.Export.streamsUsed(p).some((s) => ((w.streams && w.streams[s]) || s) === k.id)) && (!reg || !!(reg[k.id] && reg[k.id].order.length))));
+  };
+  // every layer of a layered edition at once, in the Collate step
+  CollateView.ALL = '*layers';
 
   const download = (name, data, type) => U.download(name, new Blob([data], { type: type || 'application/json' }));
   const fileSafe = (s) => String(s).replace(/[^\p{L}\p{M}\p{N}._-]+/gu, '_');
@@ -81,8 +90,11 @@
      with what is decided and what is to review; the edited text of the work; and the tools switched on in Settings. */
   CollateView.section = async function (ed, list, redraw) {
     if (Store.fallback) return U.el('p', { class: 'help' }, 'Collation needs the browser’s database, which this browser does not allow for a page opened from disk. Try another browser, or the copy on the web.');
-    const works = worksWithText(ed, list);
-    if (!works.length) return U.el('p', { class: 'help' }, 'Appears when the edition has witnesses with text.');
+    const LI = ME.LayerIds;
+    const real = worksWithText(ed, list);
+    if (!real.length) return U.el('p', { class: 'help' }, 'Appears when the edition has witnesses with text.');
+    const layerWorks = real.filter((k) => LI.codeOf(k.id)).sort((a, b) => LI.order(ed, LI.codeOf(a.id), LI.codeOf(b.id)));
+    const works = (layerWorks.length > 1 ? [{ id: CollateView.ALL, title: 'All layers' }] : []).concat(layerWorks, real.filter((k) => !LI.codeOf(k.id)));
     const summaries = await Collate.summaries(ed.id);
     const blocksOf = (workId) => {
       const reg = Edition.register(ed, list)[workId];
@@ -90,9 +102,13 @@
       for (const s of summaries.values()) if (s.work === workId && !ids.includes(s.unit)) ids.push(s.unit);
       return ids;
     };
-    CollateView.work = works.some((k) => k.id === CollateView.work) ? CollateView.work : (works.find((k) => blocksOf(k.id).length) || works[0]).id;
+    CollateView.work = works.some((k) => k.id === CollateView.work) ? CollateView.work : (works.find((k) => k.id === CollateView.ALL || blocksOf(k.id).length) || works[0]).id;
     const workId = CollateView.work;
-    const ids = blocksOf(workId);
+    const all = workId === CollateView.ALL;
+    // the blocks in view: of one work, or of every layer, each with its layer's [abbreviation]
+    const items = (all ? layerWorks.map((k) => k.id) : [workId]).flatMap((wk) => blocksOf(wk).map((id) => ({ work: wk, id })));
+    const ids = items.map((x) => x.id);
+    const workIds = all ? layerWorks.map((k) => k.id) : [workId];
     const kind = Collate.tokenKind(ed);
     const pick = U.el('select', { 'aria-label': 'Work to collate', onchange: () => { CollateView.work = pick.value; redraw(); } }, works.map((k) => U.el('option', { value: k.id, selected: k.id === workId }, k.title)));
     const tok = U.el('select', { 'aria-label': 'Align by', onchange: async () => { ed.collate = Object.assign({}, ed.collate, { tokens: tok.value }); await Edition.save(ed); redraw(); } },
@@ -100,30 +116,32 @@
     const progress = U.el('div', { class: 'cv-progress', hidden: true });
     const go = U.el('button', { class: 'btn small primary', disabled: !ids.length, onclick: async () => {
       if (!ed.trust && ed.witnesses.length > 1 && !(await CollateView.askTrust(ed, true))) return;
-      CollateView.collate(ed, list, workId, progress, go, redraw, false);
+      CollateView.collate(ed, list, workIds, progress, go, redraw, false);
     } }, 'Collate');
     go.dataset.action = 'collate';
     const F = ME.Features;
     const trustLine = U.el('p', { class: 'help cv-trustline' }, 'Trust, most trusted first: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? '' : ' (not set yet: as listed above) ',
       U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) redraw(); } }, 'Change…'));
     const again = !F.on('alignMore') ? null : U.el('button', { class: 'btn small', disabled: !ids.length, title: 'Align every block again, even where nothing has changed. What you have corrected or locked stays; an alignment you imported is replaced.', onclick: async () => {
-      if ([...summaries.values()].some((s) => s.work === workId && s.imported) && !(await UI.confirm('This replaces the alignments you imported for this work. Continue?', { ok: 'Align again' }))) return;
-      CollateView.collate(ed, list, workId, progress, go, redraw, true);
+      if ([...summaries.values()].some((s) => workIds.includes(s.work) && s.imported) && !(await UI.confirm('This replaces the alignments you imported for this work. Continue?', { ok: 'Align again' }))) return;
+      CollateView.collate(ed, list, workIds, progress, go, redraw, true);
     } }, 'Align again');
-    const samples = new Set((ed.samples && ed.samples[workId]) || []);
+    const samplesOf = (wk) => new Set((ed.samples && ed.samples[wk]) || []);
     const full = F.on('agreement');
     const num = (v) => U.el('td', { class: 'num' }, v === undefined || v === null || v === '' ? '' : String(v));
-    const rows = ids.map((id) => {
-      const s = summaries.get(Collate.keyOf(ed.id, workId, id));
+    const rows = items.map(({ work: wk, id }) => {
+      const s = summaries.get(Collate.keyOf(ed.id, wk, id));
       const st = statusOf(ed, list, s);
-      const cb = U.el('input', { type: 'checkbox', checked: samples.has(id), 'aria-label': 'Use ' + id + ' as a sample passage', onchange: async () => {
-        const now = new Set((ed.samples && ed.samples[workId]) || []);
+      const cb = U.el('input', { type: 'checkbox', checked: samplesOf(wk).has(id), 'aria-label': 'Use ' + id + ' as a sample passage', onchange: async () => {
+        const now = samplesOf(wk);
         if (cb.checked) now.add(id); else now.delete(id);
-        ed.samples = Object.assign({}, ed.samples, { [workId]: ids.filter((x) => now.has(x)) });
+        ed.samples = Object.assign({}, ed.samples, { [wk]: blocksOf(wk).filter((x) => now.has(x)) });
         await Edition.save(ed);
         redraw();
       } });
-      const idCell = U.el('td', { class: 'cv-unit' }, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, workId, id, redraw) }, id) : id);
+      const code = LI.codeOf(wk);
+      const tag = code && code !== LI.BASE ? U.el('span', { class: 'ly-abbr-tag', style: 'margin-inline-start: ' + ((code.length - 1) * 0.9) + 'em', title: LI.name(ed, code) }, '[' + LI.abbr(ed, code) + '] ') : null;
+      const idCell = U.el('td', { class: 'cv-unit' }, tag, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, wk, id, redraw) }, id) : id);
       const state = U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text));
       const has = s && s.words !== undefined;
       return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''), num(has ? s.decided : ''), num(s && s.review ? s.review : ''),
@@ -133,8 +151,8 @@
     const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
       U.el('thead', null, U.el('tr', null, heads.map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
       U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
-    const anyTable = [...summaries.values()].some((s) => s.work === workId);
-    const workPick = works.length > 1 ? U.el('label', null, 'Work ', pick) : null;
+    const anyTable = [...summaries.values()].some((s) => workIds.includes(s.work));
+    const workPick = works.length > 1 ? U.el('label', null, all || LI.codeOf(workId) ? 'Layer ' : 'Work ', pick) : null;
     // the comparison in a line, with everything about it behind Change…
     const norm = Norm.settings(ed.norm);
     const comparison = U.el('p', { class: 'help cv-trustline' }, 'Compared as ', U.el('strong', null, norm.profile.name), ', by ', U.el('strong', null, Norm.TOKENIZERS[kind].label.toLowerCase()), '; ties go to ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? ' ' : ' (not set yet) ',
@@ -144,8 +162,8 @@
     const item = (t) => U.el('button', { class: 'btn small', title: t.title, dataset: { action: t.action }, onclick: (e) => { close(e); t.run(); } }, t.label);
     const tools = U.el('details', { class: 'menu cv-tools' }, U.el('summary', { class: 'btn small', title: 'Optional tools: switch them on or off under ⚙ Settings' }, 'Tools'), U.el('div', { class: 'menu-items' },
       again,
-      F.on('alignMore') ? U.el('button', { class: 'btn small', disabled: !anyTable, title: 'Replace this work’s tables with an alignment made elsewhere', onclick: (e) => { close(e); CollateView.importInto(ed, list, workId, summaries, redraw); } }, 'Import alignment…') : null,
-      ed.works.length > 1 && F.on('layers') ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: (e) => { close(e); ME.LayersView.links(ed, list, workId); } }, 'Links to the base text…') : null,
+      F.on('alignMore') && !all ? U.el('button', { class: 'btn small', disabled: !anyTable, title: 'Replace this work’s tables with an alignment made elsewhere', onclick: (e) => { close(e); CollateView.importInto(ed, list, workId, summaries, redraw); } }, 'Import alignment…') : null,
+      ed.works.length > 1 && F.on('layers') && !all ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: (e) => { close(e); ME.LayersView.links(ed, list, workId); } }, 'Links to the base text…') : null,
       anyTable ? ME.Steps.tools(ed, list, redraw).map(item) : null,
       U.el('button', { class: 'btn small ghost', title: 'Choose which optional tools are shown', dataset: { action: 'tools-settings' }, onclick: (e) => { close(e); ME.App.showSettings(); } }, 'Switch tools on or off…')));
     void trustLine; void tok;
@@ -213,12 +231,18 @@
     const show = (f) => { bar.value = (at + (f || 0)) / total; text.textContent = 'Block ' + (at + 1) + ' of ' + total + ': ' + id + longNote; };
     try {
       const fresh = await loadFresh(list);
-      const res = await Collate.run(ed, fresh, workId, {
-        force, signal: ctl.signal,
-        onUnit: (i, n, u) => { at = i; total = n; id = u; longNote = ''; show(0); },
-        onEstimate: (secs) => { longNote = secs >= 60 ? ' (a long block: perhaps ' + Math.round(secs / 60) + ' min. Marking smaller citation IDs would shorten this.)' : ''; show(0); },
-        onProgress: show,
-      });
+      // one work, or several (every layer of a layered edition), one after the other
+      const res = { done: [], kept: [], removed: [], skipped: [], outside: [], reviewed: 0 };
+      for (const wk of [].concat(workId)) {
+        const r = await Collate.run(ed, fresh, wk, {
+          force, signal: ctl.signal,
+          onUnit: (i, n, u) => { at = i; total = n; id = u; longNote = ''; show(0); },
+          onEstimate: (secs) => { longNote = secs >= 60 ? ' (a long block: perhaps ' + Math.round(secs / 60) + ' min. Marking smaller citation IDs would shorten this.)' : ''; show(0); },
+          onProgress: show,
+        });
+        for (const k of ['done', 'kept', 'removed', 'skipped', 'outside']) res[k].push(...r[k]);
+        res.reviewed += r.reviewed || 0;
+      }
       const secs = ((performance.now() - started) / 1000).toFixed(1);
       const bits = [res.done.length + ' block(s) aligned', res.kept.length + ' unchanged'];
       if (res.removed.length) bits.push(res.removed.length + ' no longer in any witness, removed');

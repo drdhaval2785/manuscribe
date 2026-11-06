@@ -222,13 +222,19 @@
     const outside = [];
     const unreadable = [];
     const here = list.filter((x) => x.p);
+    // a layer of a layered edition is in every part of the page, and is told by its blocks' IDs
+    const LI = ME.LayerIds;
+    const layer = LI ? LI.codeOf(workId) : null;
+    const layered = LI && LI.layered(ed);
+    const layerOf = (id) => { const x = layered && id !== null ? LI.parse(id) : null; return x ? x.code : null; };
     for (const { w, p } of here) {
-      const keys = Export.streamsUsed(p).filter((s) => ((w.streams && w.streams[s]) || s) === workId);
+      const keys = layer ? Export.streamsUsed(p) : Export.streamsUsed(p).filter((s) => ((w.streams && w.streams[s]) || s) === workId);
       if (!keys.length) continue;
       const { blocks, unreadable: bad } = yield* readSteps(p, keys, { ignoreTags: settings.ignoreTags });
       for (const u of bad) unreadable.push(Object.assign({ siglum: w.siglum }, u));
       let prev = -1;
       for (const [id, b] of blocks) {
+        if (layer ? layerOf(id) !== layer : layerOf(id)) continue;
         if (id === null) {
           if (b.pc.dip.trim() || b.ac.dip.trim()) outside.push({ siglum: w.siglum, chars: b.pc.dip.length, first: b.first });
           continue;

@@ -634,6 +634,42 @@ can judge. A witness whose text is lost at a variant is missing there, and never
   place, a witness that has the earlier reading more often than the later is a potential ancestor, ranked by agreement;
   **A** stands for the edited text. Full CBGM, with a local stemma at every place, is for open-cbgm, through the TEI.
 
+#### A base text and its commentaries, by their IDs
+
+A text with commentaries, and commentaries on those, to any depth, is told apart and linked by its citation IDs
+alone, extending Saktumiva's convention. An ID is **letters, a locus and `-n` numbers**:
+
+- **The letters are the layer.** `b` is always the base. Each commentary on it has one letter of its own (`c`, `r`,
+  … but never `b`), and a commentary on a commentary adds one letter to its parent's: `ca` and `cb` on `c`, `caa` on
+  `ca`. The number of letters is the depth.
+- **The locus is the base passage** the whole chain hangs on: `2.47`. `_` joins several (`c2.47_2.48-1` comments on
+  two verses together); `2.0` is before all of chapter 2, and `0` before the whole text.
+- **The last `-n` is the block's own paragraph.** `-0` introduces the passage and is printed before it; `-1`, `-2`…
+  follow it. Any `-n` before it says which paragraph of the parent it comments on.
+
+| ID | is |
+|---|---|
+| `b2.47` | the verse |
+| `c2.47-0`, `c2.47-1` | commentary `c`: its introduction to the verse, then its first paragraph |
+| `ca2.47-1-1` | `ca` on paragraph 1 of `c` (`c2.47-1`) |
+| `ca2.47-3` | `ca` on `c`'s whole comment on 2.47 |
+| `caa2.47-1-1-1` | `caa` on `ca2.47-1-1` |
+| `r2.47-1`, `ra2.47-1-1` | a second commentary on the verse, and a commentary on it |
+
+The base and its commentaries may be written in one box, one after another, as most manuscripts have them, or in
+the boxes of a tripāṭha or pañcapāṭha page: the ID says which layer a block is in, wherever it stands. An edition is
+layered as soon as a witness has a commentary block by such an ID; IDs like `b1` alone are ordinary ones.
+
+- **Layers,** in the Witnesses step, lists the layers the witnesses use, each after its parent. Name each one, and
+  give it the one or two letters printed in [ ] before its blocks, such as [Ś]; ↑ and ↓ order commentaries on the
+  same text. Below it are the IDs to look at: a block whose parent no witness has, a layer whose parent layer is
+  missing, two layers with one abbreviation, and IDs that look meant as layer IDs but are not (`c3` without its
+  `-1`).
+- **Collate** in a layered edition starts at **All layers**: one table of every layer's blocks, each commentary
+  block with its [abbreviation], and one Collate for all of them. Each layer is still collated on its own, with only
+  its own text, so a witness that lacks one commentary is absent from that one only. The work menu also offers each
+  layer alone.
+
 #### Commentaries, evidence and indices
 
 A commentary is a work of its own, with its own witnesses, collation and apparatus. **Links to the base text…**, in the Tools menu of the Collate step at the Full level,
