@@ -205,7 +205,8 @@
   const summarise = (rec) => ({ key: rec.key, work: rec.work, unit: rec.unit, seen: rec.seen, paramsKey: rec.paramsKey, imported: !!rec.table.imported,
     ncols: rec.table.ncols, variants: rec.table.variants, labels: rec.table.order.length, tokens: rec.table.tokens,
     corrections: (rec.table.ops || []).length, locks: (rec.table.locks || []).length, review: (rec.table.review || []).length, checked: !!rec.table.checked,
-    accuracy: rec.table.checked ? ME.CollateEdit.againstCorrections(rec.table) : null });
+    accuracy: rec.table.checked ? ME.CollateEdit.againstCorrections(rec.table) : null,
+    ...(() => { try { const c = ME.CollateEdit.proposal(rec.table, []).count; return { words: c.words, differ: c.differ, ties: c.trust }; } catch (e) { return {}; } })() });
   Collate.summaries = async function (edId) {
     if (known.has(edId)) return known.get(edId);
     const m = new Map();
@@ -310,6 +311,13 @@
     for (const k of Object.keys(o).sort()) c[k] = o[k];
     return c;
   }
+
+  // The witnesses, most trusted first: as the editor has set it, then any added since, as listed.
+  Collate.trustOrder = function (ed) {
+    const sigla = ed.witnesses.map((w) => w.siglum);
+    const set = (ed.trust || []).filter((s) => sigla.includes(s));
+    return set.concat(sigla.filter((s) => !set.includes(s)));
+  };
 
   /* ---------- reading a table ---------- */
 
@@ -474,7 +482,7 @@
   // An alignment from elsewhere replaces this table's, and with it any corrections.
   function freshCopy(table, over) {
     const c = Object.assign({}, table, over);
-    for (const k of ['colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'ops', 'review', 'base', 'redo', 'checked', 'lockSeq', 'linkSeq', 'history']) delete c[k];
+    for (const k of ['colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'ops', 'review', 'base', 'redo', 'checked', 'lockSeq', 'linkSeq', 'history', 'picks']) delete c[k];
     return c;
   }
 

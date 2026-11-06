@@ -41,6 +41,42 @@
       }))))));
   }
 
+  /* ---------- how far each witness is trusted ---------- */
+
+  // A list the editor reorders, most trusted first. -> {el, order()}
+  CollateView.trustEditor = function (ed) {
+    const order = Collate.trustOrder(ed);
+    const titleOf = (s) => { const w = ed.witnesses.find((x) => x.siglum === s); return w ? w.siglum : s; };
+    const box = U.el('ol', { class: 'cv-trust' });
+    const draw = () => {
+      box.innerHTML = '';
+      order.forEach((s, i) => {
+        const move = (d) => { const j = i + d; if (j < 0 || j >= order.length) return; [order[i], order[j]] = [order[j], order[i]]; draw(); box.querySelectorAll('button')[Math.max(0, 2 * j + (d < 0 ? 0 : 1))].focus(); };
+        box.append(U.el('li', null, U.el('strong', null, titleOf(s)), ' ',
+          U.el('button', { class: 'btn small', 'aria-label': 'Trust ' + s + ' more', disabled: i === 0, onclick: () => move(-1) }, '↑'),
+          U.el('button', { class: 'btn small', 'aria-label': 'Trust ' + s + ' less', disabled: i === order.length - 1, onclick: () => move(1) }, '↓')));
+      });
+    };
+    draw();
+    return { el: box, order: () => order.slice() };
+  };
+
+  // -> true if the editor set it, false if they cancelled
+  CollateView.askTrust = async function (ed, first) {
+    const editor = CollateView.trustEditor(ed);
+    const ok = await UI.modal({
+      title: 'Which witnesses do you trust most?',
+      body: U.el('div', null,
+        U.el('p', { class: 'confirm-text' }, 'Most trusted first. Where witnesses tie, the reading of the most trusted one is proposed. Otherwise the reading most witnesses have is proposed. You can change this at any time; nothing has to be aligned again.'),
+        editor.el),
+      buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: first ? 'Save and collate' : 'Save', value: true, kind: 'primary' }],
+    });
+    if (!ok) return false;
+    ed.trust = editor.order();
+    await Edition.save(ed);
+    return true;
+  };
+
   CollateView.section = async function (ed, list, redraw) {
     if (Store.fallback) return U.el('p', { class: 'help' }, 'Collation needs the browser’s database, which this browser does not allow for a page opened from disk. Try another browser, or the copy on the web.');
     const works = worksWithText(ed, list);
@@ -60,7 +96,12 @@
     const tok = U.el('select', { 'aria-label': 'Align by', onchange: async () => { ed.collate = Object.assign({}, ed.collate, { tokens: tok.value }); await Edition.save(ed); redraw(); } },
       Object.entries(Norm.TOKENIZERS).map(([k, t]) => U.el('option', { value: k, selected: k === kind }, t.label)));
     const progress = U.el('div', { class: 'cv-progress', hidden: true });
-    const go = U.el('button', { class: 'btn small primary', disabled: !ids.length, onclick: () => CollateView.collate(ed, list, workId, progress, go, redraw, false) }, 'Collate');
+    const go = U.el('button', { class: 'btn small primary', disabled: !ids.length, onclick: async () => {
+      if (!ed.trust && ed.witnesses.length > 1 && !(await CollateView.askTrust(ed, true))) return;
+      CollateView.collate(ed, list, workId, progress, go, redraw, false);
+    } }, 'Collate');
+    const trustLine = U.el('p', { class: 'help cv-trustline' }, 'Trust, most trusted first: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? '' : ' (not set yet: as listed above) ',
+      U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) redraw(); } }, 'Change…'));
     const again = U.el('button', { class: 'btn small', disabled: !ids.length, title: 'Align every block again, even where nothing has changed. What you have corrected or locked stays; an alignment you imported is replaced.', onclick: async () => {
       if ([...summaries.values()].some((s) => s.work === workId && s.imported) && !(await UI.confirm('This replaces the alignments you imported for this work. Continue?', { ok: 'Align again' }))) return;
       CollateView.collate(ed, list, workId, progress, go, redraw, true);
@@ -80,8 +121,8 @@
         U.el('td', null, cb),
         U.el('td', { class: 'cv-unit' }, s ? U.el('button', { class: 'link', title: 'Open the table', onclick: () => CollateView.open(ed, list, workId, id, redraw) }, id) : id),
         U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text)),
-        U.el('td', { class: 'num' }, s ? String(s.labels) : ''), U.el('td', { class: 'num' }, s ? String(s.ncols) : ''),
-        U.el('td', { class: 'num' }, s && s.ncols ? ((100 * s.variants) / s.ncols).toFixed(0) + '%' : ''),
+        U.el('td', { class: 'num' }, s ? String(s.labels) : ''), U.el('td', { class: 'num' }, s && s.words !== undefined ? String(s.words) : ''),
+        U.el('td', { class: 'num' }, s && s.words !== undefined ? String(s.differ) : ''), U.el('td', { class: 'num' }, s && s.words !== undefined ? String(s.ties) : ''),
         U.el('td', { class: 'num' }, s && s.corrections ? String(s.corrections) : ''),
         U.el('td', { class: 'num' }, s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : ''));
     });
@@ -103,9 +144,10 @@
         U.el('label', null, 'Align by ', tok),
         go, again,
         U.el('button', { class: 'btn small', disabled: ![...summaries.values()].some((s) => s.work === workId), title: 'Replace this work’s tables with an alignment made elsewhere', onclick: () => CollateView.importInto(ed, list, workId, summaries, redraw) }, 'Import alignment…')),
+      trustLine,
       progress,
       ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
-        U.el('thead', null, U.el('tr', null, ['Sample', 'Citation ID', '', 'Rows', 'Columns', 'Columns that differ', 'Corrections', 'Aligner against your reading'].map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : null }, h)))),
+        U.el('thead', null, U.el('tr', null, ['Sample', 'Citation ID', '', 'Rows', 'Words', 'Words that differ', 'Ties', 'Corrections', 'Aligner against your reading'].map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
         U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.'),
       fold);
   };
@@ -444,7 +486,12 @@
 
     const status = U.el('span', { class: 'help cv-count' });
     const showStatus = () => {
-      const bits = [state.count + ' of ' + table.ncols + ' columns differ'];
+      const bits = [];
+      if (state.mode === 'text') {
+        const c = text.proposal ? text.proposal.count : null;
+        if (c) bits.push(c.words + ' words · ' + c.differ + ' differ: ' + c.majority + ' by majority' + (c.plurality ? ', ' + c.plurality + ' by most votes' : '') + ', ' + c.trust + ' by your trust order' + (c.chosen ? ', ' + c.chosen + ' chosen by you' : ''));
+        if (text.proposal && text.proposal.orphaned.length) bits.push(text.proposal.orphaned.length + ' choice(s) no longer fit a word');
+      } else bits.push(state.count + ' of ' + table.ncols + ' columns differ');
       if (table.ops.length) bits.push(table.ops.length + ' correction(s)');
       if (table.checked) {
         const acc = E.againstCorrections(table);
@@ -469,17 +516,17 @@
         U.toast(e.message, 'warn', 3500);
         return false;
       }
-      state.refresh();
+      if (state.refresh) state.refresh();
       if (then) then();
       after();
       return true;
     };
     const after = () => {
       saveSoon();
+      text.render();
       showStatus();
       ui.buttons();
-      ui.detail();
-      places.refreshSoon();
+      if (state.refresh) { ui.detail(); places.refreshSoon(); }
     };
 
     const ui = { keys: {} };
@@ -546,19 +593,20 @@
       if (a.label !== here.label) { U.toast('Both places must be in the same witness', 'warn'); ui.buttons(); return; }
       act({ op: 'link', label: a.label, a: [a.from, a.to], b: [here.from, here.to] });
     };
-    ui.undo = () => { const op = E.undo(table); if (!op) { U.toast('Nothing to undo'); return; } state.refresh(); U.toast('Undid: ' + E.opName(op)); after(); };
-    ui.redo = () => { const op = E.redo(table); if (!op) { U.toast('Nothing to redo'); return; } state.refresh(); U.toast('Redid: ' + E.opName(op)); after(); };
+    ui.undo = () => { const op = E.undo(table); if (!op) { U.toast('Nothing to undo'); return; } if (state.refresh) state.refresh(); U.toast('Undid: ' + E.opName(op)); after(); };
+    ui.redo = () => { const op = E.redo(table); if (!op) { U.toast('Nothing to redo'); return; } if (state.refresh) state.refresh(); U.toast('Redid: ' + E.opName(op)); after(); };
     ui.checked = () => { act({ op: 'check', on: !table.checked }); };
     ui.reset = async () => {
       if (!table.ops.length) { U.toast('There are no corrections to take back'); return; }
       if (!(await UI.confirm('Take back all ' + table.ops.length + ' correction(s) to this block, including its locks? This cannot be undone.', { ok: 'Take back', danger: true }))) return;
       E.reset(table);
-      state.refresh();
+      if (state.refresh) state.refresh();
       after();
     };
     Object.assign(ui.keys, { m: ui.merge, s: ui.split, w: ui.swap, l: ui.lock, b: ui.cut, t: ui.transpose, n: () => state.jump(1), p: () => state.jump(-1) });
 
     ui.detail = () => {
+      if (!state.gridNow) return;
       detailBox.innerHTML = '';
       unitBox.innerHTML = '';
       const s = state.sel;
@@ -607,6 +655,7 @@
       undoBtn.disabled = !table.ops.length;
       redoBtn.disabled = !(table.redo && table.redo.length);
       checkBtn.textContent = table.checked ? '✓ Read through' : 'Mark as read';
+      if (!state.gridNow) return;
       linkBtn.classList.toggle('primary', !!state.linkA);
       if (state.sel) {
         const m = E.lockMap(table);
@@ -615,6 +664,107 @@
         lockBtn.textContent = any ? 'Unlock' : 'Lock';
       }
     };
+
+    /* ---------- word by word ---------- */
+    const SETTLED = {
+      majority: 'Most witnesses read this.',
+      plurality: 'More witnesses read this than any other reading, though not most of them.',
+      trust: 'The witnesses tie here, so the reading of the most trusted one is proposed.',
+      chosen: 'You chose this reading.',
+      same: 'All the witnesses that can be read agree.',
+    };
+    const textBox = U.el('div', { class: 'ct-text', tabindex: '0', role: 'document', 'aria-label': 'Proposed text. N and P go to the next and previous difference; 1 to 9 choose a reading.' });
+    const textPanel = U.el('div', { class: 'ct-panel' });
+    const textScan = U.el('div', { class: 'cv-scanbox' });
+    const filterSel = U.el('select', { 'aria-label': 'Which places to go through', onchange: () => { text.filter = filterSel.value; } },
+      U.el('option', { value: 'differs' }, 'Every difference'), U.el('option', { value: 'trust' }, 'Only ties, settled by trust'), U.el('option', { value: 'open' }, 'Only those you have not chosen'));
+    const text = {
+      proposal: null, sel: null, filter: 'differs',
+      render() {
+        const P = E.proposal(table, Collate.trustOrder(ed));
+        text.proposal = P;
+        let h = '';
+        P.units.forEach((u, i) => {
+          const shown = escHtml(u.text);
+          if (!u.others) { h += shown; return; }
+          const cls = 'ct-u ' + (u.differs ? 'd-' + u.decided : 'd-lost') + (text.sel && text.sel.fromId === u.fromId ? ' sel' : '');
+          h += '<span class="' + cls + '" data-u="' + i + '">' + (shown.trim() ? shown : '<span class="ct-om">⌀</span>' + shown) + '</span>';
+        });
+        textBox.innerHTML = h;
+        if (text.sel) {
+          const again = P.units.findIndex((u) => u.fromId === text.sel.fromId);
+          if (again >= 0) text.choose(again, true); else { text.sel = null; textPanel.innerHTML = ''; }
+        }
+      },
+      wanted(u) {
+        if (!u.differs) return false;
+        if (text.filter === 'trust') return u.decided === 'trust';
+        if (text.filter === 'open') return u.decided !== 'chosen';
+        return true;
+      },
+      jump(d) {
+        const units = text.proposal.units;
+        let i = text.sel ? units.findIndex((u) => u.fromId === text.sel.fromId) : (d > 0 ? -1 : units.length);
+        for (i += d; i >= 0 && i < units.length; i += d) if (text.wanted(units[i])) { text.choose(i); return; }
+        U.toast(d > 0 ? 'No more places after this one' : 'No more places before this one');
+      },
+      showScanOf(m) {
+        const st = table.states[m.label];
+        const k = m.k1 <= m.k2 ? m.k1 : Math.min(m.k1, st.n.length - 1);
+        const x = list.find((y) => y.w.siglum === st.siglum);
+        if (k < 0 || !x || !x.p) { textScan.innerHTML = ''; return; }
+        const src = Collate.token(st, k).src.find((y) => y.folio);
+        if (!src) { textScan.innerHTML = ''; return; }
+        textScan.innerHTML = '';
+        textScan.append(U.el('div', { class: 'help' }, m.label + ' · ' + placeLine(src) + ' ', U.el('button', { class: 'btn small', onclick: () => state.go(st.siglum, src) }, 'Go to this line')));
+        const pic = U.el('div');
+        textScan.append(pic);
+        text.scanResult = CollateView.showScan(pic, x.p, src);
+      },
+      choose(i, quiet) {
+        const u = text.proposal.units[i];
+        text.sel = u;
+        for (const el of textBox.querySelectorAll('.ct-u.sel')) el.classList.remove('sel');
+        const el = textBox.querySelector('[data-u="' + i + '"]');
+        if (el) { el.classList.add('sel'); if (!quiet) el.scrollIntoView({ block: 'nearest' }); }
+        textPanel.innerHTML = '';
+        const winners = u.winner;
+        const rows = u.groups.map((g, gi) => {
+          const isWinner = g === winners;
+          const members = g.members.map((m) => U.el('button', { class: 'link ct-wit', title: 'See this line in the scan', onclick: () => text.showScanOf(m) }, m.label + (m.layer === 'ac' ? ' (before correction)' : '')));
+          return U.el('li', { class: isWinner ? 'win' : '' },
+            U.el('button', { class: 'btn small' + (isWinner ? ' primary' : ''), title: 'Use this reading (' + (gi + 1) + ')', disabled: isWinner && u.decided === 'chosen', onclick: () => act({ op: 'pick', from: u.fromId, to: u.toId, label: g.form.label }) }, isWinner ? '✓ ' + (gi + 1) : String(gi + 1)),
+            ' ', U.el('span', { class: 'ct-reading' }, g.form.text.trim() || '(omits)'), ' ',
+            U.el('span', { class: 'help' }, g.votes ? g.votes + ' vote' + (g.votes > 1 ? 's' : '') + ': ' : 'no vote: '), members);
+        });
+        const missing = u.missing.map((m) => U.el('li', { class: 'muted' }, m.label + ': ' + ({ lac: 'text lost', illeg: 'illegible', na: 'outside its coverage', ambig: 'uncertain', transposed: 'has this elsewhere' }[m.why] || m.why) + ', so no vote'));
+        textPanel.append(
+          U.el('div', { class: 'ct-settled' }, SETTLED[u.decided] || '', u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
+          U.el('ol', { class: 'ct-readings' }, rows, missing),
+          U.el('div', { class: 'nv-head' },
+            u.decided === 'chosen' ? U.el('button', { class: 'btn small', onclick: () => act({ op: 'pick', from: u.fromId, to: u.toId, label: null }) }, 'Follow the votes again') : null,
+            i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: 'This and the next word are one unit of variation', onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
+            U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'See the letters')));
+        const first = (winners && winners.members.find((m) => m.votes)) || (winners && winners.members[0]);
+        if (first) text.showScanOf(first); else textScan.innerHTML = '';
+      },
+    };
+    textBox.addEventListener('click', (e) => {
+      const el = e.target.closest('.ct-u');
+      if (el) text.choose(+el.dataset.u, true);
+    });
+    textBox.addEventListener('keydown', (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) ui.redo(); else ui.undo(); return; }
+      if (mod || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'n' || k === 'arrowdown' || k === 'j') { e.preventDefault(); text.jump(1); }
+      else if (k === 'p' || k === 'arrowup' || k === 'k') { e.preventDefault(); text.jump(-1); }
+      else if (/^[1-9]$/.test(k) && text.sel) {
+        const g = text.sel.groups[+k - 1];
+        if (g) { e.preventDefault(); act({ op: 'pick', from: text.sel.fromId, to: text.sel.toId, label: g.form.label }); }
+      }
+    });
 
     /* ---------- places to check ---------- */
     const placesList = U.el('ul', { class: 'cv-places' });
@@ -660,24 +810,55 @@
     const params = table.params;
     const stale = statusOf(ed, list, (await Collate.summaries(ed.id)).get(rec.key));
     const fmt = U.el('select', { 'aria-label': 'Export format' },
-      U.el('option', { value: 'cx-in' }, 'CollateX input (tokens)'), U.el('option', { value: 'cx-out' }, 'CollateX table'), U.el('option', { value: 'tei' }, 'TEI corpus (Saktumiva matrix editor)'), U.el('option', { value: 'csv' }, 'CSV (spreadsheet)'), U.el('option', { value: 'native' }, 'Manuscribe table (with all settings)'));
+      U.el('option', { value: 'cx-in' }, 'CollateX input (tokens)'), U.el('option', { value: 'cx-out' }, 'CollateX table'), U.el('option', { value: 'tei' }, 'TEI corpus (Saktumiva matrix editor)'), U.el('option', { value: 'text' }, 'Proposed text, with its differences'), U.el('option', { value: 'csv' }, 'CSV (spreadsheet)'), U.el('option', { value: 'native' }, 'Manuscribe table (with all settings)'));
     const save = U.el('button', { class: 'btn small', onclick: () => {
       const base = fileSafe(table.unit);
       if (fmt.value === 'cx-in') download(base + '.collatex-input.json', JSON.stringify(Collate.toCollateXInput(table), null, 1));
       else if (fmt.value === 'cx-out') download(base + '.collatex.json', JSON.stringify(Collate.toCollateXTable(table)));
       else if (fmt.value === 'tei') download(base + '.xml', Collate.toTeiCorpus(table), 'application/xml');
-      else if (fmt.value === 'csv') download(base + '.csv', Collate.toCsv(table, state.show), 'text/csv');
+      else if (fmt.value === 'text') {
+        const P = E.proposal(table, Collate.trustOrder(ed));
+        const lines = P.units.filter((u) => u.differs).map((u) => u.text.trim() + ' ] ' + u.groups.filter((g) => g.votes && g !== u.winner).map((g) => (g.form.text.trim() || 'om.') + ' ' + g.members.filter((m) => m.votes).map((m) => m.siglum).join(' ')).join('; ') + '  (' + u.winner.members.filter((m) => m.votes).map((m) => m.siglum).join(' ') + '; ' + u.decided + ')');
+        download(base + '.txt', P.text.trim() + '\n\n' + lines.join('\n') + '\n', 'text/plain');
+      } else if (fmt.value === 'csv') download(base + '.csv', Collate.toCsv(table, state.show), 'text/csv');
       else download(base + '.manuscribe-table.json', JSON.stringify(table, null, 1));
     } }, 'Save');
-    body.append(...[
+    const textTab = U.el('button', { class: 'btn small', 'aria-pressed': 'true', onclick: () => setMode('text') }, 'Text');
+    const letterTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', onclick: () => setMode('letters') }, 'Letters');
+    const textPane = U.el('div', { class: 'ct-pane' },
+      U.el('div', { class: 'nv-head' },
+        U.el('button', { class: 'btn small', title: 'P', onclick: () => text.jump(-1) }, '‹ Previous'),
+        U.el('button', { class: 'btn small', title: 'N', onclick: () => text.jump(1) }, 'Next ›'),
+        U.el('label', null, 'Go through ', filterSel),
+        U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) { text.render(); showStatus(); } } }, 'Trust order…'),
+        U.el('button', { class: 'btn small', title: 'Undo (Ctrl or Cmd+Z)', onclick: () => ui.undo() }, 'Undo')),
+      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words differ between witnesses: click one to see the readings, or press N. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
+      textBox, textPanel, textScan,
+      U.el('p', { class: 'nv-legend' }, U.el('span', { class: 'ct-u d-majority' }, 'most witnesses'), ' ', U.el('span', { class: 'ct-u d-plurality' }, 'most votes, not most witnesses'), ' ', U.el('span', { class: 'ct-u d-trust' }, 'a tie, settled by trust'), ' ', U.el('span', { class: 'ct-u d-chosen' }, 'your choice'), ' ', U.el('span', { class: 'ct-u d-lost' }, 'a witness cannot be read here'), ' · ⌀ the proposed reading omits the word'));
+    const letterPane = U.el('div', { class: 'cv-letters', hidden: true });
+    let lettersBuilt = false;
+    const setMode = (m) => {
+      state.mode = m;
+      textTab.setAttribute('aria-pressed', String(m === 'text'));
+      letterTab.setAttribute('aria-pressed', String(m === 'letters'));
+      textPane.hidden = m !== 'text';
+      letterPane.hidden = m !== 'letters';
+      if (m === 'letters' && !lettersBuilt) {
+        lettersBuilt = true;
+        buildTable(table, host, ui, state);
+        places.refresh();
+      }
+      if (m === 'letters') { state.refresh(); state.scroller.focus({ preventScroll: true }); } else { text.render(); textBox.focus({ preventScroll: true }); }
+      ui.buttons();
+      showStatus();
+    };
+    const showLetters = (c1, c2) => { setMode('letters'); state.goTo(c1, c2); };
+    state.mode = 'text';
+    letterPane.append(...[
       U.el('div', { class: 'nv-head' },
         U.el('label', null, 'Show ', showSel),
         U.el('button', { class: 'btn small', title: 'P', onclick: () => state.jump(-1) }, '‹ Previous difference'),
-        U.el('button', { class: 'btn small', title: 'N', onclick: () => state.jump(1) }, 'Next difference ›'),
-        status,
-        U.el('span', { class: 'cv-spacer' }),
-        fmt, save),
-      stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
+        U.el('button', { class: 'btn small', title: 'N', onclick: () => state.jump(1) }, 'Next difference ›')),
       U.el('div', { class: 'nv-head cv-tools' },
         moveBtn(-1), moveBtn(1),
         U.el('button', { class: 'btn small', title: 'Make this column and the next one, if no witness has text in both (M)', onclick: () => ui.merge() }, 'Merge'),
@@ -687,21 +868,20 @@
         U.el('button', { class: 'btn small', title: 'Add or remove a word or lemma boundary before this column (B)', onclick: () => ui.cut() }, 'Boundary'),
         lockBtn, linkBtn, undoBtn, redoBtn,
         U.el('span', { class: 'cv-spacer' }),
-        checkBtn,
         U.el('button', { class: 'btn small danger-ghost', title: 'Take back all corrections to this block', onclick: () => ui.reset() }, 'Take back all')),
       host, detailBox, scanBox, unitBox, placesBox,
       U.el('p', { class: 'nv-legend' },
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
-        (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')].filter(Boolean));
+        (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
+    body.append(...[
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, status, U.el('span', { class: 'cv-spacer' }), checkBtn, fmt, save),
+      stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
+      textPane, letterPane].filter(Boolean));
     await UI.modal({
       title: 'Collation: ' + table.unit, body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }],
       onOpen: () => {
-        buildTable(table, host, ui, state);
-        ui.buttons();
-        showStatus();
-        places.refresh();
-        state.scroller.focus({ preventScroll: true });
-        CollateView.lastOpen = { table, state, ui, rec };
+        setMode('text');
+        CollateView.lastOpen = { table, state, ui, rec, text, setMode };
       },
     });
     clearTimeout(places.timer);

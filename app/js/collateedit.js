@@ -20,7 +20,7 @@
   // These say nothing about what the witness read, so they do not count as agreement or difference.
   const UNKNOWN = new Set(['lac', 'illeg', 'na', 'ambig']);
 
-  const DERIVED = ['ncols', 'colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'lockSeq'];
+  const DERIVED = ['ncols', 'colIds', 'nextCol', 'locks', 'cells', 'links', 'cuts', 'lockSeq', 'picks'];
 
   // Tables made before corrections existed get what they lack.
   Edit.ensure = function (table) {
@@ -35,6 +35,7 @@
     if (!table.ops) table.ops = [];
     if (!table.review) table.review = [];
     if (!table.lockSeq) table.lockSeq = 0;
+    if (!table.picks) table.picks = {};
     return table;
   };
 
@@ -270,6 +271,15 @@
       }
       t.locks = next;
     },
+    // The editor prefers this witness's reading in this stretch of columns to what the rules propose.
+    pick(t, o) {
+      const at = posMap(t);
+      const a = at.get(o.from), b = at.get(o.to);
+      if (a === undefined || b === undefined) throw new Error('No such column');
+      const key = o.from + ':' + o.to;
+      if (o.label) t.picks[key] = o.label; else delete t.picks[key];
+      addLock(t, a, b, 'edit');
+    },
     // The editor has read this block through: it is all locked, and counts towards measuring the aligner.
     check(t, o) {
       t.checked = !!o.on;
@@ -277,7 +287,7 @@
     },
   };
 
-  const OP_NAMES = { shift: 'Move', merge: 'Merge columns', split: 'Split column', swap: 'Swap columns', state: 'Set cell state', link: 'Mark transposition', unlink: 'Remove transposition', cut: 'Change boundary', lock: 'Lock', unlock: 'Unlock', check: 'Mark as checked' };
+  const OP_NAMES = { shift: 'Move', merge: 'Merge columns', split: 'Split column', swap: 'Swap columns', state: 'Set cell state', link: 'Mark transposition', unlink: 'Remove transposition', cut: 'Change boundary', lock: 'Lock', unlock: 'Unlock', check: 'Mark as read', pick: 'Choose a reading' };
   Edit.opName = (op) => OP_NAMES[op.op] || op.op;
 
   /* Does an operation: it goes in the log only if it works, and if it does not the table is as it was.
@@ -426,6 +436,146 @@
       if (c === t.ncols || cuts[c]) { finish(a, c - 1); a = c; }
     }
     return out;
+  };
+
+  /* ---------- word by word: a proposed text ---------- */
+
+  const NOT_LETTERS = /[\s।॥|.,;:!?()[\]'"“”‘’॰ऽ-]/g;
+  const VIRAMA = '्';
+
+  // Does this token begin a written unit, so that a stretch of Devanagari can be cut before it?
+  function startsAksara(st, k) {
+    const f = st.from[k];
+    const to = k + 1 < st.from.length ? st.from[k + 1] : st.dip.length;
+    if (to <= f) return false; // the a a consonant implies
+    const c = st.dip[f];
+    return !!c && !/\p{M}/u.test(c) && st.dip[f - 1] !== VIRAMA;
+  }
+
+  // A row's text between two tokens, without what is marked as not compared.
+  function textOf(st, k1, k2) {
+    if (k1 > k2) return '';
+    const from = st.from[k1], to = k2 + 1 < st.from.length ? st.from[k2 + 1] : st.dip.length;
+    let out = '', at = from;
+    for (const [a, z] of st.ignored || []) {
+      if (z <= from || a >= to) continue;
+      if (a > at) out += st.dip.slice(at, a);
+      at = Math.max(at, z);
+    }
+    return out + st.dip.slice(at, to);
+  }
+
+  /* The block as words, each with what the witnesses read and which reading is proposed.
+     1. The reading most witnesses have wins. Readings that differ only in ways the rules ignore, or only in
+        spacing and punctuation, are one reading.
+     2. If readings tie, the one with the most trusted witness wins. trust: sigla, most trusted first.
+     A witness has one vote: before-correction text does not vote, and a witness whose text is lost here abstains.
+     Where a word is long and its differences far apart, it is divided, so that one difference does not
+     decide another. opts.agreeRun: how many agreeing letters divide it; opts.longWord: how many letters make it long. */
+  Edit.proposal = function (t, trust, opts) {
+    Edit.ensure(t);
+    const agreeRun = (opts && opts.agreeRun) || 6;
+    const longWord = (opts && opts.longWord) || 16;
+    const rank = new Map((trust || []).map((s, i) => [s, i]));
+    const rankOf = (s) => (rank.has(s) ? rank.get(s) : rank.size + 1);
+    const grid = Collate.grid(t);
+    const variant = Collate.variantColumns(t, grid);
+    const cuts = Edit.cutMap(t);
+    const linked = Edit.linked(t);
+    const rows = t.order.map((l, r) => ({ l, st: t.states[l], g: grid[r] }));
+
+    // the columns where a new word starts: never inside a written unit of any witness, or the text would break
+    const starts = [];
+    const canStart = (c) => rows.every(({ st, g }) => g[c] < 0 || startsAksara(st, g[c]));
+    const wordStarts = [];
+    for (let c = 0; c < t.ncols; c++) if (cuts[c] && (c === 0 || t.cuts.add[t.colIds[c]] || canStart(c))) wordStarts.push(c);
+    const placeCut = (lo, hi) => { // somewhere among the agreeing columns lo..hi, near the middle
+      const mid = (lo + hi) >> 1;
+      for (let d = 0; d <= hi - lo; d++) {
+        for (const x of [mid + d, mid - d]) if (x >= lo && x <= hi && canStart(x) && !t.cuts.remove[t.colIds[x]]) return x;
+      }
+      return -1;
+    };
+    wordStarts.forEach((a, w) => {
+      const z = w + 1 < wordStarts.length ? wordStarts[w + 1] : t.ncols; // the word is a..z-1
+      starts.push(a);
+      if (z - a <= longWord) return;
+      // a long compound: agreeing stretches, its ends too, are set apart, so that a small difference stays small
+      let last = a - 1;
+      for (let c = a; c <= z; c++) {
+        if (c < z && !variant[c]) continue;
+        if (last >= a || c < z) {
+          if (c - last - 1 >= agreeRun) {
+            const cut = placeCut(last + 1 + (last >= a ? 2 : 0), c - (c < z ? 2 : 0));
+            if (cut > a) starts.push(cut);
+          }
+        }
+        last = c;
+      }
+    });
+    starts.sort((x, y) => x - y);
+
+    const units = [];
+    const lowerK = (cols, v) => { let lo = 0, hi = cols.length; while (lo < hi) { const m = (lo + hi) >> 1; if (cols[m] < v) lo = m + 1; else hi = m; } return lo; };
+    starts.forEach((a, i) => {
+      const z = (i + 1 < starts.length ? starts[i + 1] : t.ncols) - 1;
+      const members = [];
+      const missing = [];
+      for (const { l, st, g } of rows) {
+        const k1 = lowerK(st.cols, a), k2 = lowerK(st.cols, z + 1) - 1;
+        let why = null;
+        for (let c = a; c <= z && !why; c++) {
+          const s = Edit.stateOf(t, l, t.colIds[c]);
+          if (s && UNKNOWN.has(s)) why = s;
+          if (linked[l] && linked[l].has(c)) why = 'transposed';
+          if (g[c] >= 0 && st.n[g[c]] === Norm.GAP) why = 'lac';
+        }
+        if (why) { missing.push({ label: l, siglum: st.siglum, why }); continue; }
+        const text = textOf(st, k1, k2);
+        members.push({ label: l, siglum: st.siglum, layer: st.layer, n: k1 <= k2 ? st.n.slice(k1, k2 + 1).join('') : '', text, raw: text.replace(NOT_LETTERS, ''), k1, k2, votes: st.layer !== 'ac' });
+      }
+      // one reading: the same normalised form, or the same letters
+      const groups = [];
+      for (const m of members) {
+        let g = groups.find((x) => x.members.some((y) => y.n === m.n || (m.raw && y.raw === m.raw)));
+        if (!g) { g = { members: [] }; groups.push(g); }
+        g.members.push(m);
+      }
+      for (const g of groups) {
+        const voters = g.members.filter((m) => m.votes);
+        g.votes = new Set(voters.map((m) => m.siglum)).size;
+        g.best = Math.min(...voters.map((m) => rankOf(m.siglum)), Infinity);
+        g.form = (voters.slice().sort((x, y) => rankOf(x.siglum) - rankOf(y.siglum))[0] || g.members[0]);
+      }
+      const voting = groups.filter((g) => g.votes > 0);
+      voting.sort((x, y) => y.votes - x.votes || x.best - y.best);
+      const total = voting.reduce((sum, g) => sum + g.votes, 0);
+      let decided = 'same';
+      let winner = voting[0] || null;
+      if (voting.length > 1) {
+        decided = voting[0].votes === voting[1].votes ? 'trust' : voting[0].votes * 2 > total ? 'majority' : 'plurality';
+      }
+      const key = t.colIds[a] + ':' + t.colIds[z];
+      const picked = t.picks[key];
+      if (picked) {
+        const g = groups.find((x) => x.members.some((m) => m.label === picked));
+        if (g) { winner = g; decided = 'chosen'; }
+      }
+      const others = voting.length > 1 || (voting.length === 1 && groups.length > 1) || missing.length > 0;
+      units.push({
+        from: a, to: z, fromId: t.colIds[a], toId: t.colIds[z], decided, differs: voting.length > 1, others,
+        text: winner ? winner.form.text : '', form: winner ? winner.form.label : null, reading: winner ? winner.form.n : '', winner, groups: voting.concat(groups.filter((g) => !g.votes)), missing, total,
+      });
+    });
+    const count = { words: 0, differ: 0, majority: 0, plurality: 0, trust: 0, chosen: 0 };
+    for (const u of units) {
+      if (u.text.replace(NOT_LETTERS, '')) count.words++;
+      if (u.differs) { count.differ++; count[u.decided]++; }
+    }
+    // a choice whose columns no longer make up one word has not been lost: it is told
+    const live = new Set(units.map((u) => u.fromId + ':' + u.toId));
+    const orphaned = Object.keys(t.picks).filter((k) => !live.has(k));
+    return { units, count, orphaned, text: units.map((u) => u.text).join('') };
   };
 
   /* ---------- places worth a look ---------- */
@@ -824,6 +974,11 @@
     next.linkSeq = old.linkSeq || 0;
     next.cuts = { add: {}, remove: {} };
     for (const side of ['add', 'remove']) for (const id of Object.keys((old.cuts && old.cuts[side]) || {})) if (live.has(+id)) next.cuts[side][id] = 1;
+    next.picks = {};
+    for (const [key, label] of Object.entries(old.picks || {})) {
+      const [f, z] = key.split(':').map(Number);
+      if (live.has(f) && live.has(z) && next.states[label]) next.picks[key] = label;
+    }
     next.review = review;
     next.ops = [];
     next.checked = !!old.checked && !review.length && !free.length && kept.length > 0;

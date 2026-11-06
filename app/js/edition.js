@@ -416,6 +416,7 @@ To open it, use Import edition package on Manuscribe's start screen.
         const v = sig.value.trim();
         if (!v || ed.witnesses.some((x) => x !== w && x.siglum === v)) { U.toast('Each witness needs its own siglum', 'warn'); sig.value = w.siglum; return; }
         for (const units of Object.values(ed.coverage || {})) for (const cells of Object.values(units)) if (cells[w.siglum]) { cells[v] = cells[w.siglum]; delete cells[w.siglum]; }
+        if (ed.trust) ed.trust = ed.trust.map((x) => (x === w.siglum ? v : x));
         w.siglum = v;
         await saveEdition(ed);
         redraw();

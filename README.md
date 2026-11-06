@@ -464,7 +464,27 @@ and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with it
   corpus. It must spell the same text as the block, or it is refused, so that every reading keeps its place in the
   manuscript. An imported alignment stays until its text changes or you choose **Align again**.
 
-#### Correcting the table
+#### Reading the text, word by word
+
+The table opens on **Text**: the block as most witnesses read it, word by word, with every word where the witnesses
+differ coloured. Click one, or press **N** and **P**, to see its readings and who has each. The scan of the line
+appears below, if the witness has its PDF here.
+
+- **Most witnesses win.** For each word, the reading most witnesses have is proposed. A witness has one vote: its text
+  before correction does not vote, and a witness whose text is lost here abstains.
+- **Ties go to the witness you trust most.** Before the first collation you are asked to put the witnesses in order,
+  most trusted first; **Trust order…** changes it at any time, and nothing has to be aligned again.
+- **Only real differences are marked.** Readings that differ only in spelling the normalisation rules ignore, or only in
+  spacing and punctuation, count as one reading. A long compound with differences far apart is divided around them.
+- **Your choice:** the buttons, or the keys 1 to 9, choose another reading. **Follow the votes again** takes it back,
+  and Undo works as everywhere. **Join with the next word** makes two words one place of variation.
+- **Go through** can be set to only the ties, or only the places you have not chosen yet.
+- **Save** can write the proposed text with its differences listed under it.
+
+The proposed text is a starting point for your decisions, not an edition. The letters underneath decide which words
+line up, so if a word's readings look wrong, **See the letters** opens the letter table at that place.
+
+#### Correcting the letters
 
 Select a cell by clicking it or with the arrow keys; Shift selects several. Everything can be undone, including
 after closing and reopening.
