@@ -114,5 +114,27 @@
         U.el('button', { class: 'btn', title: 'Freeze a version, check it, and make every output of it at once', dataset: { action: 'issue' }, onclick: () => ME.ExchangeView.issue(ed, list, redraw) }, 'Issue edition…')));
   };
 
+  /* ---------- help for the edition screen ---------- */
+
+  Steps.help = function () {
+    const rows = (items) => U.el('table', { class: 'keys' }, items.map(([a, b]) => U.el('tr', null, U.el('td', null, U.el('kbd', null, a)), U.el('td', null, b))));
+    return UI.modal({ title: 'The edition, step by step', wide: true, body: U.el('div', { class: 'help-body' },
+      U.el('ol', { class: 'st-list' },
+        U.el('li', null, U.el('strong', null, 'Witnesses: '), 'add the transcriptions of your manuscripts, and check that their citation IDs match.'),
+        U.el('li', null, U.el('strong', null, 'Collate: '), 'line them up, block by block. Change… says what counts as the same reading.'),
+        U.el('li', null, U.el('strong', null, 'Edit: '), 'open a block, and decide where the witnesses differ. The proposal is the reading of most witnesses, or of the most trusted.'),
+        U.el('li', null, U.el('strong', null, 'Analyse: '), 'agreement, trees, a network, copies, your stemma, the concordance and indices, each opened when you need it.'),
+        U.el('li', null, U.el('strong', null, 'Publish: '), 'say how the edition is cited, check the apparatus, and Export… it: a PDF, a reader, TEI, LaTeX and more.')),
+      U.el('p', { class: 'help' }, 'The line under the steps says where the edition stands and offers what comes next. Less used tools are switched on under ⚙ Settings, or all at once with the Full level.'),
+      U.el('h3', null, 'In a block'),
+      rows([
+        ['N  P', 'The next or previous place where the witnesses differ'],
+        ['1 … 9', 'Choose that reading'],
+        ['A', 'Accept the proposal as your decision'],
+        [']  [', 'The next or previous block'],
+        [(U.isMac ? '⌘' : 'Ctrl') + '+Z', 'Undo; with Shift, redo'],
+      ])), buttons: [{ label: 'Close', value: null }] });
+  };
+
   ME.Steps = Steps;
 })(window.ME);

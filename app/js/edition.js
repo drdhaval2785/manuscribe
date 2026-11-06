@@ -653,7 +653,8 @@ To open it, use Import edition package on Manuscribe's start screen.
         title,
         U.el('button', { class: 'btn small primary', title: 'Every output of the edition: print, read, exchange, archive', dataset: { action: 'export' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, workId: ME.CollateView.work, redraw }) }, 'Export…'),
         F.on('share') || (ed.github && ed.github.repo) ? U.el('button', { class: 'btn small', title: 'Compare and merge another copy, GitHub, and the copies kept before merging', dataset: { action: 'share' }, onclick: () => ME.Steps.share(ed, redraw) }, 'Share…') : null,
-        U.el('button', { class: 'btn small icon', title: 'Settings: how much is shown, language features', dataset: { action: 'settings' }, onclick: () => ME.App.showSettings() }, '⚙')),
+        U.el('button', { class: 'btn small icon', title: 'Settings: how much is shown, language features', dataset: { action: 'settings' }, onclick: () => ME.App.showSettings() }, '⚙'),
+        U.el('button', { class: 'btn small icon', title: 'How the edition goes, and its keys', dataset: { action: 'help' }, onclick: () => ME.Steps.help() }, '?')),
       steps, status, remind,
       U.el('div', { class: 'ed-stepbody', dataset: { step } }, body)].filter(Boolean)); // append would write an empty value out as "null"
     scroller.scrollTop = top;

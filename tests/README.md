@@ -29,6 +29,11 @@ apart from `t-features.js`, which starts at the default.
 | `t-assists.js` | PAGE-XML, ALTO and text read; proposed lines never over typed ones and not collated until accepted; error rate; the memorisation test tells a source that reads from one that remembers; the shortcut; NeighborNet gives back a tree and draws 50 witnesses without crossings; coherence; DTS files of version 1.0 |
 | `t-pdf.js` | The PDF typeset in the browser: valid and read back by pdf.js, every glyph in the font, every note on the page of its line over many pages, text searchable, the button; and the owner's package |
 | `t-print.js` | Arabic, Japanese, English and Sanskrit editions from witnesses to print: letters compared as written; the print page laid out with every note on the page of its marker, Arabic right to left; the browser's PDF of it searchable; markers in the direct PDF; notes by line instead |
+| `t-export.js` | One Export: each format the same as from its old button; offered only where it fits; the choice saved and remembered |
+| `t-edit.js` | The table window at Simple: a place shows at most 6 controls; Accept, Emend…, More; going through the blocks; the letter tools in two groups |
+| `t-analyse.js` | The Analyse cards, nothing computed until opened, and the workbench in its parts |
+| `t-tidy.js` | The start screen's three actions and Open…; the transcription bar, the PDF's View menu, the Manuscript tab in folds |
+| `t-survey.js` | At Simple, every screen within the targets of the usability roadmap; and a walk from witnesses to a PDF that follows only the prompts |
 | `t-screens.js` | Copying several lines; with the sample, the trust order, text view, apparatus, workbench, and the reader opened offline |
 
 Some tests use a real edition package: by default `~/Downloads/saroddhara.edition-2.zip`, or the file named in

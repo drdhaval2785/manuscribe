@@ -102,14 +102,14 @@ as `<lb n="…" break="no"/>`. A line ending in a space or a daṇḍa gives a p
 **⌃⌥ + letter**, and on Windows and Linux **Alt + letter**. **⌃⌥D** or **Alt+D** marks a deletion.
 Press **F1** for the full list.
 
-**5. Export.** Click **Export XML** in the top bar. The dialog lists any problems, previews the XML,
+**5. Export.** Click **Export…** in the top bar and choose *TEI XML, or an HTML page*. The dialog lists any problems, previews the XML,
 and offers **Download .xml** and **Download .html**.
 
 ## The screen
 
 | Area | What it holds |
 |---|---|
-| **Top bar** | Your projects, the title, the default layout, the save status, Backup, Export XML, Settings, Help, and a button to show or hide the side panel |
+| **Top bar** | Your projects, the title, the save status, Export… (TEI XML, an HTML page, a backup file), Settings, Help, and a button to show or hide the side panel |
 | **PDF pane** (top) | The scan, with the current line lit up. Its tools: zoom (also Ctrl + wheel), Leaf or whole page, rotate, brightness, contrast, greyscale and invert, and Calibrate |
 | **Middle bar** | Previous and next folio, the folio list, **⧉ XML** (copy this folio), and the tag toolbar. Drag it to resize the panes |
 | **Typing area** (bottom) | The folio you type into. Marginal notes stand outside the red rules, and editorial notes in a panel below the folio |
@@ -125,7 +125,7 @@ and offers **Download .xml** and **Download .html**.
 | **Pañcapāṭha** | Main text in the middle, commentary in the top, right, left and bottom blocks, read in that order | Base text, and commentary with a `<cb>` for each block |
 | **Interlinear** | Main text, with a line of commentary above each line | Base text, and interlinear commentary |
 
-The layout in the top bar is the default for the project. To change a single folio, use the Folio
+The default layout of the project is set in the Manuscript tab, under *Folios and numbering*. To change a single folio, use the Folio
 tab. You can also change the number of lines there, or on any folio with Enter on the last line of a
 block (which adds a line), Backspace in that empty new line (which removes it), or the − and + on a
 block's label.
@@ -395,24 +395,30 @@ The summary does not change by itself while you type. Press **Refresh** after co
 
 An edition brings together several transcriptions of a text. Each witness stays an ordinary
 transcription that you can open and type in, and the edition adds what holds them together. Start with
-**＋ New edition** on the start screen. You can add witnesses from this browser, from XML files or from
-backup files.
+**＋ New edition** on the start screen.
 
-- **Witnesses:** a table of sigla, groups, library, date, script, language, folio sides and whether the PDF
+**The edition goes in five steps,** shown across the top of its screen, each with a count: **1 Witnesses**,
+**2 Collate**, **3 Edit**, **4 Analyse**, **5 Publish**. Each step shows only its own work. The line under the
+steps says where the edition stands, and its button does the next thing: add witnesses, collate, edit, publish.
+Above the steps: **‹ Start**, the title, **Export…** (every output, see [Publishing](#publishing)),
+**Share…** (at the Full level: compare and merge, GitHub, kept copies), **⚙** Settings and **?** help.
+
+- **1 Witnesses:** a table of sigla, groups, library, date, script, language, folio sides and whether the PDF
   is in this browser. Each witness needs its own siglum. Clicking a title opens that witness, and
-  **‹ Edition** in the top bar brings you back.
-- **Works:** which work each part of a witness carries. Two manuscripts' commentaries are compared only if
-  they are the same work here, so a second commentary gets a work of its own.
-- **Citation IDs:** witnesses are compared by the `xml:id` of their paragraphs and verses. The list shows
-  duplicate IDs, automatic IDs, lines outside any paragraph or verse, and IDs a witness lacks, with links to
-  the place. In the grid, click an empty cell to explain the gap: lacuna, not yet transcribed, or outside
-  that witness's scope.
-- **Export package** saves a ZIP of plain files, for backup and for moving between computers or editors;
-  **Import edition package** reads it back. The edition reminds you when it has never been exported, or when
-  the last export is 7 days old and the work has changed. PDFs are never in the package: each is recorded
-  by name, size and SHA-256, and **Relink PDFs…** matches your files to their witnesses by content.
-- **Export for Saktumiva** saves one TEI file per witness of the chosen work, to collate in
-  [Saktumiva](https://chchch.github.io/saktumiva/).
+  **‹ Edition** in the top bar brings you back. **Add witnesses…** adds them from this browser, from XML files
+  or from backup files, and **Relink PDFs…** there matches your PDFs to their witnesses by content.
+  - **Works,** in a fold where witnesses carry more than one: which work each part of a witness carries. Two
+    manuscripts' commentaries are compared only if they are the same work here.
+  - **Citation IDs,** in one line: witnesses are compared by the `xml:id` of their paragraphs and verses.
+    Opened, it lists duplicate IDs, automatic IDs, lines outside any paragraph or verse, and IDs a witness
+    lacks, with links to the place. In the grid, click an empty cell to explain the gap: lacuna, not yet
+    transcribed, or outside that witness's scope.
+- **2 Collate**, **3 Edit**, **4 Analyse** and **5 Publish** are described below.
+- **Export › Edition package** saves a ZIP of plain files, for backup and for moving between computers or
+  editors; **Open…** on the start screen reads it back. The edition reminds you when it has never been exported,
+  or when the last export is 7 days old and the work has changed. PDFs are never in the package: each is
+  recorded by name, size and SHA-256. **Export › TEI for Saktumiva** (with the South Asian pack) saves one TEI
+  file per witness of the chosen work, to collate in [Saktumiva](https://chchch.github.io/saktumiva/).
 
 ### Normalisation
 
@@ -470,9 +476,9 @@ and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with it
 - **How far the witnesses agree:** a table of each pair, over all blocks or over the passages you tick as samples.
   A lacuna or an absent block counts neither way, so lost text never looks like agreement.
 - **Saving and importing:** the table saves as CollateX input, a CollateX table, a TEI corpus for Saktumiva's matrix
-  editor, or Manuscribe's own file. **Import alignment…** reads a file saved by Saktumiva, a CollateX table or a TEI
+  editor, or Manuscribe's own file. **Import alignment…** (under **More**, at the Full level) reads a file saved by Saktumiva, a CollateX table or a TEI
   corpus. It must spell the same text as the block, or it is refused, so that every reading keeps its place in the
-  manuscript. An imported alignment stays until its text changes or you choose **Align again**.
+  manuscript. An imported alignment stays until its text changes or you choose **More › Align again**.
 
 #### Reading the text, word by word
 
@@ -483,7 +489,7 @@ appears below, if the witness has its PDF here.
 - **Most witnesses win.** For each word, the reading most witnesses have is proposed. A witness has one vote: its text
   before correction does not vote, and a witness whose text is lost here abstains.
 - **Ties go to the witness you trust most.** Before the first collation you are asked to put the witnesses in order,
-  most trusted first; **Trust order…** changes it at any time, and nothing has to be aligned again.
+  most trusted first; **Change…** in the Collate step changes it at any time, and nothing has to be aligned again.
 - **Only real differences are marked.** Readings that differ only in spelling the normalisation rules ignore, or only in
   spacing and punctuation, count as one reading. A long compound with differences far apart is divided around them.
 - **Your choice:** the buttons, or the keys 1 to 9, choose another reading. **Follow the votes again** takes it back,
@@ -499,7 +505,7 @@ line up, so if a word's readings look wrong, **See the letters** opens the lette
 In **Text**, every place where the witnesses differ can carry your decision. All of it is optional except the
 choice itself, and each part is one click.
 
-- **Choose a reading** with its button or the keys 1 to 9; **Accept the proposal** (A) makes the proposed one yours.
+- **Choose a reading** with its button or the keys 1 to 9; **Accept** (A) makes the proposed one yours. **Emend…** opens a field for your own text; the crux, lacuna, certainty, reasons, evidence and history are under **More**. **‹ Block** and **Block ›**, or [ and ], go through the blocks of the work without closing the window.
 - **Use my text** for an emendation or a conjecture, with whose it is if not yours.
 - **† crux** marks a corrupt place; **Lacuna** says the text is lost in every witness; **How sure?** sets certain,
   probable or uncertain, and uncertain places get a wavy line in the text.
@@ -512,7 +518,7 @@ choice itself, and each part is one click.
 
 #### The apparatus
 
-**Apparatus**, in the table, shows the edited text of the block and its apparatus; **Edited text and apparatus…** on
+**Apparatus**, in the table, shows the edited text of the block and its apparatus; **Edited text and apparatus…** in the Edit step, on
 the edition screen shows the whole work.
 
 - **How it is written:** negative, positive, or negative with a switch to positive where few witnesses have the lemma;
@@ -529,11 +535,11 @@ the edition screen shows the whole work.
   entry lights up its words. Clicking a word brings its entry into view.
 - **Find where witnesses agree against others**, for instance AK1 and LD1 against AK2. Places where any of them is lost
   are left out.
-- **Save as TEI** writes TEI P5 with the apparatus in parallel segmentation: `<app>`, `<lem>`, `<rdg>`, with `type` for
+- **Export › TEI apparatus** writes TEI P5 with the apparatus in parallel segmentation: `<app>`, `<lem>`, `<rdg>`, with `type` for
   orthographic, before-correction and partly lost readings, `<witDetail>` for lacunae, `cert` for doubt, and the reasons
   as `<note>`. Spelling variants are kept even where they are not printed, so that each witness can be read back out of
-  the file. **Save as text** writes the edited text with its apparatus under it.
-- **Save for DTS** writes the edition as static files in the shape of the
+  the file. **Export › Apparatus as text** writes the edited text with its apparatus under it.
+- **Export › DTS files** (at the Full level) writes the edition as static files in the shape of the
   [Distributed Text Services API, version 1.0](https://dtsapi.org): an entry point, a collection, for each work a
   resource and its navigation by citation ID, the work as TEI, and each block in a `dts:wrapper`. A folder of files
   cannot answer queries, so its URI templates name files, and each navigation file holds the whole tree. A release
@@ -541,11 +547,13 @@ the edition screen shows the whole work.
 
 #### Publishing
 
-Under **Publish**, at the foot of the apparatus, give the editor's name and a version (left empty, the edition is a dated
+In the **Publish** step, give the editor's name, the version, the licence and a DOI if there is one (left empty, the edition is a dated
 draft). Every output then carries the same citation line. To release a version, use **Issue edition…** (see
 [Sharing and releasing](#sharing-and-releasing)): until a version is issued, its outputs say that they are a draft.
 
-- **Reader (one HTML file):** the edited text with its apparatus, the conspectus siglorum and the editorial principles,
+Every output below is in **Export…**, by block or by work.
+
+- **Reader, one HTML file:** the edited text with its apparatus, the conspectus siglorum and the editorial principles,
   in one file that opens from disk and needs no network. Point at a word or an entry to link them; click a reading in an
   entry to read it in the text; **Read** shows the text of any one witness instead; switches show or hide spelling
   variants, singular readings and readings before correction, and colour the words by how much the witnesses differ.
@@ -553,22 +561,22 @@ draft). Every output then carries the same citation line. To release a version, 
 - **Notes are keyed to the text:** each place with an entry has a small number after its reading, counting from 1
   in each block, and its note at the foot of the page begins with the block and that number. Under **How the
   apparatus is written**, *Notes keyed by* can be set to line numbers instead, as in many printed editions.
-- **Print edition (any script):** the edition laid out as pages by the browser itself, so that any language and
+- **PDF, in any script:** the edition laid out as pages by the browser itself, so that any language and
   script is set as the browser sets it: Arabic and Hebrew right to left, Japanese and Chinese without spaces,
   Devanagari with its conjuncts, in any fonts. The page cuts the text into pages with the notes of each page at its
   foot, a note always on the page of its marker; lines are numbered every five, in the margin on the side the text
   starts. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
   **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, the
-  fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Save the print
-  page** saves the same page as one HTML file, to open and print on any computer. Copying text out of Chrome's PDF
+  fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Print page, one HTML file**
+  saves the same page as one HTML file, to open and print on any computer. Copying text out of Chrome's PDF
   keeps every letter in most scripts (an Arabic ligature such as Allah comes out as one sign), but not the letters
   inside Devanagari conjuncts: for Devanagari, the next PDF copies better.
-- **PDF file (Devanagari and Latin):** a PDF made directly, with nothing to print: the text shaped by
+- **PDF file, Devanagari and Latin** (with the South Asian pack): a PDF made directly, with nothing to print: the text shaped by
   [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, with the same title page,
   numbered lines, markers and notes at the foot in series. Copied Devanagari comes out letter for letter, with ि
   and reph where they are drawn, as from most PDFs. It knows only that font, and sets text left to right: for other
   scripts, use the print edition above.
-- **Print edition (LaTeX):** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
+- **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
   variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
   or upload the folder to Overleaf and choose XeLaTeX. Notes are only ever attached at the start of a whole akṣara, so
@@ -576,7 +584,7 @@ draft). Every output then carries the same citation line. To release a version, 
 
 #### Stemmatics
 
-**Stemmatics…** on the edition screen weighs what the variants say about how the witnesses are related. It
+The **Analyse** step weighs what the variants say about how the witnesses are related. Each analysis is a card, computed only when it is opened: *Agreement*, *Trees*, *Network and coherence*, *Copies and contamination*, *Your stemma* and *The whole workbench* (at the Full level, or switched on in Settings), with *Testimonia, parallels, concordance*, *Indices* and, with the South Asian pack, *Metre*. It
 proposes nothing as the stemma: it shows agreement, computed trees and what contradicts your own stemma, so that you
 can judge. A witness whose text is lost at a variant is missing there, and never counts as agreeing.
 
@@ -611,7 +619,7 @@ can judge. A witness whose text is lost at a variant is missing there, and never
 
 #### Commentaries, evidence and indices
 
-A commentary is a work of its own, with its own witnesses, collation and apparatus. **Links to the base text…** on
+A commentary is a work of its own, with its own witnesses, collation and apparatus. **Links to the base text…**, in the Edit step at the Full level, on
 the edition screen says which work it comments on (the main text, unless you say otherwise; a gloss may comment on
 the commentary) and which of its blocks comments on which base blocks. **Propose links where the numbers agree**
 suggests `c2.1` for `2.1`, and sets nothing until you accept. A block may comment on several base blocks, or be marked
@@ -685,7 +693,7 @@ corrections and their log. The table also saves as CSV.
 Editors working on one edition each keep a copy and exchange packages, by email, a shared drive or GitHub. One
 transcriber to a witness avoids most clashes; the rest Manuscribe shows, and never settles by itself.
 
-- **Compare and merge…** on the edition screen reads a package from another editor, or an older one of your own, and
+- **Share › Compare and merge…** reads a package from another editor, or an older one of your own, and
   shows what differs: transcriptions, with the lines that differ; alignments and decisions, block by block; evidence
   and registers; and settings changed on both sides. Every package carries `manifest.json`, the SHA-256 of each of its
   files, and the edition remembers what both copies had at the last exchange. So a change made in one copy only is
@@ -699,13 +707,13 @@ transcriber to a witness avoids most clashes; the rest Manuscribe shows, and nev
   alignment of a block, yours is kept, with all decisions of both. **Nothing is lost:** before every merge both
   copies are kept whole in this browser, until you delete them under **Kept copies**, where each downloads as an
   ordinary package.
-- **GitHub…** keeps the package in a repository: give the owner, repository, branch and folder, and paste a
+- **Share › GitHub…** keeps the package in a repository: give the owner, repository, branch and folder, and paste a
   fine-grained personal access token for that repository with *Contents: read and write*. The token is forgotten when
   the page closes, unless you ask for it to be remembered on this computer. **Send** makes one commit of what has
   changed; it is refused if the repository has changes this copy has not seen, and then **Fetch and merge** brings
   them in, through the same comparison, before you send. PDFs are never sent, and any found in the repository are
   left there and named. This works from a page opened from disk, as from the web.
-- **Issue edition…** releases a version. Give the editor, the licence of the edition, the version, and for each
+- **Issue edition…**, in the Publish step, releases a version. Give the editor, the licence of the edition, the version, and for each
   witness where its images are and what rights there are in them; a DOI too, if you have one. A self-check, after the
   criteria of the Institut für Dokumentologie und Editorik (IDE) for reviewing scholarly digital editions, lists what
   a reviewer would look for and Manuscribe can see; a failure (no title, editor or licence, a problem in the
@@ -722,7 +730,7 @@ transcriber to a witness avoids most clashes; the rest Manuscribe shows, and nev
 
 ### TEI XML
 
-**Export XML** checks the document and lists problems: duplicate `xml:id`s, unclosed quotations, text
+**Export › TEI XML** checks the document and lists problems: duplicate `xml:id`s, unclosed quotations, text
 outside paragraphs. Text outside any paragraph is wrapped in an automatic `<p xml:id="p-auto1">` and
 reported, so mark your paragraphs and verses.
 
@@ -863,7 +871,7 @@ number and sits beside another PDF page. A backup is made first either way.
 
 Your work is saved automatically in the browser on this computer, together with the PDF.
 
-- **Backup** (Ctrl/⌘+S) saves a `.manuscribe.json` file. **Import project file…** on the start screen
+- **Export › Backup file** (Ctrl/⌘+S) saves a `.manuscribe.json` file. **Open…** on the start screen
   reads it back, and reads older `.lipikara.json` files too. Use this to keep a copy and to move to
   another computer.
 - **Automatic backups:** one every 20 minutes while you work, the last 25 kept. To restore one, go to
