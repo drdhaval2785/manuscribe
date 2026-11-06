@@ -259,13 +259,42 @@
     const list = U.el('div', { class: 'ap-list' });
     for (const b of built) {
       const { variants, singular, orthographica } = A.tiers(ed, b.entries);
-      list.append(U.el('h3', null, b.table.unit), U.el('p', { class: 'ap-text' }, b.text.trim()));
-      const entry = (e) => U.el('li', { class: e.review ? 'ap-bad' : e.decision ? 'ap-decided' : '' }, U.el('button', { class: 'link', title: 'Show this place', onclick: () => goRef && goRef(e) }, e.ref), ' ', U.el('span', { class: 'ap-entry', html: U.escXml(A.format(ed, e)).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>') }));
+      // the edited text, with each word that has an entry linked to it
+      const shown = new Set([...variants, ...singular, ...orthographica]);
+      const linkOf = (e) => b.table.unit + '|' + e.fromId;
+      const byFrom = new Map(b.entries.filter((e) => shown.has(e)).map((e) => [e.fromId, e]));
+      let html = '';
+      for (const u of b.proposal.units) {
+        const e = byFrom.get(u.fromId);
+        const t = U.escXml(u.text);
+        if (!e) { html += t; continue; }
+        const lead = (u.text.match(/^\s*/) || [''])[0], tail = (u.text.match(/\s*$/) || [''])[0];
+        const core = u.text.trim() ? U.escXml(u.text.trim()) : '<span class="ct-om">⌀</span>';
+        html += U.escXml(lead) + '<span class="ap-u" data-link="' + U.escAttr(linkOf(e)) + '" title="' + U.escAttr(e.ref) + '">' + core + '</span>' + U.escXml(tail);
+      }
+      list.append(U.el('h3', null, b.table.unit), U.el('p', { class: 'ap-text', html: html.trim() }));
+      const entry = (e) => U.el('li', { class: e.review ? 'ap-bad' : e.decision ? 'ap-decided' : '', dataset: { link: linkOf(e) } }, U.el('button', { class: 'link', title: 'Show this place', onclick: () => goRef && goRef(e) }, e.ref), ' ', U.el('span', { class: 'ap-entry', html: U.escXml(A.format(ed, e)).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>') }));
       if (variants.length) list.append(U.el('ul', { class: 'ap-entries' }, variants.map(entry)));
       if (singular.length) list.append(U.el('div', { class: 'ap-tier' }, 'Singular readings'), U.el('ul', { class: 'ap-entries' }, singular.map(entry)));
-      if (orthographica.length) list.append(U.el('div', { class: 'ap-tier' }, 'Spelling variants'), U.el('ul', { class: 'ap-entries' }, orthographica.map((e) => U.el('li', null, e.ref + ' ' + e.lemma + ' ] ' + e.orth.map((o) => o.text + ' ' + o.wits.join(' ')).join('; ')))));
+      if (orthographica.length) list.append(U.el('div', { class: 'ap-tier' }, 'Spelling variants'), U.el('ul', { class: 'ap-entries' }, orthographica.map((e) => U.el('li', { dataset: { link: linkOf(e) } }, e.ref + ' ' + e.lemma + ' ] ' + e.orth.map((o) => o.text + ' ' + o.wits.join(' ')).join('; ')))));
       if (b.stars.length) list.append(U.el('div', { class: 'ap-tier' }, 'Additional passages'), U.el('ul', { class: 'ap-entries' }, b.stars.map((x) => U.el('li', null, x.id + ' (' + x.wits.join(' ') + '): ' + x.text))));
     }
+    // pointing at a word lights up its entry, and pointing at an entry lights up its words
+    let lit = null;
+    const light = (link) => {
+      if (lit === link) return;
+      for (const el of list.querySelectorAll('.ap-hl')) el.classList.remove('ap-hl');
+      lit = link;
+      if (link) for (const el of list.querySelectorAll('[data-link="' + CSS.escape(link) + '"]')) el.classList.add('ap-hl');
+    };
+    list.addEventListener('mouseover', (ev) => { const el = ev.target.closest('[data-link]'); light(el ? el.dataset.link : null); });
+    list.addEventListener('mouseleave', () => light(null));
+    list.addEventListener('click', (ev) => {
+      const w = ev.target.closest('.ap-u');
+      if (!w) return;
+      const li = list.querySelector('li[data-link="' + CSS.escape(w.dataset.link) + '"]');
+      if (li) { li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); li.classList.add('ap-flash'); setTimeout(() => li.classList.remove('ap-flash'), 900); }
+    });
     const problems = built.flatMap((b) => A.validate(ed, b.table, b));
     const errors = problems.filter((p) => p.level === 'error');
     const checks = U.el('details', { class: 'nv-fold', open: errors.length > 0 }, U.el('summary', null, errors.length ? errors.length + ' problem(s) in the apparatus' + (problems.length > errors.length ? ', ' + (problems.length - errors.length) + ' place(s) to look at' : '') : problems.length ? '✓ No problems; ' + problems.length + ' place(s) to look at' : '✓ The apparatus passes every check'),

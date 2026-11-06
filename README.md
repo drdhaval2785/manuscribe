@@ -515,6 +515,8 @@ the edition screen shows the whole work.
 - **Checks:** each witness cited once in each entry, no unknown siglum, group sigla that stand for exactly their
   witnesses, each lemma the edited text and with a witness unless emended, no witness cited where its text is lost,
   and decisions waiting for review. Ties settled only by your trust order are listed to look at.
+- **Text and apparatus are linked:** pointing at a word in the edited text lights up its entry, and pointing at an
+  entry lights up its words. Clicking a word brings its entry into view.
 - **Find where witnesses agree against others**, for instance AK1 and LD1 against AK2. Places where any of them is lost
   are left out.
 - **Save as TEI** writes TEI P5 with the apparatus in parallel segmentation: `<app>`, `<lem>`, `<rdg>`, with `type` for
