@@ -647,3 +647,12 @@ body.no-project #topbar, body.no-project #main { visibility: hidden; }
 .xv-checks li { padding: 2px 0; }
 .xv td input[type=text] { width: 100%; min-width: 12em; }
 .ct-conflict ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* text proposed by a program, not yet accepted */
+.line.proposed { color: #5a4a8a; background: repeating-linear-gradient(90deg, rgba(120, 100, 180, 0.07) 0 6px, transparent 6px 12px); text-decoration: underline dotted rgba(90, 74, 138, 0.6); text-underline-offset: 4px; }
+.proposed-panel { background: #f1edf8; border: 1px solid #d6cdea; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
+table.sources td .help { font-size: 11px; }
+.nv-ok { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: #e9f6ea; border: 1px solid #b9dcbc; font-size: 13px; }
+.sv-net .sv-edge { stroke: #6b5a3e; stroke-width: 1.4; }
+.sv-net .sv-edge:hover { stroke: #c2410c; stroke-width: 3; }
+.sv-net .sv-node { fill: #6b5a3e; }

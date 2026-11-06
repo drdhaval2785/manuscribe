@@ -47,7 +47,7 @@
         for (const c of cells) if (c >= 0) counts.set(c, (counts.get(c) || 0) + 1);
         if (counts.size < 2) continue; // no variation among the witnesses analysed
         if (s.informativeOnly && [...counts.values()].filter((n) => n >= 2).length < 2) continue;
-        chars.push({ ref: e.ref, unit: e.unit, label: e.lemma, states, cells, fromId: e.fromId });
+        chars.push({ ref: e.ref, unit: e.unit, label: e.lemma, states, cells, fromId: e.fromId, initial: states.indexOf(e.lemma) });
       }
     }
     return { taxa, chars, settings: s };
@@ -524,6 +524,252 @@
       + 'BEGIN CHARACTERS;\n  DIMENSIONS NCHAR=' + keep.length + ';\n  FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="' + SYMBOLS.split('').join(' ') + '";\n'
       + '  CHARSTATELABELS\n' + labels + ';\n  MATRIX\n' + rows.join('\n') + '\n  ;\nEND;\n';
     return { text, dropped };
+  };
+
+  /* ---------- NeighborNet ---------- */
+
+  /* A circular order of the witnesses, by the agglomeration of NeighborNet (Bryant and Moulton 2004), as in
+     SplitsTree, which is GPL-3.0: clusters of one or two nodes are joined, and three nodes are reduced to two,
+     the reductions being undone at the end to give the order. D: square distances, null where unknown.
+     -> [taxon indices] */
+  S.circularOrder = function (D0) {
+    const ntax = D0.length;
+    if (ntax <= 3) return Array.from({ length: ntax }, (_, i) => i);
+    let max = 0;
+    for (const row of D0) for (const v of row) if (v !== null && v > max) max = v;
+    const size = 3 * ntax + 4;
+    const D = Array.from({ length: size }, () => new Float64Array(size));
+    for (let i = 0; i < ntax; i++) for (let j = 0; j < ntax; j++) D[i + 1][j + 1] = i === j ? 0 : D0[i][j] === null ? max : D0[i][j];
+    const mk = (id) => ({ id, nbr: null, ch1: null, ch2: null, next: null, prev: null, Sx: 0, Rx: 0 });
+    const head = mk(0);
+    for (let i = ntax; i >= 1; i--) { const t = mk(i); t.next = head.next; head.next = t; }
+    for (let t = head; t.next; t = t.next) t.next.prev = t;
+    const amalgs = [];
+    let numNodes = ntax;
+    const cd = (p, q) => {
+      if (!p.nbr && !q.nbr) return D[p.id][q.id];
+      if (p.nbr && !q.nbr) return (D[p.id][q.id] + D[p.nbr.id][q.id]) / 2;
+      if (!p.nbr && q.nbr) return (D[p.id][q.id] + D[p.id][q.nbr.id]) / 2;
+      return (D[p.id][q.id] + D[p.id][q.nbr.id] + D[p.nbr.id][q.id] + D[p.nbr.id][q.nbr.id]) / 4;
+    };
+    const agg3 = (x, y, z) => {
+      const u = mk(numNodes + 1), v = mk(numNodes + 2);
+      u.ch1 = x; u.ch2 = y; v.ch1 = y; v.ch2 = z;
+      u.next = x.next; u.prev = x.prev; if (u.next) u.next.prev = u; if (u.prev) u.prev.next = u;
+      v.next = z.next; v.prev = z.prev; if (v.next) v.next.prev = v; if (v.prev) v.prev.next = v;
+      if (y.next) y.next.prev = y.prev; if (y.prev) y.prev.next = y.next;
+      u.nbr = v; v.nbr = u;
+      for (let p = head.next; p; p = p.next) {
+        D[u.id][p.id] = D[p.id][u.id] = (2 / 3) * D[x.id][p.id] + D[y.id][p.id] / 3;
+        D[v.id][p.id] = D[p.id][v.id] = (2 / 3) * D[z.id][p.id] + D[y.id][p.id] / 3;
+      }
+      D[u.id][u.id] = D[v.id][v.id] = 0;
+      amalgs.push(u);
+      numNodes += 2;
+      return u;
+    };
+    const rx = (z, Cx, Cy) => {
+      let r = 0;
+      for (let p = head.next; p; p = p.next) {
+        if (p === Cx || p === Cx.nbr || p === Cy || p === Cy.nbr || !p.nbr) r += D[z.id][p.id];
+        else r += D[z.id][p.id] / 2;
+      }
+      return r;
+    };
+    let active = ntax, clusters = ntax;
+    while (active > 3) {
+      if (active === 4 && clusters === 2) {
+        const p = head.next;
+        const q = p.next !== p.nbr ? p.next : p.next.next;
+        if (D[p.id][q.id] + D[p.nbr.id][q.nbr.id] < D[p.id][q.nbr.id] + D[p.nbr.id][q.id]) agg3(p, q, q.nbr);
+        else agg3(p, q.nbr, q);
+        break;
+      }
+      for (let p = head.next; p; p = p.next) p.Sx = 0;
+      for (let p = head.next; p; p = p.next) {
+        if (p.nbr && p.nbr.id < p.id) continue;
+        for (let q = p.next; q; q = q.next) {
+          if (q.nbr && (q.nbr.id < q.id || q.nbr === p)) continue;
+          const d = cd(p, q);
+          p.Sx += d; if (p.nbr) p.nbr.Sx += d;
+          q.Sx += d; if (q.nbr) q.nbr.Sx += d;
+        }
+      }
+      let Cx = null, Cy = null, best = 0;
+      for (let p = head.next; p; p = p.next) {
+        if (p.nbr && p.nbr.id < p.id) continue;
+        for (let q = head.next; q !== p; q = q.next) {
+          if (q.nbr && q.nbr.id < q.id) continue;
+          if (q.nbr === p) continue;
+          const Q = (clusters - 2) * cd(p, q) - p.Sx - q.Sx;
+          if (!Cx || Q < best) { Cx = p; Cy = q; best = Q; }
+        }
+      }
+      let x = Cx, y = Cy;
+      if (Cx.nbr || Cy.nbr) {
+        Cx.Rx = rx(Cx, Cx, Cy); if (Cx.nbr) Cx.nbr.Rx = rx(Cx.nbr, Cx, Cy);
+        Cy.Rx = rx(Cy, Cx, Cy); if (Cy.nbr) Cy.nbr.Rx = rx(Cy.nbr, Cx, Cy);
+      }
+      let m = clusters;
+      if (Cx.nbr) m++;
+      if (Cy.nbr) m++;
+      best = (m - 2) * D[Cx.id][Cy.id] - Cx.Rx - Cy.Rx;
+      if (Cx.nbr) { const Q = (m - 2) * D[Cx.nbr.id][Cy.id] - Cx.nbr.Rx - Cy.Rx; if (Q < best) { x = Cx.nbr; y = Cy; best = Q; } }
+      if (Cy.nbr) { const Q = (m - 2) * D[Cx.id][Cy.nbr.id] - Cx.Rx - Cy.nbr.Rx; if (Q < best) { x = Cx; y = Cy.nbr; best = Q; } }
+      if (Cx.nbr && Cy.nbr) { const Q = (m - 2) * D[Cx.nbr.id][Cy.nbr.id] - Cx.nbr.Rx - Cy.nbr.Rx; if (Q < best) { x = Cx.nbr; y = Cy.nbr; } }
+      if (!x.nbr && !y.nbr) { x.nbr = y; y.nbr = x; clusters--; }
+      else if (!x.nbr) { agg3(x, y, y.nbr); active--; clusters--; }
+      else if (!y.nbr || active === 4) { agg3(y, x, x.nbr); active--; clusters--; }
+      else { const x2 = x.nbr, y2 = y.nbr; const u = agg3(x2, x, y); agg3(u, u.nbr, y2); active -= 2; clusters--; }
+    }
+    // undo the reductions
+    let x = head.next;
+    const y0 = x.next, z0 = y0.next;
+    z0.next = x; x.prev = z0;
+    while (amalgs.length) {
+      let u = amalgs.pop();
+      let a = u.ch1;
+      const b = u.ch2;
+      let v = u.nbr;
+      let c = v.ch2;
+      if (v !== u.next) { const t = u; u = v; v = t; const t2 = a; a = c; c = t2; }
+      a.prev = u.prev; a.prev.next = a; a.next = b;
+      b.prev = a; b.next = c;
+      c.prev = b; c.next = v.next; c.next.prev = c;
+      x = a;
+    }
+    while (x.id !== 1) x = x.next;
+    const order = [];
+    let t = x;
+    do { order.push(t.id - 1); t = t.next; } while (t !== x && order.length <= ntax);
+    return order;
+  };
+
+  /* Weights for every split that is circular for the order, by least squares with no weight below zero, solved by
+     accelerated projected gradient with the sums of a split system taken in O(n²) from prefix sums.
+     -> {order, splits: [{side: [taxa], weight}], fit} */
+  S.neighbornet = function (D0, opts) {
+    const n = D0.length;
+    const order = S.circularOrder(D0);
+    if (n < 3) return { order, splits: [], fit: 1 };
+    let maxD = 0;
+    for (const row of D0) for (const v of row) if (v !== null && v > maxD) maxD = v;
+    const d = Array.from({ length: n }, (_, a) => Float64Array.from({ length: n }, (__, b) => { const v = D0[order[a]][order[b]]; return a === b ? 0 : v === null ? maxD : v; }));
+    // W[s][e], 1 <= s <= e <= n-1: the split whose side is positions s..e
+    const W = Array.from({ length: n }, () => new Float64Array(n));
+    const P = Array.from({ length: n + 1 }, () => new Float64Array(n + 1));
+    const rect = (s1, s2, e1, e2) => (s1 > s2 || e1 > e2 ? 0 : P[s2 + 1][e2 + 1] - P[s1][e2 + 1] - P[s2 + 1][e1] + P[s1][e1]);
+    const forward = (w, out) => {
+      for (let s = 0; s < n; s++) for (let e = 0; e < n; e++) P[s + 1][e + 1] = w[s][e] + P[s][e + 1] + P[s + 1][e] - P[s][e];
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) { const v = rect(1, a, a, b - 1) + rect(a + 1, b, b, n - 1); out[a][b] = out[b][a] = v; }
+    };
+    const Q = Array.from({ length: n + 1 }, () => new Float64Array(n + 1));
+    const RS = new Float64Array(n + 1);
+    const adjoint = (r, g) => {
+      for (let a = 0; a < n; a++) { let rs = 0; for (let b = 0; b < n; b++) rs += r[a][b]; RS[a + 1] = RS[a] + rs; }
+      for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) Q[a + 1][b + 1] = r[a][b] + Q[a][b + 1] + Q[a + 1][b] - Q[a][b];
+      for (let s = 1; s < n; s++) for (let e = s; e < n; e++) g[s][e] = RS[e + 1] - RS[s] - (Q[e + 1][e + 1] - Q[s][e + 1] - Q[e + 1][s] + Q[s][s]);
+    };
+    const mat = () => Array.from({ length: n }, () => new Float64Array(n));
+    const fit = mat(), res = mat(), grad = mat();
+    // the largest eigenvalue of AᵀA, by power iteration, for the step
+    const v = mat();
+    for (let s = 1; s < n; s++) for (let e = s; e < n; e++) v[s][e] = 1;
+    let L = 1;
+    for (let it = 0; it < 40; it++) {
+      forward(v, fit); adjoint(fit, grad);
+      let norm = 0;
+      for (let s = 1; s < n; s++) for (let e = s; e < n; e++) norm += grad[s][e] * grad[s][e];
+      norm = Math.sqrt(norm) || 1;
+      L = norm;
+      for (let s = 1; s < n; s++) for (let e = s; e < n; e++) v[s][e] = grad[s][e] / norm;
+    }
+    // L is the norm of AᵀA v for unit v: near the largest eigenvalue
+    const step = 1 / (L * 1.05);
+    const y = mat(), prev = mat();
+    let t = 1;
+    const iters = (opts && opts.iterations) || 4000;
+    let sse = 0, sst = 0;
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) sst += d[a][b] * d[a][b];
+    for (let it = 0; it < iters; it++) {
+      forward(y, fit);
+      for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) res[a][b] = a === b ? 0 : fit[a][b] - d[a][b];
+      adjoint(res, grad);
+      let change = 0;
+      for (let s = 1; s < n; s++) for (let e = s; e < n; e++) { prev[s][e] = W[s][e]; W[s][e] = Math.max(0, y[s][e] - step * grad[s][e]); change = Math.max(change, Math.abs(W[s][e] - prev[s][e])); }
+      const t2 = (1 + Math.sqrt(1 + 4 * t * t)) / 2;
+      for (let s = 1; s < n; s++) for (let e = s; e < n; e++) y[s][e] = W[s][e] + ((t - 1) / t2) * (W[s][e] - prev[s][e]);
+      t = t2;
+      if (change < 1e-10 && it > 50) break;
+    }
+    forward(W, fit);
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) sse += (fit[a][b] - d[a][b]) ** 2;
+    let wmax = 0;
+    for (let s = 1; s < n; s++) for (let e = s; e < n; e++) wmax = Math.max(wmax, W[s][e]);
+    const splits = [];
+    for (let s = 1; s < n; s++) for (let e = s; e < n; e++) if (W[s][e] > wmax * 1e-6) splits.push({ s, e, side: order.slice(s, e + 1), weight: W[s][e] });
+    return { order, splits, fit: sst ? 1 - sse / sst : 1 };
+  };
+
+  /* A drawing of the splits as an outline (after Bagci, Bryant and Huson 2021): each split is a pair of parallel
+     edges, as long as its weight, pointing towards the middle of its side; the first witness of the order sits at the
+     origin and the outline passes every witness in order. -> {path: [[x, y, split]], at: [[x, y] per position]} */
+  S.outline = function (nn) {
+    const n = nn.order.length;
+    const vec = (sp) => { const th = Math.PI * (sp.s + sp.e) / n; return [sp.weight * Math.cos(th), sp.weight * Math.sin(th)]; };
+    let x = 0, y = 0;
+    const path = [[0, 0, null]];
+    const at = [[0, 0]];
+    for (let k = 0; k < n; k++) {
+      const phi = 2 * Math.PI * k / n;
+      const steps = [];
+      for (const sp of nn.splits) {
+        const [vx, vy] = vec(sp);
+        if (sp.s === k + 1) steps.push({ sp, dx: vx, dy: vy });
+        if (sp.e === k) steps.push({ sp, dx: -vx, dy: -vy });
+      }
+      const rel = (st) => { let a = Math.atan2(st.dy, st.dx) - phi; while (a < 0) a += 2 * Math.PI; while (a >= 2 * Math.PI) a -= 2 * Math.PI; return a; };
+      steps.sort((a, b) => rel(a) - rel(b));
+      for (const st of steps) { x += st.dx; y += st.dy; path.push([x, y, st.sp]); }
+      if (k + 1 < n) at.push([x, y]);
+    }
+    return { path, at };
+  };
+
+  /* ---------- coherence ---------- */
+
+  /* Pre-genealogical coherence, as in the Coherence-Based Genealogical Method: for each witness, every other one
+     with the share of places where they agree. With it, a simple genealogical coherence in which the reading of the
+     edited text is taken as the source of the others at each place (A, the initial text, among the witnesses): a
+     witness is a potential ancestor of another if it has the earlier reading more often than the later.
+     -> {names, rows: [[{witness, eq, pass, perc, prior, posterior, norel, ancestor, rank}]]} */
+  S.coherence = function (m) {
+    const n = m.taxa.length;
+    const names = m.taxa.concat('A');
+    const read = (c, t) => (t === n ? c.initial : c.cells[t]);
+    const rows = names.map((_, w) => {
+      const out = [];
+      for (let x = 0; x <= n; x++) {
+        if (x === w) continue;
+        let eq = 0, pass = 0, prior = 0, posterior = 0, norel = 0;
+        for (const c of m.chars) {
+          const a = read(c, w), b = read(c, x);
+          if (a < 0 || b < 0) continue;
+          pass++;
+          if (a === b) { eq++; continue; }
+          if (c.initial < 0) norel++;
+          else if (b === c.initial) prior++; // the other has the earlier reading
+          else if (a === c.initial) posterior++;
+          else norel++;
+        }
+        out.push({ witness: names[x], eq, pass, perc: pass ? eq / pass : null, prior, posterior, norel, ancestor: prior > posterior });
+      }
+      out.sort((p, q) => (q.perc === null ? -1 : q.perc) - (p.perc === null ? -1 : p.perc));
+      let r = 0;
+      for (const o of out) if (o.ancestor) o.rank = ++r;
+      return out;
+    });
+    return { names, rows };
   };
 
   ME.Stemma = S;

@@ -870,6 +870,7 @@
   reg({ id: 'next', label: 'Next folio side', key: 'PageDown', alt: ['BracketRight'], group: 'nav', desc: 'Go to the next folio side.', run: () => App().step(1) });
   reg({ id: 'prev', label: 'Previous folio side', key: 'PageUp', alt: ['BracketLeft'], group: 'nav', desc: 'Go to the previous folio side.', run: () => App().step(-1) });
   reg({ id: 'translit', label: 'Toggle transliteration input', key: 'K', group: 'tools', desc: 'Switch the typing scheme (e.g. Harvard-Kyoto → IAST) on/off.', run: () => App().toggleTranslit() });
+  reg({ id: 'accept', label: 'Accept a proposed line', key: 'Y', group: 'tools', desc: 'Accept the line as read, once you have corrected what a recognition program or AI proposed. With Shift, every proposed line on this folio side.', run: () => App().acceptProposed(false), shiftRun: () => App().acceptProposed(true) });
   reg({ id: 'help', label: 'Keyboard shortcuts & tag guide', key: 'Slash', group: 'tools', desc: 'Show all shortcuts.', run: () => App().showHelp() });
   Commands.REG = REG;
 

@@ -114,6 +114,7 @@
       boxEl.append(nums, linesEl, makeBoxTag(box, n, g.type));
       el.appendChild(boxEl);
     }
+    if (ME.HTR) ME.HTR.mark(el, project, entry.label);
     return el;
   };
 

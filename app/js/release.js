@@ -129,6 +129,7 @@
       if (ME.LayersView) out.push({ name: dir + 'indices.txt', data: ME.LayersView.indicesText(ed, built) });
       for (const f of await ME.Publish.texFiles(ed, list, built)) out.push({ name: dir + 'latex/' + f.name, data: f.data });
     }
+    if (ME.DTS) out.push(...ME.DTS.files(ed, works, 'output/dts/'));
     out.push({ name: 'CITATION.cff', data: R.cff(ed) });
     out.push({ name: '.zenodo.json', data: R.zenodo(ed, principles) });
     out.push({ name: 'RELEASE.txt', data: ME.Publish.citation(ed) + '\n\nIssued on ' + ed.issued.date + ' with Manuscribe ' + ME.VERSION + '.\n\nSelf-check, after the IDE criteria for reviewing scholarly digital editions:\n'

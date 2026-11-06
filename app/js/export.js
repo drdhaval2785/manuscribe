@@ -320,7 +320,13 @@
     for (const id of ctx.works) if (!project.works.some((w) => w.id === id)) ctx.warn('A quotation refers to a cited work that has been deleted (' + id + ').');
     fileDesc.children.push(sourceDesc);
     const today = new Date().toISOString().slice(0, 10);
-    return node('teiHeader', {}, [fileDesc, node('revisionDesc', {}, [node('change', { when: today }, ['Exported from Manuscribe.'])])]);
+    // programs whose output was brought in as proposed text, each with its model, version, date and prompt hash
+    const sources = project.sources || [];
+    const encoding = sources.length ? [node('encodingDesc', {}, [node('appInfo', {}, sources.map((s) => node('application', Object.assign({ ident: (s.software || s.model || 'program').replace(/[^\w.-]+/g, '_') }, { version: s.version || 'unknown' }, s.date ? { when: s.date.slice(0, 10) } : {}), [
+      node('label', {}, [s.model || s.software || 'Unnamed program']),
+      node('desc', {}, ['Text proposed by ' + (ME.HTR ? ME.HTR.KINDS[s.kind] || s.kind : s.kind) + (s.format ? ', from ' + s.format : '') + (s.promptHash ? '; prompt SHA-256 ' + s.promptHash : '') + '; lines accepted only after reading by the transcriber.']),
+    ])))])] : [];
+    return node('teiHeader', {}, [fileDesc, ...encoding, node('revisionDesc', {}, [node('change', { when: today }, ['Exported from Manuscribe.'])])]);
   }
 
   /* The xml:id of a cited work is its short label (e.g. NAND), made valid as an XML name and
@@ -379,6 +385,8 @@
       divs.push(buildDiv(tokens, key, ctx));
     }
     if (!divs.length) divs.push(node('div', {}, [node('p', { 'xml:id': 'empty' }, ['(nothing transcribed yet)'])]));
+    const pendingLines = Object.values(project.pages).reduce((a, pg) => a + Object.values(pg.proposed || {}).reduce((b, l) => b + Object.values(l).filter((x) => !x.accepted).length, 0), 0);
+    if (pendingLines) warnings.push({ msg: pendingLines + ' line(s) are text proposed by a program and not yet accepted as read. They are exported as they stand.' });
     if (ctx.autoP) warnings.push({ msg: ctx.autoP + ' passage(s) were not inside a paragraph or verse and were wrapped in automatic <p xml:id="…-autoN">. Mark paragraphs (' + ME.Commands.keyLabel('P') + ') and verses (' + ME.Commands.keyLabel('V') + ') so that Saktumiva can collate them.' });
     const tei = node('TEI', { xmlns: 'http://www.tei-c.org/ns/1.0' }, [
       header(project, ctx, o.titleSuffix),

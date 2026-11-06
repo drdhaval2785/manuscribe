@@ -27,6 +27,7 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 - [Checking tags and attributes](#checking-tags-and-attributes)
 - [Editions: many witnesses of one text](#editions-many-witnesses-of-one-text)
 - [Exporting](#exporting)
+- [Text proposed by recognition or AI](#text-proposed-by-recognition-or-ai)
 - [Bringing in an existing transcription](#bringing-in-an-existing-transcription)
 - [Folio numbering and missing folios](#folio-numbering-and-missing-folios)
 - [Settings](#settings)
@@ -524,6 +525,11 @@ the edition screen shows the whole work.
   orthographic, before-correction and partly lost readings, `<witDetail>` for lacunae, `cert` for doubt, and the reasons
   as `<note>`. Spelling variants are kept even where they are not printed, so that each witness can be read back out of
   the file. **Save as text** writes the edited text with its apparatus under it.
+- **Save for DTS** writes the edition as static files in the shape of the
+  [Distributed Text Services API, version 1.0](https://dtsapi.org): an entry point, a collection, for each work a
+  resource and its navigation by citation ID, the work as TEI, and each block in a `dts:wrapper`. A folder of files
+  cannot answer queries, so its URI templates name files, and each navigation file holds the whole tree. A release
+  (**Issue edition…**) includes them under `output/dts/`.
 
 #### Publishing
 
@@ -567,6 +573,15 @@ can judge. A witness whose text is lost at a variant is missing there, and never
   stemma leaves the choice open; and the variants that do not fit it.
 - **For other programs:** NEXUS for PAUP* and SplitsTree (variants with more than 32 readings are left out and
   named), the tree as DOT, and the TEI apparatus for teiphy and open-cbgm.
+- **A network (NeighborNet):** where the variants pull two ways, as contamination does, a tree hides it and a network
+  shows it. The circular order is found as in NeighborNet (Bryant and Moulton), and every split fitting it is given
+  a weight by least squares, none below zero; the figure says how much of the distances the splits account for.
+  It is drawn as an outline: two parallel edges for each split, as long as its weight; a box is a witness grouped two
+  ways at once. Point at an edge to see its split.
+- **Coherence**, as in the Coherence-Based Genealogical Method: for a witness, every other one with the share of places
+  where they agree (pre-genealogical coherence). Taking the edited text's reading as the source of the others at each
+  place, a witness that has the earlier reading more often than the later is a potential ancestor, ranked by agreement;
+  **A** stands for the edited text. Full CBGM, with a local stemma at every place, is for open-cbgm, through the TEI.
 
 #### Commentaries, evidence and indices
 
@@ -716,6 +731,28 @@ font. It comes to about 1 MB plus the text. The transcribed folios stand one bel
 they do in the typing area, with a list for jumping to a folio. Anyone can read it without Manuscribe and
 without internet access. It cannot be edited, and it leaves out folios without text.
 
+## Text proposed by recognition or AI
+
+**Import recognised text…** in the Manuscript tab brings in what handwriting or print recognition made, in PAGE-XML
+(as from Transkribus, eScriptorium or Kraken) or ALTO, or the output of any other program, AI included, as plain text
+(a line for each line; a form feed, or a line of three dashes, starts the next page). Say which folio side each page
+is, and for several regions which block each goes to; and what made it: the program, its model, version and date,
+and for AI output the prompt, of which only a SHA-256 hash is kept.
+
+- **Nothing you have typed is replaced.** Each recognised line goes to its own line of the block, and only if that
+  line is empty. A proposed line shows in a lighter colour, dotted, with its source and confidence when you point at it.
+- **Read it, correct it, accept it** with Alt+Y (Ctrl+Alt+Y if that is your modifier); with Shift, every proposed line on the
+  folio side. Until it is accepted a proposed line is **not collated**: it counts as text not yet read, neither
+  agreeing nor differing. The TEI export names each program in the header (`<appInfo>`) and warns of lines not yet
+  accepted.
+- **Error rate:** what each line was when proposed is kept, so the Manuscript tab gives each source's character error
+  rate on the lines you have corrected and accepted.
+- **Does it read, or remember?** A model that knows a famous text may write that text rather than the manuscript's.
+  **Test…** takes the accepted lines of a source and the same passage as printed: wherever the manuscript differs
+  from the print, it looks at what the source proposed. It passes if at least five such places are tested and at most
+  one in ten shows the printed reading. AI output is accepted a line at a time until it passes.
+- Manuscribe sends nothing to any AI service.
+
 ## Bringing in an existing transcription
 
 Choose an XML file in the New transcription dialog, or use **Import transcription XML…** in the
@@ -846,6 +883,8 @@ app/js/
   github.js             the edition in a GitHub repository, through the REST API
   release.js            issuing a version: the self-check, and every output at once
   exchangeview.js       the screens for comparing, GitHub, kept copies and issuing
+  htr.js                text proposed by recognition or AI: PAGE-XML, ALTO and plain text, error rate, memorisation test
+  dts.js                the edition as static files in the shape of DTS 1.0
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor

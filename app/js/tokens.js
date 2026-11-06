@@ -37,7 +37,10 @@
       const started = new Set();
       for (const { label, box, i } of Spans.streamSeq(project, key)) {
         const pg = project.pages[label];
-        const fragment = (pg && pg.boxes && pg.boxes[box] && pg.boxes[box][i]) || '';
+        let fragment = (pg && pg.boxes && pg.boxes[box] && pg.boxes[box][i]) || '';
+        // a proposed line not yet accepted is text not yet read: its markers stay, its words do not count
+        const proposed = pg && pg.proposed && pg.proposed[box] && pg.proposed[box][i];
+        if (proposed && !proposed.accepted && TEI.hasContent(fragment)) fragment = (fragment.match(/<x-marker[^>]*\/>/g) || []).join('') + '<gap reason="not yet proofread" unit="line" quantity="1"/>';
         const has = TEI.hasContent(fragment);
         const meta = pg && pg.lb && pg.lb[box] && pg.lb[box][i];
         const line = { key: label + '/' + box + '/' + i, label, box, i, brk: has && (prev.open || (!!(meta && meta.brk) && !prev.rawSpaced)) };

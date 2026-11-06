@@ -334,7 +334,8 @@
       U.el('p', { class: 'help' }, 'The print edition is a folder for XeLaTeX with reledmac: run xelatex three times, or upload it to Overleaf with the XeLaTeX compiler. The reader’s “Print a draft” is quicker, but it is not typeset.'));
     const exports = U.el('div', { class: 'nv-head' },
       U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.edition.xml', A.tei(ed, built, ed.works.find((k) => k.id === (tables[0] && tables[0].work))), 'application/xml') }, 'Save as TEI'),
-      U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'));
+      U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.apparatus.txt', A.text(ed, built), 'text/plain') }, 'Save as text'),
+      ME.DTS ? U.el('button', { class: 'btn small', title: 'The edition as static files in the shape of the Distributed Text Services API 1.0', onclick: async () => { const work = ed.works.find((k) => k.id === (tables[0] && tables[0].work)); download(fileSafe(ed.title || 'edition') + '.dts.zip', await ME.Zip.write(ME.DTS.files(ed, [{ work, built }])), 'application/zip'); } }, 'Save for DTS') : null);
     return U.el('div', null, settings, checks, list, search, ...(ME.LayersView ? ME.LayersView.folds(ed, built, witnesses, redraw) : []), exports, publish);
   };
 

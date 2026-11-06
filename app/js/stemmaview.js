@@ -15,6 +15,29 @@
 
   /* ---------- drawings ---------- */
 
+  // A NeighborNet as an outline: parallel edges are one split, as long as its weight.
+  function drawNetwork(nn, taxa) {
+    const o = S.outline(nn);
+    const xs = o.path.map((p) => p[0]), ys = o.path.map((p) => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const W = 420, H = 340, pad = 46;
+    const k = Math.min((W - 2 * pad) / ((maxX - minX) || 1), (H - 2 * pad) / ((maxY - minY) || 1));
+    const X = (x) => pad + (x - minX) * k, Y = (y) => pad + (y - minY) * k;
+    const g = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'sv-net', role: 'img', 'aria-label': 'NeighborNet' });
+    for (let i = 1; i < o.path.length; i++) {
+      const [x1, y1] = o.path[i - 1], [x2, y2, sp] = o.path[i];
+      const side = sp.side.map((t) => taxa[t]);
+      const rest = taxa.filter((t) => !side.includes(t));
+      g.append(svg('line', { x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2), class: 'sv-edge' }, svg('title', {}, document.createTextNode(side.join(' ') + '  |  ' + rest.join(' ') + '  (' + sp.weight.toFixed(3) + ')'))));
+    }
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    o.at.forEach(([x, y], pos) => {
+      const dx = x - cx, dy = y - cy, len = Math.hypot(dx, dy) || 1;
+      g.append(svg('circle', { cx: X(x), cy: Y(y), r: 2.5, class: 'sv-node' }), txt(X(x) + 14 * dx / len, Y(y) + 14 * dy / len + 4, taxa[nn.order[pos]], { class: 'sv-leaf', 'text-anchor': Math.abs(dx / len) < 0.3 ? 'middle' : dx > 0 ? 'start' : 'end' }));
+    });
+    return g;
+  }
+
   // A computed tree, rooted at its midpoint, drawn with branch lengths, with bootstrap support at its splits.
   function drawTree(t, taxa, support, reps) {
     const order = S.leafOrder(t);
@@ -137,14 +160,14 @@
 
       // settings, and saved analyses
       const s = state.settings;
-      const set = (k, v) => { state.settings = Object.assign({}, state.settings, { [k]: v }); state.pars = state.boot = state.drop = null; ed.stemma.settings = state.settings; save(); draw(); };
+      const set = (k, v) => { state.settings = Object.assign({}, state.settings, { [k]: v }); state.pars = state.boot = state.drop = state.net = state.co = null; ed.stemma.settings = state.settings; save(); draw(); };
       const tick = (k, label) => U.el('label', null, U.el('input', { type: 'checkbox', checked: !!s[k], onchange: (e) => set(k, e.target.checked) }), ' ' + label);
       const excl = U.el('span', { class: 'ap-pick' }, ed.witnesses.map((w) => U.el('label', null, U.el('input', { type: 'checkbox', checked: s.exclude.includes(w.siglum), onchange: (e) => set('exclude', e.target.checked ? s.exclude.concat(w.siglum) : s.exclude.filter((x) => x !== w.siglum)) }), ' ' + w.siglum)));
       const nameIn = U.el('input', { type: 'text', placeholder: 'a name for this analysis', 'aria-label': 'Name of the analysis' });
       const saved = (ed.stemma.analyses || []).map((an, i) => {
         const now = S.fingerprint(S.matrix(ed, built, an.settings, samples));
         return U.el('li', null, U.el('strong', null, an.name), ' · ' + an.summary + ' · ', U.el('span', { class: 'ed-tag ' + (now === an.fingerprint ? 'ok' : 'warn') }, now === an.fingerprint ? 'same evidence as when saved' : 'the evidence has changed since'),
-          ' ', U.el('button', { class: 'btn small', onclick: () => { state.settings = Object.assign({}, S.DEFAULTS, an.settings); state.pars = state.boot = state.drop = null; draw(); } }, 'Use these settings'),
+          ' ', U.el('button', { class: 'btn small', onclick: () => { state.settings = Object.assign({}, S.DEFAULTS, an.settings); state.pars = state.boot = state.drop = state.net = state.co = null; draw(); } }, 'Use these settings'),
           ' ', U.el('button', { class: 'btn small danger-ghost', onclick: () => { ed.stemma.analyses.splice(i, 1); save(); draw(); } }, 'Remove'));
       });
       body.append(U.el('details', { class: 'nv-fold', open: true }, U.el('summary', null, 'What is analysed'),
@@ -178,6 +201,30 @@
             U.el('button', { class: 'btn small', onclick: () => download(fileSafe(ed.title || 'edition') + '.nj.tre', S.newick(shown, m.taxa) + '\n') }, 'Save as Newick'))),
         U.el('div', null, U.el('h3', null, 'A map of the witnesses'), U.el('div', { class: 'sv-figure' }, drawMap(S.pcoa(D), m.taxa)),
           U.el('p', { class: 'help' }, 'Close witnesses stand close. The two axes carry the most of the differences that two axes can.'))));
+
+      // a network, where the variants do not all fit one tree
+      const netBox = U.el('div');
+      if (state.net) netBox.append(U.el('div', { class: 'sv-figure' }, drawNetwork(state.net, m.taxa)),
+        U.el('p', { class: 'help' }, state.net.splits.length + ' splits; they account for ' + (100 * state.net.fit).toFixed(1) + '% of the distances (least squares). Point at an edge to see its split.'));
+      const coWho = U.el('select', { 'aria-label': 'Witness' }, m.taxa.concat('A').map((x) => U.el('option', { value: x, selected: x === state.coWho }, x === 'A' ? 'A (the edited text)' : x)));
+      const coBox = U.el('div');
+      const showCoherence = () => {
+        state.coWho = coWho.value;
+        const co = state.co || (state.co = S.coherence(m));
+        const rows = co.rows[co.names.indexOf(coWho.value)];
+        coBox.innerHTML = '';
+        coBox.append(U.el('table', { class: 'ed-table sv-small' }, U.el('thead', null, U.el('tr', null, ['Witness', 'Agrees', 'Of places', 'Has the earlier reading', 'Has the later', 'Unrelated', 'Potential ancestor'].map((h) => U.el('th', null, h)))),
+          U.el('tbody', null, rows.map((r) => U.el('tr', null, U.el('td', null, r.witness), U.el('td', { class: 'num' }, pct(r.perc)), U.el('td', { class: 'num' }, String(r.pass)), U.el('td', { class: 'num' }, String(r.prior)), U.el('td', { class: 'num' }, String(r.posterior)), U.el('td', { class: 'num' }, String(r.norel)), U.el('td', { class: 'num' }, r.ancestor ? '#' + r.rank : ''))))));
+      };
+      coWho.addEventListener('change', showCoherence);
+      showCoherence();
+      body.append(U.el('div', { class: 'sv-row' },
+        U.el('div', null, U.el('h3', null, 'A network (NeighborNet)'),
+          U.el('p', { class: 'help' }, 'Where the variants pull in different directions, as contamination does, a tree hides it and a network shows it: boxes mark witnesses grouped two ways at once.'),
+          U.el('button', { class: 'btn small primary', onclick: () => { state.net = S.neighbornet(D); draw(); } }, state.net ? 'Draw again' : 'Draw it'), netBox),
+        U.el('div', null, U.el('h3', null, 'Coherence'),
+          U.el('p', { class: 'help' }, 'As in the Coherence-Based Genealogical Method: each witness’s closest relatives, by the share of places where they agree. Taking the edited text’s reading as the source of the others at each place, a witness with the earlier reading more often than the later is a potential ancestor, ranked by agreement. A stands for the edited text.'),
+          U.el('label', null, 'For ', coWho), coBox)));
 
       // second stage: parsimony
       const parsBox = U.el('div');

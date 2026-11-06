@@ -766,7 +766,7 @@
     U.$$('.side-tab').forEach((t) => t.classList.toggle('sel', t.dataset.tab === tab));
     U.$$('.side-panel').forEach((t) => { t.hidden = t.id !== 'tab-' + tab; });
     if (tab === 'tag') Commands.renderInspector($('tab-tag'), Editor.tagStack());
-    if (tab === 'folio') renderFolioTab();
+    if (tab === 'folio') { renderFolioTab(); proposedPanel(); }
     if (tab === 'works') renderWorksTab();
     if (tab === 'ms') renderMsTab();
   };
@@ -1010,6 +1010,10 @@
       U.el('h4', null, 'Transcription XML'),
       U.el('p', { class: 'help' }, 'Bring in a transcription you already have, to add markup to it. <pb n="0005_1"> is folio 5, first side; <pb n="0005_2"> its back side. Line numbers in <lb n="…"> are kept; on a folio side without <lb> each carriage return starts a new line, and a line that does not end in a space continues its word on the next.'),
       U.el('button', { class: 'btn small', onclick: () => App.pickXml() }, 'Import transcription XML…'),
+      U.el('h4', null, 'Text proposed by a program'),
+      U.el('p', { class: 'help' }, 'Bring in what handwriting or print recognition made (PAGE-XML, as from Transkribus, eScriptorium or Kraken; or ALTO), or the output of any other program, AI included, as plain text. It goes into empty lines only, marked as proposed: read and correct each line, then accept it with ' + Commands.keyLabel('Y') + '. Until then it is not collated. Manuscribe sends nothing to any AI service.'),
+      U.el('button', { class: 'btn small', onclick: () => App.importProposed() }, 'Import recognised text…'),
+      sourcesTable(p),
       U.el('h4', null, 'Tags and attributes'),
       ME.TagSummary.panel(p, () => App.flush(), App.goPlace),
       U.el('h4', null, 'Project file'),
@@ -1020,6 +1024,129 @@
         U.el('button', { class: 'btn small ghost', onclick: () => App.showBackups() }, 'Restore an automatic backup…')),
     );
   }
+
+  /* ---------- text proposed by a program ---------- */
+
+  App.acceptProposed = function (all) {
+    const p = App.project, e = entry(), H = ME.HTR;
+    App.flush();
+    const pend = H.pendingOn(p, e.label);
+    if (!pend.length) { U.toast('No proposed lines on this folio side'); return; }
+    if (all) {
+      const untrusted = [...new Set(pend.map((x) => x.src))].map((id) => H.source(p, id)).filter((s) => !H.trusted(s));
+      if (untrusted.length) { U.toast('Lines from ' + H.describe(untrusted[0]) + ' are accepted one at a time until it passes the memorisation test (Manuscript tab)', 'warn', 7000); return; }
+      for (const x of pend) { H.accept(p, e.label, x.box, x.i); const el = Editor.lineEl(x.box, x.i); if (el) { el.classList.remove('proposed'); el.title = ''; } }
+      U.toast('Accepted ' + pend.length + ' line(s) on this side');
+    } else {
+      const cur = Editor.current;
+      if (!cur || !pend.some((x) => x.box === cur.box && x.i === cur.i)) { U.toast('Put the cursor in a proposed line first'); return; }
+      H.accept(p, e.label, cur.box, cur.i);
+      const el = Editor.lineEl(cur.box, cur.i);
+      if (el) { el.classList.remove('proposed'); el.title = ''; }
+      U.toast('Accepted' + (pend.length > 1 ? '; ' + (pend.length - 1) + ' proposed line(s) left on this side' : ''));
+    }
+    App.changed();
+    App.refreshSidebar();
+  };
+
+  function proposedPanel() {
+    const p = App.project, H = ME.HTR;
+    if (!H) return;
+    const pend = H.pendingOn(p, entry().label);
+    if (!pend.length) return;
+    const srcs = [...new Set(pend.map((x) => x.src))].map((id) => H.source(p, id)).filter(Boolean);
+    $('tab-folio').prepend(U.el('div', { class: 'proposed-panel' },
+      U.el('strong', null, pend.length + ' proposed line(s) on this side'), ' from ' + srcs.map(H.describe).join('; ') + '. Read and correct each, then accept it with ' + Commands.keyLabel('Y') + '.',
+      U.el('div', { class: 'btn-row' }, U.el('button', { class: 'btn small', disabled: !srcs.every(H.trusted), title: srcs.every(H.trusted) ? 'Accept every proposed line on this side as read' : 'AI output is accepted a line at a time until it passes the memorisation test (Manuscript tab)', onclick: () => App.acceptProposed(true) }, 'Accept all on this side'))));
+  }
+
+  function sourcesTable(p) {
+    const H = ME.HTR;
+    if (!H || !(p.sources || []).length) return null;
+    return U.el('table', { class: 'ed-table sources' }, U.el('thead', null, U.el('tr', null, ['Source', 'Lines', 'Accepted', 'Error rate', 'Memorisation', ''].map((h) => U.el('th', null, h)))),
+      U.el('tbody', null, H.stats(p).map((r) => U.el('tr', null,
+        U.el('td', null, H.describe(r.src), U.el('div', { class: 'help' }, H.KINDS[r.src.kind] || r.src.kind)),
+        U.el('td', { class: 'num' }, String(r.proposed)), U.el('td', { class: 'num' }, String(r.accepted)),
+        U.el('td', { class: 'num', title: 'Characters changed by you, out of those in the accepted lines' }, r.cer === null ? '—' : (100 * r.cer).toFixed(1) + '% of ' + r.chars),
+        U.el('td', null, r.src.deviation ? U.el('span', { class: 'ed-tag ' + (r.src.deviation.pass ? '' : 'bad') }, r.src.deviation.pass ? 'passed' : 'failed') : r.src.kind === 'ai' ? U.el('span', { class: 'ed-tag warn' }, 'not tested') : '—'),
+        U.el('td', null, U.el('button', { class: 'btn small', onclick: () => App.testSource(r.src.id) }, 'Test…'))))));
+  }
+
+  App.importProposed = async function () {
+    const p = App.project, H = ME.HTR;
+    App.flush();
+    const files = await new Promise((resolve) => { const inp = U.el('input', { type: 'file', multiple: true, accept: '.xml,.txt,application/xml,text/xml,text/plain' }); inp.addEventListener('change', () => resolve(Array.from(inp.files))); inp.click(); });
+    if (!files.length) return;
+    const pages = [];
+    let meta = {}, format = '';
+    for (const f of files) {
+      try {
+        const r = H.parse(f.name, await f.text());
+        format = format && format !== r.format ? 'mixed' : r.format;
+        if (!meta.software) meta = r.meta;
+        for (const pg of r.pages) pages.push(Object.assign({ file: f.name }, pg));
+      } catch (e) { U.toast('Could not read ' + f.name + ': ' + e.message, 'err', 6000); return; }
+    }
+    if (!pages.length) { U.toast('No lines of text found', 'warn'); return; }
+    const labels = App.entries.map((x) => x.label);
+    const start = App.idx;
+    const pageSel = pages.map((pg, k) => U.el('select', { 'aria-label': 'Folio for page ' + (k + 1) }, U.el('option', { value: '' }, 'leave out'), labels.map((l, j) => U.el('option', { value: l, selected: j === start + k }, l))));
+    const boxes = Model.LAYOUTS[Model.pageLayout(p, entry().label)].boxes;
+    const nRegions = Math.max(...pages.map((pg) => pg.regions.length));
+    const first = pages[0];
+    const regionSel = Array.from({ length: nRegions }, (_, j) => U.el('select', { 'aria-label': 'Block for region ' + (j + 1) }, boxes.map((b) => U.el('option', { value: b, selected: b === 'main' }, Model.BOX_LABEL[b]))));
+    const kind = U.el('select', { 'aria-label': 'What made it' }, Object.entries(H.KINDS).map(([k, t]) => U.el('option', { value: k, selected: k === (format === 'text' ? 'ai' : 'htr') }, t)));
+    const txt = (v, ph, label) => U.el('input', { type: 'text', value: v || '', placeholder: ph || '', 'aria-label': label });
+    const software = txt(meta.software, 'e.g. Transkribus, Kraken', 'Program'), model = txt('', 'e.g. a model name', 'Model'), version = txt(meta.version, '', 'Version'), date = txt((meta.date || new Date().toISOString()).slice(0, 10), 'YYYY-MM-DD', 'Date');
+    const prompt = U.el('textarea', { rows: 3, placeholder: 'the prompt given to the AI, exactly; only its SHA-256 hash is kept', 'aria-label': 'Prompt' });
+    const promptRow = U.el('label', { class: 'field' }, U.el('span', null, 'Prompt'), prompt);
+    const showPrompt = () => { promptRow.hidden = kind.value !== 'ai'; };
+    kind.addEventListener('change', showPrompt); showPrompt();
+    const field = (label, el) => U.el('label', { class: 'field' }, U.el('span', null, label), el);
+    const body = U.el('div', { class: 'xv' },
+      U.el('p', { class: 'help' }, files.length + ' file(s), ' + (format === 'text' ? 'plain text' : format) + ', ' + pages.length + ' page(s), ' + pages.reduce((a, pg) => a + pg.regions.reduce((b, r) => b + r.lines.length, 0), 0) + ' line(s). Lines go only into empty lines; nothing you have typed is changed.'),
+      U.el('h4', null, 'Which folio side each page is'),
+      U.el('table', { class: 'ed-table' }, U.el('tbody', null, pages.map((pg, k) => U.el('tr', null, U.el('td', null, (pg.image || pg.file) + (pages.length > 1 ? ' · page ' + (k + 1) : '')), U.el('td', null, pageSel[k]))))),
+      nRegions > 1 ? U.el('h4', null, 'Which block each region of text goes to') : null,
+      nRegions > 1 ? U.el('table', { class: 'ed-table' }, U.el('tbody', null, regionSel.map((sel, j) => U.el('tr', null, U.el('td', null, 'Region ' + (j + 1) + (first.regions[j] && first.regions[j].type ? ' (' + first.regions[j].type + ')' : '') + (first.regions[j] && first.regions[j].lines[0] ? ': ' + first.regions[j].lines[0].text.slice(0, 40) + '…' : '')), U.el('td', null, sel))))) : null,
+      U.el('h4', null, 'What made it'),
+      U.el('div', { class: 'xv-grid' }, field('Kind', kind), field('Program', software), field('Model', model), field('Version', version), field('Date', date)),
+      promptRow);
+    const ok = await UI.modal({ title: 'Import recognised text', body, wide: true, buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Import as proposed', value: true, kind: 'primary' }] });
+    if (!ok) return;
+    let src;
+    try {
+      src = H.addSource(p, { kind: kind.value, software: software.value.trim(), model: model.value.trim(), version: version.value.trim(), date: date.value.trim(), promptHash: kind.value === 'ai' ? await H.hash(prompt.value) : null, format: format === 'text' ? 'plain text' : format, file: files.map((f) => f.name).join(', ') });
+    } catch (e) { U.toast(e.message, 'warn', 6000); return; }
+    await Store.backupNow(p);
+    const res = H.place(p, { pages }, { labels: pageSel.map((s) => s.value), boxes: regionSel.length ? regionSel.map((s) => s.value) : ['main'], src: src.id });
+    App.changed();
+    rerender();
+    U.toast(res.placed + ' line(s) proposed on ' + res.folios.length + ' folio side(s)' + (res.skipped ? '; ' + res.skipped + ' left out where you had typed already' : ''), 'ok', 6000);
+    if ($('tab-ms') && !$('tab-ms').hidden) renderMsTab();
+  };
+
+  App.testSource = async function (srcId) {
+    const p = App.project, H = ME.HTR;
+    App.flush();
+    const s = H.source(p, srcId);
+    const ref = U.el('textarea', { rows: 6, placeholder: 'the same passage as a printed edition has it', 'aria-label': 'Printed text of the passage' });
+    const out = U.el('div');
+    const run = U.el('button', { class: 'btn small primary', onclick: () => {
+      const r = H.deviationTest(p, srcId, ref.value);
+      out.innerHTML = '';
+      if (!r.tested) { out.append(U.el('p', { class: 'nv-warn' }, r.why)); return; }
+      s.deviation = { date: new Date().toISOString().slice(0, 10), places: r.places.length, kept: r.kept, memorised: r.memorised, other: r.other, pass: r.pass };
+      App.changed();
+      out.append(U.el('p', { class: r.pass ? 'nv-ok' : 'nv-warn' }, r.places.length + ' place(s) where the manuscript differs from the printed text: the proposal kept the manuscript’s reading at ' + r.kept + ', wrote the printed one at ' + r.memorised + ', and something else at ' + r.other + '. ' + (r.pass ? 'Passed.' : r.why || 'Failed: it writes the text it knows too often to be accepted a folio at a time.')),
+        U.el('table', { class: 'ed-table' }, U.el('thead', null, U.el('tr', null, ['Manuscript', 'Printed', 'Proposed', ''].map((h) => U.el('th', null, h)))),
+          U.el('tbody', null, r.places.slice(0, 200).map((x) => U.el('tr', null, U.el('td', null, x.manuscript || '—'), U.el('td', null, x.printed || '—'), U.el('td', null, x.proposed || '—'), U.el('td', null, x.verdict === 'kept' ? '✓ kept' : x.verdict === 'memorised' ? 'printed text' : 'other'))))));
+    } }, 'Test');
+    await UI.modal({ title: 'Does it read, or remember?', wide: true, body: U.el('div', { class: 'xv' },
+      U.el('p', { class: 'help' }, 'A model that has seen a famous text may write that text rather than what the manuscript has. This test uses the lines of ' + H.describe(s) + ' that you have corrected and accepted: give the same passage as printed, and wherever your manuscript differs from it, Manuscribe looks at what the source proposed. It passes if at least five such places are tested and at most one in ten shows the printed reading. AI output must pass before its lines can be accepted a folio side at a time.'),
+      ref, U.el('div', { class: 'nv-head' }, run), out), buttons: [{ label: 'Close', value: null }] });
+    renderMsTab();
+  };
 
   App.showBackups = async function () {
     const list = await Store.listBackups(App.project.id);
