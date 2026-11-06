@@ -540,6 +540,32 @@ draft). Every output then carries the same citation line.
   or upload the folder to Overleaf and choose XeLaTeX. Notes are only ever attached at the start of a whole akṣara, so
   that they cannot break a conjunct.
 
+#### Stemmatics
+
+**Stemmatics…** on the edition screen weighs what the variants say about how the witnesses are related. It
+proposes nothing as the stemma: it shows agreement, computed trees and what contradicts your own stemma, so that you
+can judge. A witness whose text is lost at a variant is missing there, and never counts as agreeing.
+
+- **What is analysed:** all passages or only the sample passages; with or without spelling variants; only variants
+  shared by two or more witnesses on each side; witnesses left out (they stay in the data). **Save these settings**
+  keeps them under a name, and says later whether the evidence is still the same.
+- **How far the witnesses agree:** each pair, out of the variants both can be read at, ordered so that close
+  witnesses sit together; and a map on which close witnesses stand close.
+- **A tree by distance** (neighbour joining) with **How sure?** (100 resamplings of the variants), and **the
+  shortest tree** (parsimony) with its length, consistency and retention index. Both are drawn from their
+  midpoint, since a computed tree has no top of its own. Both save as Newick.
+- **Copies, contamination, changes of exemplar:** possible copies (a witness with all the readings another has
+  alone with it, differing only where it stands alone), to be checked against the manuscripts; each witness left out
+  in turn, to see whose absence removes the most extra changes; and, passage by passage, how far one witness agrees
+  with each other one.
+- **Your stemma**, written in DOT, one line from exemplar to copy: `ω -> α; α -> A; α -> B; ω -> C`. Names that are
+  not sigla are lost witnesses, an extant witness may be the exemplar of another, and `B -> C [style=dashed]` is a
+  second source. It is drawn as you type, and **Start my stemma from this tree** begins from the shortest tree.
+  Below it: the archetype the stemma implies, where it differs from your text, with readings in braces where the
+  stemma leaves the choice open; and the variants that do not fit it.
+- **For other programs:** NEXUS for PAUP* and SplitsTree (variants with more than 32 readings are left out and
+  named), the tree as DOT, and the TEI apparatus for teiphy and open-cbgm.
+
 #### Correcting the letters
 
 Select a cell by clicking it or with the arrow keys; Shift selects several. Everything can be undone, including
@@ -734,6 +760,8 @@ app/js/
   collateview.js        the Collation part of the edition screen, and the table
   apparatus.js          the edited text and apparatus: entries, conventions, checks, search, TEI
   publish.js            the reader file and the reledmac edition, with conspectus, principles and citation
+  stemma.js             stemmatics: agreement, distance, trees, parsimony, copies, reconstruction, NEXUS and DOT
+  stemmaview.js         the stemmatic workbench and its drawings
   ui.js                 dialogs and forms
   pdfview.js            the PDF pane and calibration
   editor.js             the folio editor
