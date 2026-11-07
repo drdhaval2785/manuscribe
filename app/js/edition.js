@@ -286,6 +286,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     ed.lastPackage = Date.now();
     await Store.putEdition(ed);
     U.toast('Saved the edition package (' + ed.witnesses.length + ' witnesses). PDFs are not included.', 'ok', 4500);
+    if (ME.Safety) ME.Safety.savedOutside();
   };
 
   // Reads a package into this browser. Witnesses of an edition already here are replaced, each
@@ -468,6 +469,8 @@ To open it, use Import edition package on Manuscribe's start screen.
     const t = now || Date.now();
     const changed = Math.max(ed.modified || 0, ...list.filter((x) => x.p).map((x) => x.p.modified || 0));
     if (!ed.witnesses.length || (ed.lastPackage && changed <= ed.lastPackage)) return null;
+    // backups to a folder keep it safe already
+    if (ME.Safety && ME.Safety.state() === 'ok') return null;
     if (!ed.lastPackage) return 'never';
     const days = Math.floor((t - ed.lastPackage) / 86400000);
     return days >= REMIND_AFTER_DAYS ? days : null;
@@ -828,7 +831,14 @@ To open it, use Import edition package on Manuscribe's start screen.
     };
     Edition.importFile = async (file) => {
       try {
-        const ed = await Edition.importPackage(file, (old, head) => UI.modal({
+        const zip = await ME.Zip.read(file);
+        // a backup of everything (safety.js)
+        if (ME.Safety && ME.Safety.isBackup(zip)) {
+          const n = await ME.Safety.restore(zip);
+          if (n) { U.toast('Restored: ' + n.added + ' added, ' + n.replaced + ' replaced by newer copies, ' + n.kept + ' kept as they were here.', 'ok', 7000); ME.App.showStart(); }
+          return;
+        }
+        const ed = await Edition.importPackage(zip, (old, head) => UI.modal({
           title: 'This edition is already here',
           body: U.el('p', { class: 'confirm-text' }, '“' + (old.title || 'Untitled') + '” already has ' + old.witnesses.length + ' witness(es) in this browser; the package has ' + head.witnesses.length + '. Replacing keeps an automatic backup of each witness first.'),
           buttons: [{ label: 'Cancel', value: null, kind: 'ghost' }, { label: 'Keep both', value: 'copy' }, { label: 'Replace', value: 'replace', kind: 'danger' }],

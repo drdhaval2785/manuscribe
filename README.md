@@ -1003,7 +1003,20 @@ number and sits beside another PDF page. A backup is made first either way.
 
 ## Saving and backups
 
-Your work is saved automatically in the browser on this computer, together with the PDF.
+Your work is saved automatically in the browser on this computer, together with the PDF. Clearing
+the browser's data deletes it, and Safari clears the data of a website not visited for a while
+(not of an installed app), so keep it outside the browser too. The start screen says when it last was.
+
+- **Back up everything** (start screen) saves one file, `Manuscribe backup <date>.zip`, with every
+  transcription and every edition, its collation tables and decisions included. **Open…** reads it
+  back: what is not in the browser is added, and what is there is replaced only where the backup's
+  copy is newer. The PDFs are not in it; Manuscribe asks for each when it is opened.
+- **Keep backups in a folder…** (Chrome and Edge): choose a folder once, in Documents or Dropbox for
+  example, and Manuscribe writes `Manuscribe backup.zip` there by itself, a few minutes after a change
+  and when you leave the window, with a dated copy of each day, the last seven kept. After the
+  browser restarts it may ask once more for permission (**Resume backups**).
+- **A reminder:** after an hour of work kept only in the browser, a bar offers a backup (or, in
+  Chrome and Edge, a folder for backups). **Later** puts it off for an hour.
 
 - **Export › Backup file** (Ctrl/⌘+S) saves a `.manuscribe.json` file. **Open…** on the start screen
   reads it back, and reads older `.lipikara.json` files too. Use this to keep a copy and to move to
@@ -1047,6 +1060,7 @@ app/version.json        the version, read by downloaded copies to learn of a new
 app/js/
   site.js               where Manuscribe is published: the one place to change if it moves
   install.js            offline, updates, the Install button, files opened with the installed app
+  safety.js             work kept safe outside the browser: back up everything, a backup folder, the reminder
   util.js               DOM and string helpers
   tei.js                the tag set; stored TEI to editable HTML and back
   translit.js           the typing schemes

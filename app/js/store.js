@@ -6,7 +6,7 @@
   // The name the project had when these stores were first made. It must stay: changing it would
   // leave everything people have already saved in this browser out of reach.
   const DB_NAME = 'lipikara';
-  const DB_VERSION = 6;
+  const DB_VERSION = 7;
   const BACKUP_EVERY_MS = 20 * 60 * 1000;
   const BACKUPS_KEPT = 25;
   let db = null;
@@ -37,6 +37,7 @@
             if (!d.objectStoreNames.contains('packs')) d.createObjectStore('packs', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('fonts')) d.createObjectStore('fonts', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('merges')) d.createObjectStore('merges', { keyPath: 'id' }).createIndex('edition', 'edition');
+            if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'id' });
             if (!d.objectStoreNames.contains('collations')) {
               const c = d.createObjectStore('collations', { keyPath: 'key' });
               c.createIndex('edition', 'edition');
@@ -127,6 +128,11 @@
     async listMerges(edition) { if (fallback) return []; return (await req(tx('merges').index('edition').getAll(edition))).sort((a, b) => b.when - a.when); },
     async putMerge(m) { if (fallback) return false; await req(tx('merges', 'readwrite').put(m)); return true; },
     async deleteMerge(id) { if (fallback) return; await req(tx('merges', 'readwrite').delete(id)); },
+
+    // Things of this browser to keep, such as the folder backups go to (safety.js): {id, ...}
+    async getSetting(id) { if (fallback) return null; return req(tx('settings').get(id)); },
+    async putSetting(rec) { if (fallback) return false; await req(tx('settings', 'readwrite').put(rec)); return true; },
+    async deleteSetting(id) { if (fallback) return; await req(tx('settings', 'readwrite').delete(id)); },
 
     // Text packs for the concordance: {id, name, licence, source, lines}
     async listPacks() { if (fallback) return []; return req(tx('packs').getAll()); },

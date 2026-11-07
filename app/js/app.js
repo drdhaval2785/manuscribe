@@ -22,6 +22,7 @@
 
   App.boot = async function () {
     await Store.open();
+    if (ME.Safety) ME.Safety.start();
     TEI.workLabel = Commands.workLabel;
     // dialog text boxes for manuscript text type with the same scheme as the folio; in an edition, with the edition's
     Translit.attachToInputs((el) => (el && el.closest && el.closest('[data-typing="edition"]') && ME.CollateView.typing ? ME.CollateView.typing : App.project && App.project.settings));
@@ -139,6 +140,7 @@
         await w.write(json);
         await w.close();
         U.toast('Backup saved to ' + App.fileHandle.name, 'ok');
+        if (ME.Safety) ME.Safety.savedOutside();
         return;
       } catch (e) {
         if (e.name === 'AbortError') return;
@@ -147,6 +149,7 @@
     }
     U.download(baseName() + '-' + new Date().toISOString().slice(0, 10) + '.manuscribe.json', json, 'application/json');
     U.toast('Backup downloaded', 'ok');
+    if (ME.Safety) ME.Safety.savedOutside();
   };
 
   /* ---------- start screen ---------- */
@@ -159,6 +162,7 @@
     $('edition-view').hidden = true;
     $('start-home').hidden = false;
     ME.Edition.renderList();
+    if (ME.Safety) ME.Safety.draw();
     const list = $('project-list');
     list.innerHTML = '';
     const projects = await Store.listProjects();

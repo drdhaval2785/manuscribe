@@ -2,25 +2,9 @@
 // in the browser and opens with the server gone; a new version on the server is offered with a Reload, which brings
 // it in; the browser's offer to install becomes a button; and a downloaded copy, opened from a file, learns of a
 // newer version. The list of files the app keeps is up to date (tools/precache.mjs).
-const http = require('http'), fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
+const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const puppeteer = require('puppeteer-core');
-const { launch, sleep, checks, ROOT, WORK, CHROME } = require('./h');
-
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.txt': 'text/plain', '.svg': 'image/svg+xml' };
-// the repository as a website; over: published paths with other contents (a new version)
-function serve(port, over) {
-  const server = http.createServer((req, res) => {
-    const u = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/manuscribe\//, '/');
-    let rel = u.replace(/^\/+/, '') || 'index.html';
-    if (rel.endsWith('/')) rel += 'index.html';
-    const body = over && over[rel] !== undefined ? Buffer.from(over[rel]) : (() => { const f = path.join(ROOT, rel); return f.startsWith(ROOT) && fs.existsSync(f) && fs.statSync(f).isFile() ? fs.readFileSync(f) : null; })();
-    if (!body) { res.writeHead(404, { 'access-control-allow-origin': '*' }); res.end(); return; }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(rel)] || 'application/octet-stream', 'cache-control': 'no-cache', 'access-control-allow-origin': '*' });
-    res.end(body);
-  });
-  return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)));
-}
-const stop = (s) => new Promise((r) => { s.closeAllConnections && s.closeAllConnections(); s.close(() => r()); });
+const { launch, sleep, checks, ROOT, WORK, CHROME, serve, stop } = require('./h');
 
 (async () => {
   const T = checks('Manuscribe from its website, as an app');

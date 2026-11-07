@@ -1,5 +1,6 @@
 // Shared by the tests: a fresh Chrome profile on the app opened from disk, and small helpers for checks.
 const puppeteer = require('puppeteer-core');
+const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -49,6 +50,8 @@ async function launch(name, opts) {
   // and no look at the website for a newer version (install.js): the tests stay off the internet
   await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); localStorage.setItem('manuscribe.lastCheck', String(Date.now())); } catch (e) { /* none */ } }, level);
   await fontsFor(page, opts && opts.fonts === 'none' ? 'none' : !!(opts && opts.fonts));
+  // the tests give the fonts themselves: whether this computer is online at the moment does not matter
+  await page.evaluateOnNewDocument(() => { try { Object.defineProperty(Navigator.prototype, 'onLine', { get: () => true, configurable: true }); } catch (e) { /* as it is */ } });
   await page.goto('file://' + ROOT + '/app/index.html');
   await sleep(700);
   return { browser, page };
@@ -107,4 +110,22 @@ function sampleProjects() {
   return res;
 }
 
-module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME };
+/* The repository as a website, on 127.0.0.1 (port 0: any free one), with /manuscribe/ as on GitHub Pages; over:
+   published paths with other contents. -> the server; stop(server) closes it */
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.txt': 'text/plain', '.svg': 'image/svg+xml' };
+// the repository as a website; over: published paths with other contents (a new version)
+function serve(port, over) {
+  const server = http.createServer((req, res) => {
+    const u = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/manuscribe\//, '/');
+    let rel = u.replace(/^\/+/, '') || 'index.html';
+    if (rel.endsWith('/')) rel += 'index.html';
+    const body = over && over[rel] !== undefined ? Buffer.from(over[rel]) : (() => { const f = path.join(ROOT, rel); return f.startsWith(ROOT) && fs.existsSync(f) && fs.statSync(f).isFile() ? fs.readFileSync(f) : null; })();
+    if (!body) { res.writeHead(404, { 'access-control-allow-origin': '*' }); res.end(); return; }
+    res.writeHead(200, { 'content-type': TYPES[path.extname(rel)] || 'application/octet-stream', 'cache-control': 'no-cache', 'access-control-allow-origin': '*' });
+    res.end(body);
+  });
+  return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)));
+}
+const stop = (s) => new Promise((r) => { s.closeAllConnections && s.closeAllConnections(); s.close(() => r()); });
+
+module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME, serve, stop };

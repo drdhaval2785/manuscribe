@@ -14,7 +14,7 @@
   const standalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 
   /* A bar at the top of the window, with one button. -> the bar */
-  function bar(id, text, button, onClick) {
+  function bar(id, text, button, onClick, onLater) {
     let b = document.getElementById(id);
     if (b) b.remove();
     b = document.createElement('div');
@@ -25,12 +25,13 @@
     t.textContent = text;
     const go = document.createElement(button.href ? 'a' : 'button');
     go.className = 'btn small primary';
+    if (!button.href) go.addEventListener('click', () => b.remove());
     go.textContent = button.label;
     if (button.href) { go.href = button.href; go.target = '_blank'; go.rel = 'noopener'; } else go.addEventListener('click', onClick);
     const x = document.createElement('button');
     x.className = 'btn small ghost';
     x.textContent = 'Later';
-    x.addEventListener('click', () => b.remove());
+    x.addEventListener('click', () => { b.remove(); if (onLater) onLater(); });
     b.append(t, go, x);
     document.body.appendChild(b);
     return b;
@@ -122,5 +123,6 @@
     Install.draw();
     Install.checkCopy();
   });
+  Install.bar = bar;
   ME.Install = Install;
 })(window.ME);
