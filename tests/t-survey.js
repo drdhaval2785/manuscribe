@@ -74,7 +74,7 @@ const COUNT = (sel) => {
   const cdp = await page.createCDPSession(); await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dl });
   await page.evaluate(() => document.querySelector('.ed-stepbody [data-action="export"]').click());
   await sleep(400);
-  await page.evaluate(() => { document.querySelector('.modal input[name="xp-format"][value="pdf-direct"]').click(); document.querySelector('.modal [data-action="export-go"]').click(); });
+  await page.evaluate(() => { document.querySelector('.modal input[name="xp-format"][value="pdf"]').click(); document.querySelector('.modal [data-action="export-go"]').click(); });
   for (let k = 0; k < 40 && !fs.readdirSync(dl).some((f) => f.endsWith('.pdf')); k++) await sleep(250);
   const pdf = fs.readdirSync(dl).find((f) => f.endsWith('.pdf'));
   T.check('from witnesses to a PDF, following only the prompts, one decision and Export', !!pdf && fs.statSync(path.join(dl, pdf)).size > 50000, pdf);

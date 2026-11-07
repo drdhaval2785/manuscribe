@@ -437,14 +437,23 @@
   // A boundary before column c: by default where most witnesses begin a word; the editor can add or remove.
   /* Where words begin in a text written without spaces (Japanese, Chinese, Thai, Lao, Khmer, Burmese): as the
      browser's word segmenter finds them. null for any other text, whose words are told by spaces and daṇḍas. */
-  const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
   const segCache = new WeakMap();
   const wordStartsOf = (st) => {
     if (segCache.has(st)) return segCache.get(st);
     let set = null;
-    if (typeof Intl !== 'undefined' && Intl.Segmenter && UNSPACED.test(st.dip || '')) {
+    const t = st.dip || '';
+    if (typeof Intl !== 'undefined' && Intl.Segmenter && Norm.UNSPACED.test(t)) {
       set = new Set();
-      for (const x of new Intl.Segmenter(undefined, { granularity: 'word' }).segment(st.dip)) set.add(x.index);
+      // by the segmenter's dictionary where it has one, else each character a word
+      const seg = new Intl.Segmenter(undefined, { granularity: Norm.SEGMENTED.test(t) ? 'word' : 'grapheme' });
+      const chars = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      for (const x of seg.segment(t)) {
+        set.add(x.index);
+        // a word the dictionary does not know (a loanword, a name, Pāli in Khmer letters) comes as one long run:
+        // each character of it is taken as a word instead
+        const gs = [...chars.segment(x.segment)];
+        if (gs.length > 12) for (const g of gs) set.add(x.index + g.index);
+      }
     }
     segCache.set(st, set);
     return set;

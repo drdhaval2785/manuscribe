@@ -474,8 +474,14 @@ and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with it
   stands for another; for a script written without spaces (Japanese, Chinese, Thai…), letters, with the words found by
   the browser's word segmenter, so that an entry is a word or two, not a run of the sentence; in Tibetan, the tsheg and
   the shad divide the words. **Change…** chooses
-  otherwise. Fifteen witnesses of about ten folio sides each collate in one to four seconds in all
-  (`tests/bench-languages.js` measures it for Latin, Arabic, Japanese and Greek).
+  otherwise. Fifteen witnesses of about ten folio sides each collate in one to eight seconds in all
+  (`tests/bench-languages.js` measures it in 38 languages).
+- **Any script.** Every script Unicode encodes can be collated and published: the 172 of Unicode 17.0, from cuneiform,
+  Egyptian hieroglyphs and Linear B to Adlam and Tolong Siki, right to left where the script is, and scripts written
+  without spaces (Chinese, Japanese, Thai, Yi, Tangut…) with their words found by the browser's dictionary where it
+  has one, else character by character. A script's own signs (Braille, SignWriting) are compared as its letters. A
+  script that is not in Unicode cannot be typed, and so cannot be transcribed in Manuscribe or any other program
+  until it is encoded; worldswritingsystems.org counts 128 such scripts of the 293 it lists.
 - **The table:** click a citation ID. Each row is a witness, or both states of one that has corrections, in the
   order of the aligner's guide tree, so similar witnesses sit together. Columns where witnesses differ are
   shaded, and **Next difference** goes to them. **Show** switches between the normalised form and the text as
@@ -605,29 +611,26 @@ the options of that kind; it remembers your choice in each.
 - **Notes are keyed to the text:** each place with an entry has a small number after its reading, counting from 1
   in each block, and its note at the foot of the page begins with the block and that number. Under **How the
   apparatus is written**, *Notes keyed by* can be set to line numbers instead, as in many printed editions.
-- **PDF, in any script:** the edition laid out as pages by the browser itself, so that any language and
-  script is set as the browser sets it: Arabic and Hebrew right to left, Japanese and Chinese without spaces,
-  Devanagari with its conjuncts, in any fonts. The page cuts the text into pages with the notes of each page at its
-  foot, a note always on the page of its marker, in the order of the blocks. The notes are numbered from 1 on each
-  page, and the markers in the text with them, so that no block IDs need be printed; each marker is a link to its
-  note, and each note's number a link back to its word, in the page and in the PDF saved from it. Lines are numbered in the margin on the
-  side the text starts, counted down each page from 1 without regard to blocks (or, if you choose, on through the
-  whole text), every fifth line or every line; notes keyed by line cite these numbers. In Safari, and other browsers that allow a new tab
-  only at once, the tab opens as you click Export and shows *Laying out the edition…* until it is ready; if a browser
-  refuses even that, the print page is saved as a file instead, to open and print. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
-  **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, how
-  lines are numbered, the fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Print page, one HTML file**
-  saves the same page as one HTML file, to open and print on any computer. Copying text out of Chrome's PDF
-  keeps every letter in most scripts (an Arabic ligature such as Allah comes out as one sign), but not the letters
-  inside Devanagari conjuncts: for Devanagari, the next PDF copies better.
-- **PDF file, Devanagari and Latin** (with the South Asian pack): a PDF made directly, with nothing to print: the text shaped by
-  [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, laid out as the print page:
-  the same paper, margins, sizes, title page and commentaries, the layers set in with their [abbreviations], lines
-  numbered down the page, markers numbered from 1 on each page and notes at the foot in series, linked both ways. It is offered only for
-  text in Devanagari and Latin script, the letters its font has: for Gujarati, Bengali, Tamil or any other script, use the
-  PDF in any script. Copied Devanagari comes out letter for letter, with ि
-  and reph where they are drawn, as from most PDFs. It knows only that font, and sets text left to right: for other
-  scripts, use the print edition above.
+- **PDF:** one choice, made the way that suits the text. **Made by Manuscribe** where the text is Devanagari or Latin
+  (with the South Asian pack): in one click, with nothing to print, the text shaped by
+  [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit; it is a third of the size of
+  the browser's, and its text copies and searches letter for letter, conjuncts such as ण्ड and ज्ञ included, which
+  Chrome's PDF loses. **Made by this browser's print dialog** in any other script, or when you choose it: the edition
+  is laid out as pages by the browser itself, so that any language and script is set as the browser sets it: Arabic
+  and Hebrew right to left, Japanese and Chinese without spaces, in any fonts; choose **Save as PDF** in the print
+  dialog. In Safari, and other browsers that allow a new tab only at once, the tab opens as you click Export and shows
+  *Laying out the edition…* until it is ready; if a browser refuses even that, the print page is saved as a file
+  instead, to open and print. Either way the pages are the same: the paper, margins, sizes, title page and
+  commentaries, the layers set in with their [abbreviations], the notes of each page at its foot, in the order of the
+  blocks, numbered from 1 on each page with the markers in the text, so that no block IDs need be printed; each marker
+  is a link to its note, and each note's number a link back to its word. Lines are numbered in the margin on the side
+  the text starts, counted down each page from 1 without regard to blocks (or, if you choose, on through the whole
+  text), every fifth line or every line; notes keyed by line cite these numbers. Under **Paper and fonts for
+  printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, how lines are numbered, the
+  fonts to use, by name, and a font file of your own, kept in this browser and put into the page; a script the
+  computer has no font for is drawn only with one. **Print page, one HTML file** saves the browser's page as one HTML
+  file, to open and print on any computer. An issued release holds Manuscribe's PDF where it can make it, and the
+  print page otherwise.
 - **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
   variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,

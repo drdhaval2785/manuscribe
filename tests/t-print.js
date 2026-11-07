@@ -173,8 +173,9 @@ const TEXTS = {
   await page.evaluate(() => document.querySelector('.modal [data-action="export"]').click());
   await sleep(400);
   ui.formats = await page.evaluate(() => [...document.querySelectorAll('.modal input[name="xp-format"]')].map((r) => r.value));
+  ui.route = await page.evaluate(() => { const s = document.querySelector('.modal [data-action="pdf-route"]'); return s ? { value: s.value, manuscribe: !s.querySelector('option[value="manuscribe"]').disabled } : null; });
   // for Arabic, the PDF in Manuscribe's Devanagari font is not offered: it belongs to the South Asian pack
-  T.check('the Export of an Arabic edition offers the print edition, its page and LaTeX, and not the Devanagari PDF; the Publish step has the print settings', ['pdf-any', 'print-page', 'latex'].every((f) => ui.formats.includes(f)) && !ui.formats.includes('pdf-direct') && ui.keys && ui.settings, ui);
+  T.check('the Export of an Arabic edition offers one PDF, made by this browser (Manuscribe’s font has no Arabic), its page and LaTeX; the Publish step has the print settings', ['pdf', 'print-page', 'latex'].every((f) => ui.formats.includes(f)) && !ui.formats.includes('pdf-direct') && !ui.formats.includes('pdf-any') && ui.route && ui.route.value === 'browser' && !ui.route.manuscribe && ui.keys && ui.settings, ui);
   for (let k = 0; k < 2; k++) { await page.evaluate(() => { const b = [...document.querySelectorAll('.modal-foot .btn')].pop(); if (b) b.click(); }); await sleep(200); }
   T.done(page);
   await browser.close();

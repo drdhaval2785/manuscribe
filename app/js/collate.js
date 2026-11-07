@@ -21,20 +21,35 @@
   /* What the first Collate chooses for an edition that has not chosen: for the languages of South Asia, the
      Sanskrit profile and letters, as Manuscribe always has; for any other, letters as written, lined up by words or
      by letters as the language writes them. -> true if it chose */
-  Collate.chooseFor = function (ed, langs) {
+  Collate.chooseFor = function (ed, langs, list) {
     if (ed.norm) return false;
     if (ME.Features.pack('south-asian', langs, { auto: true }).active) return false;
     ed.norm = { profile: 'any' };
-    ed.collate = Object.assign({}, ed.collate, { tokens: (ed.collate && ed.collate.tokens) || Collate.defaultTokens(langs) });
+    ed.collate = Object.assign({}, ed.collate, { tokens: (ed.collate && ed.collate.tokens) || Collate.defaultTokens(langs, list) });
     return true;
   };
 
-  Collate.defaultTokens = function (langs) {
+  // A sample of the witnesses' text, to see how it is written. -> string
+  Collate.sampleText = function (list, most) {
+    let out = '';
+    for (const { p } of list || []) {
+      if (!p || !p.pages) continue;
+      for (const pg of Object.values(p.pages)) for (const box of Object.values(pg.boxes || {})) for (const line of box || []) {
+        out += String(line || '').replace(/<[^>]*>/g, '') + '\n';
+        if (out.length > (most || 20000)) return out;
+      }
+    }
+    return out;
+  };
+
+  Collate.defaultTokens = function (langs, list) {
     const ls = (langs || []).filter(Boolean);
-    if (!ls.length) return Collate.DEFAULT_TOKENS;
     const F = ME.Features;
     if (F && ls.some((l) => F.packFits('south-asian', l))) return 'letter';
-    if (ls.some((l) => UNSPACED.has(String(l).split('-')[0].toLowerCase()) || /-(Hani|Hans|Hant|Jpan|Thai|Laoo|Khmr|Mymr|Tibt)\b/i.test(l))) return 'letter';
+    if (ls.some((l) => UNSPACED.has(String(l).split('-')[0].toLowerCase()) || /-(Hani|Hans|Hant|Jpan|Hira|Kana|Hrkt|Bopo|Thai|Laoo|Khmr|Mymr|Tibt|Yiii|Tang|Nshu|Kits|Lana|Tale|Talu|Tavt)\b/i.test(l))) return 'letter';
+    // the text itself: written without spaces, it is lined up by letters
+    if (list && Norm.unspacedText(Collate.sampleText(list))) return 'letter';
+    if (!ls.length && !list) return Collate.DEFAULT_TOKENS;
     return 'word';
   };
 

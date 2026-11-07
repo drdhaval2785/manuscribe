@@ -90,10 +90,11 @@ const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
   const cdp = await page.createCDPSession(); await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dl });
   await page.evaluate(() => { ME.CollateView.workApparatus(window.ed, window.list, 'main'); });
   await sleep(900);
-  await exportVia(page, '.modal [data-action="export"]', 'pdf-direct');
+  // one PDF in Export: for Devanagari it is made by Manuscribe, in one click
+  await exportVia(page, '.modal [data-action="export"]', 'pdf');
   for (let k = 0; k < 40 && !fs.readdirSync(dl).some((f) => f.endsWith('.pdf')); k++) await sleep(250);
   const file = fs.readdirSync(dl).find((f) => f.endsWith('.pdf'));
-  T.check('Export › PDF file (Devanagari and Latin) saves a PDF', !!file && fs.statSync(path.join(dl, file)).size > 100000, file);
+  T.check('Export › PDF, for Devanagari, is made by Manuscribe and saved at once', !!file && fs.statSync(path.join(dl, file)).size > 100000, file);
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   await sleep(300);
 

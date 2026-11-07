@@ -73,7 +73,7 @@
       const kind = spelled && !hasEvidence ? 'orthographic' : !differs && !spelled && !u.missing.length ? 'testimonium' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
       // inside a word: printed with hyphens, as -यांशज्या-
       // in a script written without spaces (Japanese, Chinese, Thai…) every place is between words: no hyphens
-      const unspaced = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u.test(u.text + before);
+      const unspaced = Norm.UNSPACED.test(u.text + before);
       const inside = unspaced ? { left: false, right: false } : { left: ui > 0 && !ends(before), right: after && !ends(u.text) };
       const testimonia = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
       const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId };

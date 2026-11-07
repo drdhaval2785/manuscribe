@@ -123,14 +123,14 @@ const { launch, sleep, checks, WORK, exportVia } = require('./h');
     return out;
   });
   T.check('Export asks first for the kind of file: PDF, HTML, LaTeX, TEI, Text, Archive', ['PDF', 'HTML', 'LaTeX', 'TEI', 'Text', 'Archive'].every((k) => kinds.kinds.includes(k)), kinds.kinds);
-  T.check('and shows only the options of the kind chosen', kinds.text.includes('text') && !kinds.text.includes('tei') && kinds.tei.includes('tei') && !kinds.tei.includes('text') && kinds.pdf.every((f) => /^pdf-/.test(f)) && /^pdf-/.test(kinds.checked), kinds);
+  T.check('and shows only the options of the kind chosen', kinds.text.includes('text') && !kinds.text.includes('tei') && kinds.tei.includes('tei') && !kinds.tei.includes('text') && kinds.pdf.join() === 'pdf' && kinds.checked === 'pdf', kinds);
   // PDF in any script: the tab is opened in the click itself (as Safari requires), then filled
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   await sleep(300);
   await page.evaluate(() => document.querySelector('.ed-bar [data-action="export"]').click());
   await sleep(400);
   const opened = new Promise((res) => browser.once('targetcreated', (t) => res(t)));
-  await page.evaluate(() => { document.querySelector('.modal input[name="xp-kind"][value="pdf"]').click(); document.querySelector('.modal input[name="xp-format"][value="pdf-any"]').click(); document.querySelector('.modal [data-action="export-go"]').click(); });
+  await page.evaluate(() => { document.querySelector('.modal input[name="xp-kind"][value="pdf"]').click(); document.querySelector('.modal input[name="xp-format"][value="pdf"]').click(); const r = document.querySelector('.modal [data-action="pdf-route"]'); r.value = 'browser'; r.dispatchEvent(new Event('change')); document.querySelector('.modal [data-action="export-go"]').click(); });
   const target = await Promise.race([opened, sleep(8000).then(() => null)]);
   let tab = null;
   if (target) { tab = await target.page(); for (let k = 0; k < 60 && !(await tab.evaluate(() => !!window.__paginated).catch(() => false)); k++) await sleep(200); }

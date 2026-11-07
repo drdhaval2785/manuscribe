@@ -13,7 +13,7 @@
   /* What the dialog asks first: the kind of file. Each format is of one kind; the options of a kind are shown only
      when it is chosen. */
   X.KINDS = { pdf: 'PDF', html: 'HTML', latex: 'LaTeX', tei: 'TEI', text: 'Text', archive: 'Archive' };
-  const KIND_OF = { 'pdf-any': 'pdf', 'pdf-direct': 'pdf', reader: 'html', 'print-page': 'html', latex: 'latex', tei: 'tei', saktumiva: 'tei', 'tei-corpus': 'tei', 'tei-xml': 'tei', package: 'archive', release: 'archive', backup: 'archive' };
+  const KIND_OF = { pdf: 'pdf', 'pdf-any': 'pdf', 'pdf-direct': 'pdf', reader: 'html', 'print-page': 'html', latex: 'latex', tei: 'tei', saktumiva: 'tei', 'tei-corpus': 'tei', 'tei-xml': 'tei', package: 'archive', release: 'archive', backup: 'archive' };
   X.kindOf = (f) => KIND_OF[f.id] || 'text';
   const KIND_HELP = { pdf: 'Pages to print or to send.', html: 'A page to read on screen, or to print later; it opens with no network.', latex: 'For XeLaTeX and reledmac.', tei: 'XML for other editions and programs.', text: 'Plain text, and data for other programs.', archive: 'Everything, to keep, to move or to publish in an archive.' };
 
@@ -43,9 +43,19 @@
   const file = (name, data, type) => ({ name, data, type: type || 'application/octet-stream' });
 
   /* Each format: {id, group, label, desc, on: (ctx) -> shown?, scopes: which, make(ctx) -> file | null (it opened a screen)} */
+  /* The PDF is one choice, made by whichever route suits the text: Manuscribe's own PDF where the text is
+     Devanagari or Latin (one click; the text copies letter for letter, conjuncts included; a third of the size), the
+     browser's print page in any other script. The editor can choose the other route where both can. */
+  X.pdfRoutes = (ctx) => ({ manuscribe: !!(F().on('pdfDeva') && ctx.list && ME.Typeset && ME.Typeset.fits(ctx.list)), browser: true });
+  X.pdfRoute = (ctx) => { const r = X.pdfRoutes(ctx); return ctx.pdfRoute === 'browser' || !r.manuscribe ? 'browser' : ctx.pdfRoute === 'manuscribe' || last.pdfRoute !== 'browser' ? 'manuscribe' : 'browser'; };
+
   X.FORMATS = [
     // an edition
-    { id: 'pdf-any', for: 'edition', group: 'print', label: 'PDF, in any script', desc: 'The edition laid out as pages by this browser, in any script and font; then choose Save as PDF in the print dialog.',
+    { id: 'pdf', for: 'edition', group: 'print', label: 'PDF', desc: 'The print edition as a PDF. For Devanagari and Latin text Manuscribe makes it itself, in one click, and its text copies letter for letter; for any other script this browser lays it out, and you choose Save as PDF in its print dialog.',
+      opensWindow: (ctx) => X.pdfRoute(ctx) === 'browser',
+      make: (ctx) => X.format(X.pdfRoute(ctx) === 'manuscribe' ? 'pdf-direct' : 'pdf-any').make(ctx) },
+    // the two routes, for the code that asks for one of them
+    { id: 'pdf-any', hidden: true, for: 'edition', group: 'print', label: 'PDF, in any script', desc: 'The edition laid out as pages by this browser, in any script and font; then choose Save as PDF in the print dialog.',
       opensWindow: true,
       make: async (ctx) => {
         const s = await scoped(ctx);
@@ -55,7 +65,7 @@
           return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built) }), 'text/html');
         }
       } },
-    { id: 'pdf-direct', for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: (ctx) => F().on('pdfDeva') && ME.Typeset.fits(ctx.list),
+    { id: 'pdf-direct', hidden: true, for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: (ctx) => F().on('pdfDeva') && ME.Typeset.fits(ctx.list),
       make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Typeset.pdf(ctx.ed, ctx.list, s.built); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     { id: 'latex', for: 'edition', group: 'print', label: 'LaTeX for reledmac', desc: 'A folder for XeLaTeX with its font: the finest print, on your computer or on Overleaf.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ctx.ed, ctx.list, s.built)), 'application/zip'); } },
@@ -115,8 +125,10 @@
      can export that block. */
   X.open = async function (ctx) {
     ctx.blockScope = ctx.kind === 'edition' && ctx.tables && ctx.tables.length === 1;
-    const formats = X.available(ctx);
-    let pick = formats.find((f) => f.id === last[ctx.kind]) || formats[0];
+    const formats = X.available(ctx).filter((f) => !f.hidden);
+    // a choice of one of the two PDF routes, from before they were one
+    const was = /^pdf-/.test(last[ctx.kind] || '') ? 'pdf' : last[ctx.kind];
+    let pick = formats.find((f) => f.id === was) || formats[0];
     const scope = ctx.kind === 'edition' ? U.el('select', { 'aria-label': 'How much', dataset: { action: 'export-scope' } },
       ctx.blockScope ? U.el('option', { value: 'block' }, 'This block, ' + ctx.tables[0].unit) : null,
       U.el('option', { value: 'work' }, 'The whole work')) : null;
@@ -133,7 +145,16 @@
     const rows = [];
     for (const f of formats) {
       const radio = U.el('input', { type: 'radio', name: 'xp-format', value: f.id, checked: f === pick, onchange: () => { pick = f; sync(); } });
-      const row = U.el('label', { class: 'xp-row', dataset: { format: f.id, kind: X.kindOf(f) } }, radio, U.el('span', null, U.el('strong', null, f.label), U.el('span', { class: 'help' }, ' ' + f.desc)));
+      // the PDF: made by Manuscribe or by this browser, where both can make it
+      let extra = null;
+      if (f.id === 'pdf') {
+        const routes = X.pdfRoutes(ctx);
+        const sel = U.el('select', { 'aria-label': 'Made by', dataset: { action: 'pdf-route' }, onchange: () => { ctx.pdfRoute = sel.value; last.pdfRoute = sel.value; } },
+          U.el('option', { value: 'manuscribe', disabled: !routes.manuscribe, selected: X.pdfRoute(ctx) === 'manuscribe' }, 'by Manuscribe: one click, text copies letter for letter (Devanagari and Latin only)'),
+          U.el('option', { value: 'browser', selected: X.pdfRoute(ctx) === 'browser' }, 'by this browser’s print dialog: any script and font'));
+        extra = U.el('span', { class: 'xp-route' }, 'Made ', sel, routes.manuscribe ? null : U.el('span', { class: 'help' }, ' (the text is not all Devanagari and Latin, so this browser makes it)'));
+      }
+      const row = U.el('label', { class: 'xp-row', dataset: { format: f.id, kind: X.kindOf(f) } }, radio, U.el('span', null, U.el('strong', null, f.label), U.el('span', { class: 'help' }, ' ' + f.desc), extra));
       rows.push({ f, row, radio });
       list.append(row);
     }
@@ -154,11 +175,12 @@
       try {
         last[ctx.kind] = pick.id;
         last[ctx.kind + ':' + X.kindOf(pick)] = pick.id;
+        if (pick.id === 'pdf') last.pdfRoute = X.pdfRoute(ctx);
         try { localStorage.setItem(KEY, JSON.stringify(last)); } catch (e) { /* not kept */ }
         c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null });
         /* A format that opens a tab opens it now, in the click itself, before anything is waited for: Safari, and
            other browsers with a strict pop-up blocker, allow a new tab only then. It is filled when ready. */
-        if (pick.opensWindow) {
+        if (typeof pick.opensWindow === 'function' ? pick.opensWindow(c) : pick.opensWindow) {
           c.win = window.open('', '_blank');
           if (c.win) { try { c.win.document.write('<!doctype html><meta charset="utf-8"><title>Laying out the edition…</title><p style="font:16px system-ui,sans-serif;padding:2em;color:#6b5a3e">Laying out the edition…</p>'); } catch (e) { /* filled later */ } }
         }

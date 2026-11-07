@@ -139,7 +139,10 @@ function pagesOf(L, paras, lines) {
 
 // The witnesses of a language, ready to be put into the page: [{siglum, pages, words, chars}]
 function make(code, n, sides, lines, seed) {
-  const L = LANGS[code];
+  return makeFrom(LANGS[code], n, sides, lines, seed);
+}
+// the same, for a spec given whole (a script of scripts.js)
+function makeFrom(L, n, sides, lines, seed) {
   return witnesses(L, n, sides, lines, seed).map((w) => ({ siglum: w.siglum, pages: pagesOf(L, w.paras, lines), words: w.paras.reduce((a, p) => a + p.length, 0), chars: w.paras.reduce((a, p) => a + p.join(L.join).length, 0), blocks: w.paras.length }));
 }
 
@@ -163,11 +166,11 @@ async function buildInPage(page, L, data, lines) {
     }
     ed.trust = data.map((d) => d.siglum);
     ME.Features.setContext(ME.Features.langsOf(list));
-    Collate.chooseFor(ed, ME.Features.langsOf(list));
+    Collate.chooseFor(ed, ME.Features.langsOf(list), list);
     await Store.putEdition(ed);
     window.lang = { ed, list, profile: ME.Norm.settings(ed.norm).profile.id, tokens: Collate.tokenKind(ed), pack: ME.Features.pack('south-asian', ME.Features.langsOf(list), { auto: true }).active };
     return { profile: window.lang.profile, tokens: window.lang.tokens, pack: window.lang.pack };
   }, { name: L.name, tag: L.tag }, data, lines);
 }
 
-module.exports = { LANGS, make, buildInPage };
+module.exports = { LANGS, make, makeFrom, buildInPage };

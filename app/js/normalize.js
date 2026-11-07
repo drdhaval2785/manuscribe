@@ -162,7 +162,8 @@
   // For a text in any script: no transliteration, and rules that hold for any script.
   Norm.RULES.push(
     R('raw', 'Letters as written, in any script (no transliteration)', 'script', '(?!)', '', 'Manuscribe', { raw: true }),
-    R('u-punct', 'Punctuation of any script', 'punctuation', '[\\p{P}\\p{S}]+', '', 'Unicode, general categories P and S', { flags: 'gu' }),
+    // a script's own signs are its letters (Braille cells, SignWriting): only the symbols common to all scripts go
+    R('u-punct', 'Punctuation of any script', 'punctuation', '(?:[\\p{P}\\p{Sm}\\p{Sc}\\p{Sk}]|(?=\\p{So})\\p{Script=Zyyy})+', '', 'Unicode, general categories P and S, keeping the signs of a script (Braille, SignWriting)', { flags: 'gu' }),
     R('u-case', 'Capital and small letters', 'orthographic', '\\p{Lu}', '', 'Unicode case folding', { flags: 'gu', fn: (m) => m.toLowerCase() }),
     R('u-marks', 'Marks over and under letters, as vowel points and accents', 'orthographic', '\\p{Mn}+', '', 'Unicode, general category Mn, after canonical decomposition', { flags: 'gu' }),
   );
@@ -197,7 +198,7 @@
     { id: 'pra-jain', version: 1, name: 'Jain Prakrit', provisional: true, align: ['verse-number', 'punct', 'iast-anusvara', 'candrabindu', 'pk-nasal', 'avagraha-extra', 'spaces'],
       hide: ['punctuation', 'spacing', 'nasal', 'avagraha'],
       note: 'Provisional: not checked against published Prakrit editions. Ya-śruti and ṇ/n are never merged unless you declare them for a witness, because they are unsettled editorial questions.' },
-    { id: 'any', version: 1, name: 'Any language: letters as written', align: ['raw', 'u-punct', 'spaces'],
+    { id: 'any', version: 2, name: 'Any language: letters as written', align: ['raw', 'u-punct', 'spaces'],
       hide: ['punctuation', 'spacing'],
       note: 'For a text in any script: letters are compared as they are written, with no transliteration and none of the rules of Sanskrit. Only punctuation and spaces are ignored. Switch on capital and small letters, or marks such as vowel points and accents, if your edition ignores them too.' },
     { id: 'gu-old', version: 1, name: 'Old Gujarati', provisional: true, align: ['verse-number', 'punct', 'iast-anusvara', 'spaces'],
@@ -334,6 +335,19 @@
       const slp = st.text.slice(t.start, t.end).trim();
       return { from: st.at[t.start], to: st.at[t.end], slp, n: st.raw ? slp.normalize('NFC') : Norm.fromSlp(slp) };
     });
+  };
+
+  /* Scripts written without spaces between words. For some the browser's word segmenter has a dictionary (Chinese,
+     Japanese, Thai, Lao, Khmer, Burmese); in the others (Yi, Tangut, Nüshu, Khitan, Bopomofo, the Tai scripts) each
+     character is taken as a word. */
+  Norm.UNSPACED = /[\p{Script=Hani}\p{Script=Hira}\p{Script=Kana}\p{Script=Thai}\p{Script=Laoo}\p{Script=Khmr}\p{Script=Mymr}\p{Script=Bopo}\p{Script=Yiii}\p{Script=Tang}\p{Script=Nshu}\p{Script=Kits}\p{Script=Lana}\p{Script=Tale}\p{Script=Talu}\p{Script=Tavt}]/u;
+  Norm.SEGMENTED = /[\p{Script=Hani}\p{Script=Hira}\p{Script=Kana}\p{Script=Thai}\p{Script=Laoo}\p{Script=Khmr}\p{Script=Mymr}]/u;
+  // Is this text written without spaces? Spaces in fewer than one character in forty, and letters of such a script.
+  Norm.unspacedText = function (t) {
+    const s = String(t || '');
+    if (!Norm.UNSPACED.test(s)) return false;
+    const letters = (s.match(/\p{L}/gu) || []).length, spaces = (s.match(/\s/g) || []).length;
+    return letters > 0 && spaces * 40 < letters;
   };
 
   ME.Norm = Norm;

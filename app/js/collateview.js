@@ -219,7 +219,7 @@
   };
 
   CollateView.collate = async function (ed, list, workId, box, button, redraw, force) {
-    if (Collate.chooseFor(ed, ME.Features.langsOf(list))) {
+    if (Collate.chooseFor(ed, ME.Features.langsOf(list), list)) {
       // lined up by words where the language spaces its words, else by letters
       const by = Collate.tokenKind(ed);
       await Edition.save(ed);

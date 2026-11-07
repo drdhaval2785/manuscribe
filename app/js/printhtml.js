@@ -65,6 +65,7 @@
       title: ed.title || 'Edition', editor: ed.editor || '', citation: ME.Publish.citation(ed), lang: langOf(list),
       conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, r.script].filter(Boolean).join('; ') })),
       principles: ME.Publish.declaration(ed, built), byMarkers, blocks,
+      unspaced: ME.Norm.unspacedText(built.map((b) => b.text).join(' ').slice(0, 20000)),
       layers: layered ? ME.LayerIds.legend(ed) : [],
       stars: built.flatMap((b) => b.stars).map((x) => ({ id: x.id, wits: x.wits.join(' '), text: x.text })),
       labels: { B: 'Testimonia:', C: 'Singular readings:', D: 'Spelling:', E: 'Decisions:' },
@@ -82,7 +83,7 @@
     /* The text is cut into pieces whose lines are measured. Words, where a language spaces them; letters, where it
        does not (Japanese, Chinese, Thai…), since a line may break inside a word there and a word would be counted
        on one line though it runs onto the next. */
-    const unspaced = /^(ja|zh|yue|th|lo|km|my|bo)\b/i.test(D.lang);
+    const unspaced = D.unspaced || /^(ja|zh|yue|th|lo|km|my|bo)\b/i.test(D.lang);
     const seg = (() => { try { return new Intl.Segmenter(D.lang === 'und' ? undefined : D.lang, { granularity: unspaced ? 'grapheme' : 'word' }); } catch (e) { return null; } })();
     let pageNo = 0;
     const report = { pages: 0, overfull: 0, pagesInfo: [] };
