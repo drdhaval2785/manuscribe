@@ -34,9 +34,73 @@ const { LANGS, make, buildInPage } = require('./languages');
     return { whole: bytes.length, web: web.length, pdf: pdf.length, ink: a.filter((x) => x > 128).length, diff, sameShape: JSON.stringify(again.shape('धर्मक्षेत्रे').map((g) => g.g)) === JSON.stringify(sh.shape('धर्मक्षेत्रे').map((g) => g.g)) };
   });
   T.check('a font cut down to the glyphs used draws them exactly as the whole font does, and is far smaller', sub.ink > 1000 && sub.diff === 0 && sub.sameShape && sub.web < sub.whole && sub.pdf < sub.whole / 4, sub);
+  {
+    const fresh = await launch('fonts-none', { fonts: 'none' });
+    const r = await fresh.page.evaluate(async () => {
+      const t = await ME.Publish.font();
+      let err = '';
+      try { await ME.Capture.pdf({ witnesses: [], works: [], apparatus: {} }, [], []); } catch (e) { err = e.message; }
+      return { font: t, start: !!document.querySelector('#start-view, .start-card'), err };
+    });
+    T.check('a computer that has never been online: the app opens with its own fonts, and a PDF says that the font needs the internet once', r.font === null && r.start && /connect to the internet once/.test(r.err) && !fresh.page.errors.filter((e) => !/Failed to load resource/.test(e)).length, Object.assign(r, { errors: fresh.page.errors.filter((e) => !/Failed to load resource/.test(e)) }));
+    await fresh.browser.close();
+  }
   // with the internet: fetched, kept, carried
   const online = await page.evaluate(async () => !!(await ME.FontLib.get('NotoSansOgham')));
   if (!online) { T.skip('fonts fetched from the internet', 'the internet cannot be reached'); T.done(page); await browser.close(); return; }
+  // Manuscribe's own font: no longer a file of the app, but fetched once and kept, and the typing area is set in it
+  const own = await page.evaluate(async () => {
+    const p = ME.Model.newProject({ meta: { title: 'Tiro', siglum: 'T' }, layoutType: 'linear', lines: { main: 4 }, folios: {} });
+    p.pdf = { name: 'x.pdf', pages: 1 };
+    p.pages = { '1r': { boxes: { main: ['धर्मक्षेत्रे कुरुक्षेत्रे', '', '', ''] } } };
+    await ME.Store.putProject(p);
+    await ME.App.open(p.id);
+    await new Promise((r) => setTimeout(r, 400));
+    const line = document.querySelector('#editor-pane .line');
+    const kept = await ME.Store.getFont('noto:TiroDevanagariSanskrit');
+    const t = await ME.Publish.font();
+    return { faces: [...document.fonts].filter((f) => f.family.replace(/["']/g, '') === 'Tiro Devanagari Sanskrit' && f.status === 'loaded').map((f) => f.style).sort().join(), check: document.fonts.check('16px "Tiro Devanagari Sanskrit"', 'धर्म'), first: getComputedStyle(line).fontFamily.split(',')[0].replace(/["']/g, '').trim(), kept: !!(kept && kept.bytes), licence: !!(t && /Open Font License/.test(t.licence)) };
+  });
+  T.check('Manuscribe’s font, Tiro, is fetched once and kept, upright and italic, with its licence, and the typing area is set in it', own.faces === 'italic,normal' && own.check && own.first === 'Tiro Devanagari Sanskrit' && own.kept && own.licence, own);
+  // only the font a transcription needs: none for Greek, Noto Serif Tibetan for Tibetan; and Tiro in print only
+  // where the edition has Devanagari
+  {
+    const s = await launch('fonts-screen', { fonts: true });
+    const r = await s.page.evaluate(async () => {
+      const open = async (tag, line) => {
+        const p = ME.Model.newProject({ meta: { title: tag, siglum: 'S', textLang: tag }, layoutType: 'linear', lines: { main: 2 }, folios: {} });
+        p.pdf = { name: 'x.pdf', pages: 1 };
+        p.pages = { '1r': { boxes: { main: [line, ''] } } };
+        await ME.Store.putProject(p);
+        await ME.App.open(p.id);
+        await new Promise((r) => setTimeout(r, 1500));
+        return { onScreen: ME.FontLib.onScreen().join(), stack: getComputedStyle(document.documentElement).getPropertyValue('--script'), tiro: [...document.fonts].some((f) => /Tiro/.test(f.family)) };
+      };
+      const grc = await open('grc', 'ἐν ἀρχῇ ἦν ὁ λόγος');
+      const bo = await open('bo', 'བོད་ཀྱི་ཡི་གེ');
+      // the dialog's two lists, as a new transcription would write them
+      const L = ME.App.languageInputs();
+      const pick = (lang, script) => { const [l, sc] = L.el.querySelectorAll('select'); l.value = lang; l.dispatchEvent(new Event('change')); if (script) sc.value = script; return L.value(); };
+      const tags = [pick('grc'), pick('sa'), pick('sa', 'Latn'), pick('ar'), pick('ja')];
+      return { grc, bo, tags };
+    });
+    T.check('a Greek transcription fetches no font (the browser sets Greek), and no Tiro', r.grc.onScreen === '' && !r.grc.tiro, r.grc);
+    T.check('a Tibetan transcription fetches its Noto font only, and the typing area uses it', r.bo.onScreen === 'NotoSerifTibetan' && /NotoSerifTibetan/.test(r.bo.stack) && !r.bo.tiro, r.bo);
+    const t = r.tags.map((x) => x.textLang + '/' + x.script + '/' + x.language).join(' ');
+    T.check('a new transcription is asked its language and the script it is typed in: grc, sa-Deva, sa-Latn (from a Devanagari manuscript), ar, ja', t === 'grc/grc-Grek/Ancient Greek sa-Deva/sa-Deva/Sanskrit sa-Latn/sa-Deva/Sanskrit ar/ar-Arab/Arabic ja/ja-Jpan/Japanese', t);
+    await buildInPage(s.page, LANGS.grc, make('grc', 3, 1, 20, 5), 20);
+    const g = await s.page.evaluate(async () => {
+      const { ed, list } = window.lang;
+      await ME.Collate.run(ed, list, 'main', {});
+      const built = (await ME.Release.works(ed, list))[0].built;
+      const fonts = (await ME.PrintHTML.fonts(ed, built, list)).map((f) => f.name);
+      const reader = await ME.Publish.reader(ed, list, built, null);
+      const c = await ME.Capture.pdf(ed, list, built);
+      return { fonts, readerTiro: /Tiro Devanagari Sanskrit';\s*src/.test(reader), pictures: c.words.pictures, text: c.words.text };
+    });
+    T.check('a Greek edition carries Noto Serif and no Tiro, in the print page, the reader and the PDF (all text)', g.fonts.join() === 'NotoSerif' && !g.readerTiro && g.pictures === 0 && g.text > 50, g);
+    await s.browser.close();
+  }
   T.check('a font is fetched once and kept in the browser', await page.evaluate(async () => { const k = await ME.Store.getFont('noto:NotoSansOgham'); return !!(k && k.bytes && k.bytes.byteLength > 1000); }));
   const egyp = { name: 'Egyptian hieroglyphs', tag: 'egy-Egyp', words: ['𓀀𓁐', '𓂀𓃀', '𓄿𓅓', '𓆑𓇋', '𓈖𓉐', '𓊃𓋴', '𓌳𓍿', '𓎛𓏏', '𓐍𓀭', '𓁷𓂋', '𓃭𓄡', '𓅱𓆓'], stop: '.', comma: ',', join: ' ', perLine: 40, code: 'egy' };
   for (const [code, L] of [['ar', LANGS.ar], ['ja', LANGS.ja], ['bo', LANGS.bo], ['egy', egyp], ['grc', LANGS.grc]]) {

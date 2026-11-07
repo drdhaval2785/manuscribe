@@ -39,7 +39,9 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 
 ## Features
 
-- **Nothing to install.** No server, no account and no internet connection are needed.
+- **Nothing to install.** No server and no account are needed. The internet is needed only to fetch, once, the font
+  of a script that needs one (Tiro, 1.5 MB, for Devanagari), which the browser then keeps; Latin, Greek, Arabic,
+  Chinese and other scripts every computer has fonts for need nothing. After that it works offline.
 - **Your manuscripts stay on your computer.** Nothing is uploaded anywhere.
 - **Four layouts:** linear, tripāṭha, pañcapāṭha and interlinear. A single folio can differ from
   the rest of the manuscript.
@@ -82,6 +84,8 @@ files if you use one of those.
 
 - choose the manuscript PDF (and, optionally, an XML transcription you already have);
 - give the title of the text and the siglum of this witness;
+- choose the language of the text and the script you will type in (the manuscript's own, or Latin for a
+  transliteration such as IAST): Manuscribe fetches only the font that script needs;
 - pick the layout, and the usual number of lines in each block of a folio side;
 - say which folio the first PDF page shows, and whether each PDF page shows one or two folio sides;
 - list any folios missing from the manuscript, such as `7, 12-14, 20v`.
@@ -625,7 +629,12 @@ the options of that kind; it remembers your choice in each.
   how lines are numbered, the fonts to use, by name, a font file of your own, kept in this browser and put into the
   page, and whether to fetch fonts. **Print page, one HTML file** saves the same page as one HTML file, to open and
   print on any computer. An issued release holds the PDF and the print page.
-- **A font for every script.** Devanagari and Latin are set in Manuscribe's own Tiro Devanagari Sanskrit. Every other
+- **A font for every script, fetched only when it is needed.** A new transcription asks for the language of the text
+  and the script you will type in, and Manuscribe fetches only that script's font, once, and keeps it in this
+  browser; the app itself carries no font. On screen, Devanagari is set in Tiro Devanagari Sanskrit; the scripts
+  every computer and phone has fonts for (Latin, Greek, Cyrillic, Hebrew, Arabic, Thai, Chinese, Japanese, Korean…)
+  are left to the browser; any other gets its Noto font. A script typed later gets its font when it first appears.
+  In print, an edition with Devanagari is set in Tiro, Latin included. Every other
   script gets its [Noto](https://notofonts.github.io/) font, Google's family for all the world's scripts (serif where
   there is one: Noto Naskh Arabic, Noto Serif Tibetan, Noto Serif JP, SC, TC or KR by the language, Noto Sans Egyptian
   Hieroglyphs…), fetched from the internet the first time an edition needs it and kept in this browser, so that later
@@ -1068,8 +1077,6 @@ app/js/
   tagsummary.js         the summary of tags and attributes
   app.js                the application and its tabs
 app/vendor/             pdf.js 3.11.174; saktumiva-aligner.js, generated from Saktumiva 2.0 by tools/bundle-aligner.mjs
-app/fonts/              Tiro Devanagari Sanskrit; tiro-regular.base64.js is the same font as a
-                        script, because a page opened from disk cannot fetch a font to embed it
 ```
 
 **How text is stored.** Each line of a folio is a string of TEI in
@@ -1109,7 +1116,7 @@ It includes these components, which keep their own licences:
 | Component | Licence |
 |---|---|
 | [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174, Mozilla | Apache License 2.0 |
-| Tiro Devanagari Sanskrit, © The Indigo Project Authors ([Tiro Typeworks](https://github.com/TiroTypeworks/Indigo)) | SIL Open Font License 1.1 (`app/fonts/OFL.txt`) |
+| Tiro Devanagari Sanskrit, © The Indigo Project Authors ([Tiro Typeworks](https://github.com/TiroTypeworks/Indigo)), fetched from [google/fonts](https://github.com/google/fonts/tree/main/ofl/tirodevanagarisanskrit) the first time Manuscribe is opened and kept in the browser, never shipped with it; its licence goes with every export that carries it | SIL Open Font License 1.1 |
 | Noto fonts, © Google and the Noto Project Authors, fetched when an edition needs them and kept in the browser, never shipped with Manuscribe ([notofonts](https://github.com/notofonts), [google/fonts](https://github.com/google/fonts)) | SIL Open Font License 1.1 |
 | The aligner of [Saktumiva 2.0](https://github.com/chchch/saktumiva), Charles Li (`app/vendor/saktumiva-aligner.js`), and its normalisation rules, rewritten as data in `app/js/normalize.js` | GNU GPL 3.0 |
 | [HarfBuzz](https://github.com/harfbuzz/harfbuzz), as compiled to WebAssembly by [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) 1.6.4 (`app/vendor/harfbuzz.wasm.js`, made by `tools/bundle-harfbuzz.mjs`) | MIT (harfbuzzjs) and "Old MIT" (HarfBuzz) |

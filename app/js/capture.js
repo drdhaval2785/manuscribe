@@ -24,19 +24,17 @@
     const embedded = await ME.PrintHTML.fonts(ed, built, list);
     const html = ME.PrintHTML.html(ed, list, built, { fonts: embedded });
     // the fonts Manuscribe can set text in: those of the page that are TrueType, in the page's order
-    const tiro = await ME.Publish.font();
-    if (!tiro) throw new Error('the font could not be loaded');
-    const tiroBytes = fromB64(tiro.base64);
-    const tiroShaper = ME.Shaper.font(tiroBytes);
-    const doc = ME.PDFWriter.doc(tiroBytes, { title: ed.title || 'Edition', author: ed.editor || '', subject: ME.Publish.citation(ed), lang: (list.map((x) => x.p && x.p.meta && x.p.meta.textLang).find(Boolean) || 'und').split('-')[0] }, tiroShaper);
-    const vector = [];
-    for (const f of embedded) {
-      const bytes = f.name === 'Tiro Devanagari Sanskrit' ? tiroBytes : fromB64(f.data);
-      if (!isTrueType(bytes)) continue;
-      const shaper = f.name === 'Tiro Devanagari Sanskrit' ? tiroShaper : ME.Shaper.font(bytes);
-      const index = f.name === 'Tiro Devanagari Sanskrit' ? 0 : doc.addFont(bytes, shaper);
-      vector.push({ family: f.name, kind: f.kind, shaper, index, font: index === 0 ? doc.font : ME.PDFWriter.readFont(bytes) });
-    }
+    // (Tiro is among them where the edition has Devanagari); the first is the document's own font
+    const tiro = embedded.some((f) => f.kind === 'tiro') ? await ME.Publish.font() : null;
+    const files = embedded.map((f) => ({ f, bytes: f.kind === 'tiro' ? tiro && tiro.bytes : fromB64(f.data) })).filter((x) => x.bytes && isTrueType(x.bytes));
+    if (!files.length) throw new Error('No font could be had for the text: connect to the internet once, and the fonts of its scripts are fetched and kept from then on');
+    const baseShaper = ME.Shaper.font(files[0].bytes);
+    const doc = ME.PDFWriter.doc(files[0].bytes, { title: ed.title || 'Edition', author: ed.editor || '', subject: ME.Publish.citation(ed), lang: (list.map((x) => x.p && x.p.meta && x.p.meta.textLang).find(Boolean) || 'und').split('-')[0] }, baseShaper);
+    const vector = files.map(({ f, bytes }, i) => {
+      const shaper = i === 0 ? baseShaper : ME.Shaper.font(bytes);
+      const index = i === 0 ? 0 : doc.addFont(bytes, shaper);
+      return { family: f.name, kind: f.kind, shaper, index, font: index === 0 ? doc.font : ME.PDFWriter.readFont(bytes) };
+    });
     // the page's order: the edition's font file, then the fonts the editor names, then Tiro, then the Noto font of each
     // other script; a word the named fonts may have drawn is drawn by the browser
     const named = (ME.PrintHTML.settings(ed).font || '').trim();

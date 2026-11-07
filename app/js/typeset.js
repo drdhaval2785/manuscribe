@@ -152,8 +152,8 @@
     const o = Object.assign({}, T.DEFAULTS, { size, lead: size * 1.55, appSize: size * 0.72, appLead: size * 0.72 * 1.38, small: size * 0.72, top: mm(20), bottom: mm(18), inner: mm(20), outer: mm(18), every: PS.every === 1 ? 1 : 5 }, options);
     await ME.Shaper.load();
     const fontData = await ME.Publish.font();
-    if (!fontData) throw new Error('the font could not be loaded');
-    const bytes = fromB64(fontData.base64);
+    if (!fontData) throw new Error('Manuscribe’s font could not be fetched: connect to the internet once, and it is kept from then on');
+    const bytes = fontData.bytes;
     const font = ME.Shaper.font(bytes);
     const L = makeLayout(font);
     const doc = ME.PDFWriter.doc(bytes, { title: ed.title || 'Edition', author: ed.editor || '', subject: ME.Publish.citation(ed), lang: 'sa' }, font);

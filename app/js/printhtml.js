@@ -379,16 +379,16 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
     const out = [];
     const s = P.settings(ed);
     if (s.fontId && ME.Store.getFont) { const f = await ME.Store.getFont(s.fontId); if (f) out.push({ name: 'Edition ' + f.name, data: f.data, format: f.format, kind: 'edition' }); }
-    // Manuscribe's own font, always: the page and the PDF captured from it then set Latin and Devanagari alike
-    const t = await ME.Publish.font();
+    const text = P.textOf(ed, built);
+    // Manuscribe's own font where the edition has Devanagari: the page and the PDF then set its Latin in it too
+    const t = ME.FontLib && ME.FontLib.needsTiro(text) ? await ME.Publish.font() : null;
     if (t) out.push({ name: 'Tiro Devanagari Sanskrit', data: t.base64, format: 'ttf', kind: 'tiro' });
-    if (!t || !ME.FontLib || !ME.Shaper || typeof WebAssembly === 'undefined') return out;
+    if (!ME.FontLib || !ME.Shaper || typeof WebAssembly === 'undefined') return out;
     try {
       await ME.Shaper.load();
-      if (!P.tiro) P.tiro = ME.Shaper.font(Uint8Array.from(atob(t.base64), (c) => c.charCodeAt(0)));
-      const text = P.textOf(ed, built);
-      // the letters Tiro has not: the scripts whose fonts the page needs
-      const lacking = [...new Set(Array.from(text))].filter((ch) => /\S/.test(ch) && !/[\u200B-\u200D\uFEFF]/.test(ch) && !P.tiro.nominal(ch.codePointAt(0))).join('');
+      if (t && !P.tiro) P.tiro = ME.Shaper.font(t.bytes);
+      // the letters Tiro has not (all of them, without Tiro): the scripts whose fonts the page needs
+      const lacking = [...new Set(Array.from(text))].filter((ch) => /\S/.test(ch) && !/[\u200B-\u200D\uFEFF]/.test(ch) && !(t && P.tiro.nominal(ch.codePointAt(0)))).join('');
       if (!lacking) return out;
       const langs = (list || []).map((x) => x.p && x.p.meta && x.p.meta.textLang).filter(Boolean);
       const got = await ME.FontLib.ensure(lacking, langs, (family) => { if (ME.U && ME.U.toast) ME.U.toast('Getting the font for ' + family.replace(/^Noto(Sans|Serif)?/, '').replace(/([a-z])([A-Z])/g, '$1 $2') + ' (Noto), once: it is kept in this browser', 'info', 4000); });

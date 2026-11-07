@@ -5,14 +5,8 @@
 (function (ME) {
   const { U, Model, Editor, Export } = ME;
 
-  // a page opened from disk cannot fetch the font file; a script holding it can be loaded
-  const loadFont = () => new Promise((resolve) => {
-    if (ME.FONT) { resolve(ME.FONT); return; }
-    const s = U.el('script', { src: 'fonts/tiro-regular.base64.js' });
-    s.onload = () => resolve(ME.FONT || null);
-    s.onerror = () => resolve(null);
-    document.head.appendChild(s);
-  });
+  // Manuscribe's font, kept in this browser once fetched
+  const loadFont = () => ME.Publish.font();
 
   const EDITING_ATTRS = ['contenteditable', 'spellcheck', 'autocapitalize', 'autocorrect', 'data-a', 'data-c', 'data-t', 'data-num', 'data-i'];
 
@@ -113,7 +107,8 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
       return project.pages[e.label] && Model.pageHasContent(project.pages[e.label]);
     });
     if (!entries.length) return { html: '', folios: 0, font: true };
-    const font = await loadFont();
+    // Tiro, only where the folios have Devanagari
+    const font = ME.FontLib.needsTiro(leaves.join(' ')) ? await loadFont() : null;
     const m = project.meta;
     const title = (m.title || 'Untitled') + (m.siglum ? ' · ' + m.siglum : '');
     const leaves = entries.map((e, k) => '<section class="leaf" id="f' + k + '"><h2>Folio ' + U.escHtml(e.label) + '</h2>' + folioMarkup(project, e, pageSizes[e.pdfPage] || (project.pdf && project.pdf.size)) + '</section>');

@@ -13,6 +13,27 @@ fs.mkdirSync(WORK, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* Fonts come from jsDelivr, as in the app, and the tests keep a copy of each one (WORK/fonts), so that after the
+   first run they need no internet. Manuscribe's own Tiro is always to be had; the Noto fonts of other scripts only
+   for the tests that ask (noto), and the others see them as not to be had; with noto 'none', no font at all, as on
+   a computer that has never been online. */
+const FONTS = path.join(WORK, 'fonts');
+async function fontsFor(page, noto) {
+  await page.setRequestInterception(true);
+  page.on('request', async (req) => {
+    const url = req.url();
+    if (!/^https:\/\/cdn\.jsdelivr\.net\//.test(url)) { req.continue(); return; }
+    if (noto === 'none' || (!noto && !/\/tirodevanagarisanskrit\//.test(url))) { req.respond({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '' }); return; }
+    const file = path.join(FONTS, url.replace(/^https:\/\//, '').replace(/[^\w.-]+/g, '_'));
+    let body = fs.existsSync(file) ? fs.readFileSync(file) : null;
+    if (!body) {
+      try { const r = await fetch(url); if (r.ok) { body = Buffer.from(await r.arrayBuffer()); fs.mkdirSync(FONTS, { recursive: true }); fs.writeFileSync(file, body); } } catch (e) { /* not to be had */ }
+    }
+    if (body) req.respond({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/octet-stream', body });
+    else req.respond({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '' });
+  });
+}
+
 // level: how much Manuscribe shows. The tests see everything ('full') unless they ask for the default, 'simple'.
 async function launch(name, opts) {
   const level = (opts && opts.level) || 'full';
@@ -21,11 +42,12 @@ async function launch(name, opts) {
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000 });
   const page = await browser.newPage();
   page.errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') page.errors.push(m.text()); });
+  // a font the tests do not give (see fontsFor) is not an error of the page
+  page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
   page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + e.message));
   page.on('dialog', (d) => d.accept());
-  // fonts are fetched from the internet only by the tests that ask (opts.fonts), so that the others run offline
-  await page.evaluateOnNewDocument((level, fonts) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); if (!localStorage.getItem('manuscribe.fonts')) localStorage.setItem('manuscribe.fonts', fonts ? 'on' : 'off'); } catch (e) { /* none */ } }, level, !!(opts && opts.fonts));
+  await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); } catch (e) { /* none */ } }, level);
+  await fontsFor(page, opts && opts.fonts === 'none' ? 'none' : !!(opts && opts.fonts));
   await page.goto('file://' + ROOT + '/app/index.html');
   await sleep(700);
   return { browser, page };

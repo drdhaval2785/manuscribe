@@ -1,13 +1,4 @@
-@font-face {
-  font-family: 'Tiro Devanagari Sanskrit';
-  src: url('../fonts/TiroDevanagariSanskrit-Regular.ttf') format('truetype');
-  font-weight: normal; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: 'Tiro Devanagari Sanskrit';
-  src: url('../fonts/TiroDevanagariSanskrit-Italic.ttf') format('truetype');
-  font-weight: normal; font-style: italic; font-display: swap;
-}
+/* Tiro Devanagari Sanskrit, the font of Devanagari and Latin, is fetched once and kept in the browser (FontLib.loadTiro) */
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -103,6 +94,8 @@ body.sidebar-open #sidebar { display: flex; }
 /* calibrating: the PDF alone, in the whole window */
 body.calibrating #midbar, body.calibrating #editor-pane, body.calibrating #statusbar, body.calibrating #sidebar { display: none !important; }
 body.calibrating #pdf-pane { flex: 1 1 auto; height: auto !important; }
+.lang-pick { display: flex; gap: 6px; }
+.lang-pick select { flex: 1; min-width: 0; }
 .calib-zoom { display: inline-flex; gap: 2px; align-items: center; flex: none; }
 .calib-zoom .calib-fit { min-width: 52px; }
 .calib-step { font-weight: 700; white-space: nowrap; color: var(--muted); font-size: 12px; }

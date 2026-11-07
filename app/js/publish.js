@@ -132,13 +132,8 @@
     return files;
   };
 
-  Publish.font = () => new Promise((resolve) => {
-    if (ME.FONT) { resolve(ME.FONT); return; }
-    const s = U.el('script', { src: 'fonts/tiro-regular.base64.js' });
-    s.onload = () => resolve(ME.FONT || null);
-    s.onerror = () => resolve(null);
-    document.head.appendChild(s);
-  });
+  // Manuscribe's font, Tiro Devanagari Sanskrit, as a file: fetched once and kept in this browser (FontLib)
+  Publish.font = () => ME.FontLib.tiro();
 
   /* ---------- reading: one HTML file ---------- */
 
@@ -369,8 +364,9 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
 `;
 
   Publish.reader = async function (ed, list, built, layered) {
-    const font = await Publish.font();
     const data = Publish.readerData(ed, list, built, layered);
+    // Tiro, only where the edition has Devanagari
+    const font = ME.FontLib.needsTiro(JSON.stringify(data)) ? await Publish.font() : null;
     const esc = (s) => U.escXml(String(s));
     const options = ['<option value="edited">the edited text</option>', ...data.sigla.map((s) => '<option value="' + U.escAttr(s) + '">the text of ' + esc(s) + '</option>')].join('');
     const consp = '<table><tr><th>Siglum</th><th>Manuscript</th><th>Date</th><th>Script</th><th>Folio sides</th></tr>' + data.conspectus.map((r) => '<tr><td>' + esc(r.siglum) + (r.group ? ' (' + esc(r.group) + ')' : '') + '</td><td>' + esc([r.place, r.shelfmark || r.title].filter(Boolean).join(', ') || '—') + '</td><td>' + esc(r.date || '—') + '</td><td>' + esc(r.script || '—') + '</td><td>' + r.folios + '</td></tr>').join('') + '</table>';

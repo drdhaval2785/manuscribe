@@ -5,7 +5,9 @@
 
    A font is fetched the first time an edition needs it, from the Noto project's files on jsDelivr, and kept in this
    browser: after that, nothing is fetched again, and the edition prints offline. Devanagari and Latin are set in
-   Manuscribe's own Tiro, which comes with it. Only the glyphs the edition uses go into a page or a PDF (subset), so
+   Tiro Devanagari Sanskrit, fetched in the same way, but only when a transcription or an edition has Devanagari
+   (FL.forScreen, FL.needsTiro), so that the app itself carries no font. On screen, Latin is left to the browser,
+   which sets it well everywhere; each other script gets its Noto font. Only the glyphs the edition uses go into a page or a PDF (subset), so
    that even a Chinese font adds little. */
 (function (ME) {
   const FL = {};
@@ -14,7 +16,10 @@
   const UNHINTED = new Set(['NotoSansOldTurkic', 'NotoSerifKhmer', 'NotoSerifYezidi']);
   // Chinese, Japanese and Korean: Google's variable fonts of Noto Serif, by the edition's language
   const CJK = { NotoSerifJP: 'notoserifjp/NotoSerifJP%5Bwght%5D.ttf', NotoSerifSC: 'notoserifsc/NotoSerifSC%5Bwght%5D.ttf', NotoSerifTC: 'notoseriftc/NotoSerifTC%5Bwght%5D.ttf', NotoSerifKR: 'notoserifkr/NotoSerifKR%5Bwght%5D.ttf' };
-  FL.urlOf = (family) => (CJK[family] ? GOOGLE + CJK[family] : NOTO + family + '/' + (UNHINTED.has(family) ? 'unhinted' : 'hinted') + '/ttf/' + family + '-Regular.ttf');
+  // Manuscribe's own font, for Devanagari and Latin, with its licence
+  const TIRO = 'tirodevanagarisanskrit/';
+  const OWN = { TiroDevanagariSanskrit: TIRO + 'TiroDevanagariSanskrit-Regular.ttf', 'TiroDevanagariSanskrit-Italic': TIRO + 'TiroDevanagariSanskrit-Italic.ttf', 'TiroDevanagariSanskrit-OFL': TIRO + 'OFL.txt' };
+  FL.urlOf = (family) => (OWN[family] ? GOOGLE + OWN[family] : CJK[family] ? GOOGLE + CJK[family] : NOTO + family + '/' + (UNHINTED.has(family) ? 'unhinted' : 'hinted') + '/ttf/' + family + '-Regular.ttf');
 
   // ISO 15924 script -> its Noto family. Han, Hiragana, Katakana, Bopomofo and Hangul are chosen by the language.
   const S = (s) => Object.fromEntries(s.trim().split(/\s+/).map((x) => x.split(':')));
@@ -94,6 +99,87 @@
       memo.set(family, b);
       return b;
     } catch (e) { return null; }
+  };
+
+  /* Tiro Devanagari Sanskrit: fetched once, kept, and given to the page as its font for Devanagari and Latin, upright
+     and italic. Until it is in (the first time, or with fetching off and nothing kept), the browser's own Devanagari
+     font stands in. -> Promise of true if the font is in */
+  let tiroFaces = null;
+  FL.loadTiro = function () {
+    if (!tiroFaces) {
+      tiroFaces = (async () => {
+        if (typeof FontFace !== 'function' || typeof document === 'undefined') return false;
+        let any = false;
+        for (const [family, style] of [['TiroDevanagariSanskrit', 'normal'], ['TiroDevanagariSanskrit-Italic', 'italic']]) {
+          const b = await FL.get(family);
+          if (!b) continue;
+          try { const f = new FontFace('Tiro Devanagari Sanskrit', b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), { style }); await f.load(); document.fonts.add(f); any = true; } catch (e) { /* the browser's font stays */ }
+        }
+        if (!any) tiroFaces = null; // tried again another time
+        return any;
+      })();
+    }
+    return tiroFaces;
+  };
+
+  /* Whether a text needs Tiro: if it has Devanagari. (Latin alone is set in the browser's fonts on screen and in Noto
+     Serif in print.) */
+  FL.needsTiro = (text) => /\p{Script=Devanagari}/u.test(String(text || ''));
+
+  /* The script of a language tag: sa-Latn is Latin, sa (by itself) Devanagari, ar Arabic. -> ISO 15924 code, or null */
+  FL.scriptOfTag = (tag) => { try { return tag ? new Intl.Locale(tag).maximize().script || null : null; } catch (e) { return null; } };
+
+  /* The font that sets a script on screen: Tiro for Devanagari; none for the scripts every computer and phone has
+     fonts for (Latin, Greek, Cyrillic, Armenian, Georgian, Hebrew, Arabic, Thai, Chinese, Japanese, Korean: the
+     Chinese, Japanese and Korean Noto fonts are many megabytes); the Noto font for any other. Print and the PDF carry
+     their own fonts whatever is on screen. -> family, or null */
+  const BROWSER = new Set(['Latn', 'Grek', 'Cyrl', 'Armn', 'Geor', 'Hebr', 'Arab', 'Thai', 'Hani', 'Hira', 'Kana', 'Hang', 'Bopo', 'Jpan', 'Hans', 'Hant', 'Kore', 'Zyyy', 'Zinh', 'Zzzz']);
+  FL.screenFamily = (code, langs) => (code === 'Deva' ? 'TiroDevanagariSanskrit' : BROWSER.has(code) ? null : FL.SCRIPTS[code] !== undefined ? FL.SCRIPTS[code] || cjkFamily(code, langs) : null);
+
+  /* Fonts on screen for a transcription: the script of its language tag (what the editor said they would type) and
+     the scripts of its text, each font fetched once (where fetching is allowed), kept, and given to the page; the
+     Noto families go into the typing area's font stack (--script) after Tiro. onAdded(families): called when fonts
+     came in, so that what was laid out can be laid out again. -> Promise of the families added */
+  const onScreen = new Map(); // family -> Promise of true if it is in
+  FL.onScreen = () => [...onScreen.keys()];
+  function setStack() {
+    const noto = [...onScreen.keys()].filter((f) => f !== 'TiroDevanagariSanskrit');
+    if (!noto.length || typeof document === 'undefined') return;
+    document.documentElement.style.setProperty('--script', ["'Tiro Devanagari Sanskrit'"].concat(noto.map((f) => "'" + f + "'"), ["'Noto Serif Devanagari'", "'Kohinoor Devanagari'", "'Nirmala UI'", "'Mangal'", 'serif']).join(', '));
+  }
+  async function screenFace(family) {
+    const b = await FL.get(family);
+    if (!b || typeof FontFace !== 'function') return false;
+    try { const f = new FontFace(family, b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); await f.load(); document.fonts.add(f); return true; } catch (e) { return false; }
+  }
+  FL.forScreen = function (tag, text, onAdded) {
+    const langs = tag ? [tag] : [];
+    const codes = new Set();
+    const own = FL.scriptOfTag(tag);
+    if (own) codes.add(own);
+    for (const f of FL.familiesFor(String(text || '').slice(0, 60000), langs)) codes.add(f.script);
+    const fams = [...new Set([...codes].map((c) => FL.screenFamily(c, langs)).filter(Boolean))].filter((f) => !onScreen.has(f));
+    if (!fams.length) return Promise.resolve([]);
+    for (const f of fams) onScreen.set(f, (f === 'TiroDevanagariSanskrit' ? FL.loadTiro() : screenFace(f)).then((ok) => { if (!ok) onScreen.delete(f); return ok; }));
+    return Promise.all(fams.map((f) => onScreen.get(f))).then((oks) => {
+      const added = fams.filter((_, i) => oks[i]);
+      if (added.length) { setStack(); if (onAdded) onAdded(added); }
+      return added;
+    });
+  };
+
+  /* Tiro as a file, for the PDF, the print page and the exports: {bytes, base64, licence}, or null if it cannot be
+     had now */
+  let tiroFile = null;
+  FL.tiro = async function () {
+    if (tiroFile) return tiroFile;
+    const bytes = await FL.get('TiroDevanagariSanskrit');
+    if (!bytes) return null;
+    const lic = await FL.get('TiroDevanagariSanskrit-OFL');
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+    tiroFile = { bytes, base64: btoa(s), licence: lic ? new TextDecoder().decode(lic) : 'SIL Open Font License, Version 1.1 (https://openfontlicense.org)' };
+    return tiroFile;
   };
 
   /* The fonts a text needs, as {family, script, bytes}; those that cannot be had now are left out (missing). text:

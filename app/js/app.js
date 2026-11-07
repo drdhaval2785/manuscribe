@@ -64,6 +64,21 @@
 
   const saveSoon = U.debounce(() => App.save(), 700);
 
+  /* The fonts a transcription needs on screen (FontLib.forScreen): for the script it is typed in and the scripts in
+     its text, each fetched once and kept; nothing for a script the browser sets well. The folio is laid out again
+     when a font comes in. */
+  const textOfPages = (p, max) => {
+    let t = '';
+    for (const pg of Object.values(p.pages || {})) for (const ls of Object.values(pg.boxes || {})) { t += (ls || []).join(' ') + ' '; if (t.length > max) return t; }
+    return t;
+  };
+  const folioText = () => { const p = App.project, e = entry(); const pg = p && e && p.pages[e.label]; return pg ? Object.values(pg.boxes || {}).map((ls) => (ls || []).join(' ')).join(' ') : ''; };
+  function screenFonts(text) {
+    const p = App.project;
+    if (!p || !ME.FontLib) return;
+    ME.FontLib.forScreen(p.meta.textLang, text, () => { if (App.project === p && App.entries && entry()) { try { rerender(); } catch (e) { /* the next render has it */ } } });
+  }
+
   App.changed = function (quiet) {
     if (!App.project) return;
     App.project.modified = Date.now();
@@ -77,6 +92,8 @@
     try {
       await Store.putProject(App.project);
       App.lastSaved = Date.now();
+      // a script typed for the first time gets its font
+      screenFonts(folioText());
       setSaveState('saved');
     } catch (e) {
       console.error(e);
@@ -196,6 +213,55 @@
     return { el: wrap, draw, values: () => { const o = {}; for (const [b, i] of Object.entries(inputs)) o[b] = Math.max(1, parseInt(i.value, 10) || 1); return o; } };
   }
 
+  /* The language of a transcription and the script it is typed in, as two lists of names. -> {el, value(): {language,
+     textLang, script}} textLang: the tag of the transcription (sa-Deva, sa-Latn, ar, grc…); script: the manuscript's
+     (sa-Deva), the script of the language when the transcription is a transliteration. */
+  const LANG_CODES = ['sa', 'pra', 'pi', 'hi', 'mr', 'ne', 'gu', 'bn', 'pa', 'or', 'ta', 'te', 'kn', 'ml', 'si', 'bo', 'ur', 'fa', 'ar', 'he', 'syc', 'grc', 'el', 'la', 'en', 'de', 'fr', 'it', 'es', 'pt', 'ru', 'ka', 'hy', 'am', 'th', 'km', 'my', 'zh', 'ja', 'ko'];
+  const LANG_NAMES = { pra: 'Prakrit', pi: 'Pali', syc: 'Syriac', grc: 'Ancient Greek', el: 'Greek (modern)' };
+  const SCRIPT_OF = { pra: 'Deva', pi: 'Latn' }; // where the browser does not know
+  const KEEP_SCRIPT = new Set(['sa', 'pra', 'pi']); // tags written with their script, as sa-Deva, sa-Latn
+  function languageInputs() {
+    const dn = (type) => { try { return new Intl.DisplayNames(['en'], { type }); } catch (e) { return { of: (x) => x }; } };
+    const langName = (c) => LANG_NAMES[c] || dn('language').of(c) || c;
+    const scriptName = (c) => ({ Latn: 'Latin', Jpan: 'Japanese', Hans: 'Chinese, simplified', Hant: 'Chinese, traditional', Kore: 'Korean' })[c] || dn('script').of(c) || c;
+    const scriptOf = (lang) => SCRIPT_OF[lang] || (ME.FontLib && ME.FontLib.scriptOfTag(lang)) || 'Latn';
+    let last = {};
+    try { last = JSON.parse(localStorage.getItem('manuscribe.newLang') || '{}'); } catch (e) { /* none */ }
+    const lang = U.el('select', null, LANG_CODES.map((c) => U.el('option', { value: c }, langName(c))), U.el('option', { value: '' }, 'Other: a language code…'));
+    const other = U.el('input', { type: 'text', placeholder: 'e.g. sd, kok, ps', style: { maxWidth: '9em' }, hidden: true, title: 'A language code (ISO 639), as on Wikipedia’s page for the language' });
+    const script = U.el('select');
+    const allScripts = [...new Set(Object.keys((ME.FontLib && ME.FontLib.SCRIPTS) || {}).filter((c) => !/^(Hani|Hira|Kana|Bopo|Hang)$/.test(c)).concat(['Jpan', 'Hans', 'Hant', 'Kore']))].sort((a, b) => scriptName(a).localeCompare(scriptName(b)));
+    const code = () => (lang.value || other.value.trim().toLowerCase());
+    const fill = (want) => {
+      const own = scriptOf(code());
+      const first = [own].concat(own === 'Latn' ? [] : ['Latn']).concat(own === 'Deva' ? [] : ['Deva']).filter((x, i, a) => a.indexOf(x) === i);
+      script.innerHTML = '';
+      for (const c of first) script.appendChild(U.el('option', { value: c }, c === own ? scriptName(c) + ' (as the manuscript)' : c === 'Latn' ? 'Latin: a transliteration, as IAST' : scriptName(c)));
+      script.appendChild(U.el('optgroup', { label: 'Another script' }, allScripts.filter((c) => !first.includes(c)).map((c) => U.el('option', { value: c }, scriptName(c)))));
+      script.value = want && [...script.options].some((o) => o.value === want) ? want : own;
+    };
+    lang.value = LANG_CODES.includes(last.lang) ? last.lang : last.lang ? '' : 'sa';
+    if (!lang.value && last.lang) { other.hidden = false; other.value = last.lang; }
+    fill(last.script);
+    lang.addEventListener('change', () => { other.hidden = !!lang.value; if (!lang.value) other.focus(); fill(); });
+    other.addEventListener('change', () => fill());
+    const el = U.el('div', { class: 'row2' },
+      U.el('label', { class: 'field' }, U.el('span', null, 'Language of the text'), U.el('span', { class: 'lang-pick' }, lang, other)),
+      U.el('label', { class: 'field' }, U.el('span', null, 'You will type in'), script));
+    const value = () => {
+      const l = code() || 'und', sc = script.value, own = scriptOf(l);
+      try { localStorage.setItem('manuscribe.newLang', JSON.stringify({ lang: l, script: sc })); } catch (e) { /* this time only */ }
+      return {
+        language: lang.value ? langName(l) : l,
+        textLang: KEEP_SCRIPT.has(l) || sc !== own ? l + '-' + sc : l,
+        script: l + '-' + (sc === 'Latn' && own !== 'Latn' ? own : sc),
+      };
+    };
+    return { el, value, help: U.el('p', { class: 'help' }, 'Manuscribe fetches only the font this script needs, once, and keeps it in this browser. Both can be changed later, in the side panel under Manuscript.') };
+  }
+
+  App.languageInputs = languageInputs;
+
   App.newProject = async function (opts) {
     let file = null;
     let type = 'linear';
@@ -219,6 +285,7 @@
     if (opts && opts.xml) { xmlFile = opts.xml; setTimeout(() => { xmlName.textContent = xmlFile.name; }, 0); }
     const title = U.el('input', { type: 'text', placeholder: 'e.g. Haimanāmamālā with ṭīkā' });
     const siglum = U.el('input', { type: 'text', placeholder: 'e.g. P1', style: { maxWidth: '8em' } });
+    const language = languageInputs();
     const lines = linesInputs(type, {});
     const cards = layoutCards(type, (k) => { type = k; lines.draw(k); });
     const firstPage = U.el('input', { type: 'number', min: '1', value: '1' });
@@ -246,7 +313,8 @@
         U.el('p', { class: 'help' }, 'Optional: a transcription you already have, as XML, to add markup to. <pb n="0005_1"> is folio 5, first side; <pb n="0005_2"> its back side.')),
       U.el('section', null, U.el('h3', null, '2 · Text'), U.el('div', { class: 'row2' },
         U.el('label', { class: 'field' }, U.el('span', null, 'Title of the text'), title),
-        U.el('label', { class: 'field' }, U.el('span', null, 'Siglum of this witness'), siglum))),
+        U.el('label', { class: 'field' }, U.el('span', null, 'Siglum of this witness'), siglum)),
+        language.el, language.help),
       U.el('section', null, U.el('h3', null, '3 · Layout of the folios'), cards,
         U.el('div', { class: 'opt-title' }, 'Usual number of lines per folio side'), lines.el,
         U.el('p', { class: 'help' }, 'Individual folios can differ — you can change the number of lines on any folio while typing.')),
@@ -272,7 +340,7 @@
     });
     if (!ok) return;
     const p = Model.newProject({
-      meta: { title: title.value.trim(), siglum: siglum.value.trim() },
+      meta: Object.assign({ title: title.value.trim(), siglum: siglum.value.trim() }, language.value()),
       layoutType: type, lines: lines.values(),
       folios: { firstPage: Math.max(1, +firstPage.value || 1), startNo: Math.max(0, +startNo.value || 0), startSide: startSide.value, sidesPerPage: +sides.value, missing: missing.value.trim() },
       pdf: { name: file.name, bytes: file.size },
@@ -414,6 +482,7 @@
     App.fileHandle = null;
     TEI.setUnanchored(p.settings.noAnchorIds);
     ME.Features.setContext([p.meta.textLang || 'sa-Latn']);
+    screenFonts(textOfPages(p, 60000));
     localStorage.setItem('lipikara.last', id);
     document.body.classList.remove('no-project');
     $('btn-edition').hidden = !ME.Edition.current;
@@ -686,6 +755,7 @@
     const e = entry();
     const pos = focus || Editor.current;
     const g = Model.geometry(App.project, e, App.pageSizes[e.pdfPage] || (App.project.pdf && App.project.pdf.size));
+    screenFonts(folioText());
     if (PdfView.doc) App.pdfShown = PdfView.show(e, g.leaf);
     Editor.render(App.project, e, App.pageSizes[e.pdfPage] || (App.project.pdf && App.project.pdf.size));
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
@@ -935,6 +1005,7 @@
     ], p.meta);
     f.el.addEventListener('change', () => {
       Object.assign(p.meta, f.values());
+      screenFonts(folioText());
       $('proj-title').textContent = (p.meta.title || 'Untitled') + (p.meta.siglum ? '  ·  ' + p.meta.siglum : '');
       App.changed();
     });
