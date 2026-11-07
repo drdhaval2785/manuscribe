@@ -126,6 +126,39 @@ const TEXTS = {
     await p3.close();
     return r;
   };
+  // notes numbered from 1 on each page, the markers with them, linked both ways, and no block IDs
+  const numbered = await (async () => {
+    const html = await page.evaluate(() => { const { ed, list, built } = window.ed_sa; return ME.PrintHTML.html(ed, list, built); });
+    const p3 = await browser.newPage();
+    await p3.setContent(html, { waitUntil: 'load' });
+    for (let k = 0; k < 80 && !(await p3.evaluate(() => !!window.__paginated)); k++) await sleep(150);
+    const r = await p3.evaluate(() => {
+      const pages = [...document.querySelectorAll('.page')].filter((p) => p.querySelector('.foot .note'));
+      return { pages: pages.length, ids: document.querySelectorAll('.body .bid').length, each: pages.map((p) => {
+        const nk = [...new Set([...p.querySelectorAll('.foot a.nk')].map((x) => +x.textContent))].sort((a, b) => a - b);
+        const sup = [...p.querySelectorAll('.body .an sup a')].map((x) => +x.textContent);
+        const linked = [...p.querySelectorAll('.body .an sup a')].every((x) => { const t = document.getElementById(x.getAttribute('href').slice(1)); return t && t.closest('.page') === p && +t.textContent === +x.textContent; })
+          && [...p.querySelectorAll('.foot a.nk')].every((x) => { const t = document.getElementById(x.getAttribute('href').slice(1)); return t && t.closest('.page') === p; });
+        return { nk, sup, linked };
+      }) };
+    });
+    await p3.close();
+    return r;
+  })();
+  T.check('notes are numbered from 1 on each page, the markers with them, and no block IDs are printed', numbered.pages >= 2 && numbered.ids === 0 && numbered.each.every((p) => p.nk[0] === 1 && p.nk.every((n, i) => n === i + 1) && p.sup.join() === p.nk.join()), numbered.each.map((p) => p.sup.slice(0, 4).join(',') + '…' + p.nk.length));
+  T.check('each marker links to its note and each note back to its marker, on the same page', numbered.each.every((p) => p.linked));
+  const pdfLinks = await page.evaluate(async () => {
+    const { ed, list, built } = window.ed_sa;
+    const r = await ME.Typeset.pdf(ed, list, built);
+    const buf = new Uint8Array(await r.blob.arrayBuffer());
+    await ME.PdfView.ensureWorker();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    let links = 0, dests = 0;
+    for (let i = 1; i <= doc.numPages; i++) for (const a of await (await doc.getPage(i)).getAnnotations()) if (a.subtype === 'Link') { links++; if (a.dest) dests++; }
+    const firstNumbers = r.layout.map((pg) => pg.noted.map((k) => +k.split('#')[1]));
+    return { links, dests, firstNumbers };
+  });
+  T.check('the direct PDF numbers its notes from 1 on each page too, and links markers and notes both ways', pdfLinks.links > 40 && pdfLinks.dests === pdfLinks.links && pdfLinks.firstNumbers.filter((x) => x.length).every((x) => x[0] === 1), pdfLinks);
   const perPage = await layOut('page');
   T.check('lines are numbered down each page, from 1 on every page, without regard to blocks', perPage.length >= 2 && perPage.every((p) => p.ln[0] === 1 && p.ln.every((n, i) => n === i + 1)), perPage.map((p) => p.ln.slice(0, 3).join(',') + '…' + p.ln.length));
   T.check('and each note cites a line of its own page', perPage.every((p) => p.nk.every((n) => n >= 1 && n <= p.ln.length)) && perPage.some((p) => p.nk.length), perPage.map((p) => p.nk.slice(0, 5)));

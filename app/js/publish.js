@@ -186,6 +186,17 @@
       if (r) return r.text;
       return e.lemma;
     };
+    // one entry of the apparatus, as a list item: what is printed, the reason, testimonia, and each reading to swap in
+    const entryItem = (bi, i) => {
+      const e = D.blocks[bi].entries[i];
+      let p = esc(e.printed).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>');
+      if (!state.ac) p = p.replace(/;?\s*[^;]*<sup>[^<]*<\/sup>/g, '');
+      const swaps = [e.lemma, ...e.readings.map((r) => r.text), ...e.orth.map((o) => o.text)].map((r, ri) => '<button class="swap" data-k="' + bi + ':' + i + '" data-r="' + ri + '" title="Read this in the text">' + (r ? esc(r) : '(omits)') + '</button>').join(' ');
+      const why = e.decision && (e.decision.reasons.length || e.decision.note) ? '<span class="why">' + esc([e.decision.source, ...e.decision.reasons, e.decision.note].filter(Boolean).join('; ')) + '</span>' : '';
+      if (e.kind === 'testimonium') return '<li data-k="' + bi + ':' + i + '" class="testis">' + p + '</li>';
+      const testis = e.testimonia && e.testimonia.length ? '<span class="testis"> Testimonia: ' + esc(e.testimonia.join('; ')) + '</span>' : '';
+      return '<li data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '">' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
+    };
     const draw = () => {
       const main = $('#text');
       let html = '';
@@ -206,28 +217,56 @@
           if (e.decision && e.decision.confidence === 'low') cls += ' unsure';
           if (state.heat) cls += ' heat' + Math.min(4, e.readings.length + (e.missing.length ? 1 : 0));
           if (e.decision && e.decision.crux && state.view === 'edited') shown = '†' + shown + '†';
-          text += esc(lead) + '<span class="' + cls + '" data-k="' + key + '" title="' + esc(e.ref) + '">' + (shown ? esc(shown) : '<span class="om">‸</span>') + '</span>' + esc(tail);
+          text += esc(lead) + '<span class="' + cls + '" data-k="' + key + '">' + (shown ? esc(shown) : '<span class="om">‸</span>') + '</span>' + esc(tail);
         });
         const items = b.entries.map((e, i) => {
           if ((e.kind === 'orthographic' && !state.orth) || (e.singular && !state.singular)) return '';
-          let p = esc(e.printed).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>');
-          if (!state.ac) p = p.replace(/;?\s*[^;]*<sup>[^<]*<\/sup>/g, '');
-          // each reading can be put into the text, to read it there
-          const swaps = [e.lemma, ...e.readings.map((r) => r.text), ...e.orth.map((o) => o.text)].map((r, ri) => '<button class="swap" data-k="' + bi + ':' + i + '" data-r="' + ri + '" title="Read this in the text">' + (r ? esc(r) : '(omits)') + '</button>').join(' ');
-          const why = e.decision && (e.decision.reasons.length || e.decision.note) ? '<span class="why">' + esc([e.decision.source, ...e.decision.reasons, e.decision.note].filter(Boolean).join('; ')) + '</span>' : '';
-          if (e.kind === 'testimonium') return '<li data-k="' + bi + ':' + i + '" class="testis"><span class="ref">' + esc(e.ref) + '</span> ' + p + '</li>';
-          const testis = e.testimonia && e.testimonia.length ? '<span class="testis"> Testimonia: ' + esc(e.testimonia.join('; ')) + '</span>' : '';
-          return '<li data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '"><span class="ref">' + esc(e.ref) + '</span> ' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
+          return entryItem(bi, i);
         }).join('');
         const mula = b.base && b.base.length ? '<blockquote class="mula" title="' + esc(D.base.title + ' ' + b.base.map((x) => x[0]).join(', ')) + '"><span class="ref">' + esc(D.base.title + ' ' + b.base.map((x) => x[0]).join(', ')) + '</span> ' + esc(b.base.map((x) => x[1]).join(' ')) + '</blockquote>' : '';
         // a commentary of a layered edition: set in by its depth, with its [abbreviation] first
         const L = b.layer;
         const lay = L ? ' style="margin-inline-start:' + (L.depth * 1.6) + 'em;font-size:' + Math.max(0.78, 1 - L.depth * 0.07).toFixed(2) + 'em"' : '';
         const abbr = L ? '<b class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</b> ' : '';
-        html += '<section class="block' + (L ? ' layer' : '') + '" id="b-' + esc(b.id) + '"' + lay + '><h2>' + esc(b.id) + '</h2>' + mula + '<p class="txt">' + abbr + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
+        // no internal reference is shown: the block's id is only its anchor
+        html += '<section class="block' + (L ? ' layer' : '') + '" id="b-' + esc(b.id) + '"' + lay + '>' + mula + '<p class="txt">' + abbr + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
       });
       main.innerHTML = html;
+      if (state.open) showPanel(state.open);
     };
+    /* The apparatus is not in the way of reading: pointing at a word shows its entry beside it, and clicking keeps
+       it, with the other entries of its passage, in the panel at the side. */
+    const pop = $('#pop'), panel = $('#panel'), panelBody = $('#panel-body');
+    const showPop = (u) => {
+      const [bi, i] = u.getAttribute('data-k').split(':').map(Number);
+      pop.innerHTML = '<ol class="app">' + entryItem(bi, i) + '</ol>';
+      pop.hidden = false;
+      const r = u.getBoundingClientRect(), w = Math.min(440, window.innerWidth - 16);
+      pop.style.maxWidth = w + 'px';
+      pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+      const below = r.bottom + 8, h = pop.offsetHeight;
+      pop.style.top = (below + h < window.innerHeight ? below : Math.max(8, r.top - h - 8)) + 'px';
+    };
+    const showPanel = (key) => {
+      const [bi, i] = key.split(':').map(Number);
+      const b = D.blocks[bi];
+      if (!b || !b.entries[i]) return;
+      state.open = key;
+      const others = b.entries.map((e, j) => (j === i || (e.kind === 'orthographic' && !state.orth) || (e.singular && !state.singular) ? '' : entryItem(bi, j))).join('');
+      panelBody.innerHTML = '<ol class="app here">' + entryItem(bi, i) + '</ol>' + (others ? '<p class="ref">The other notes of this passage</p><ol class="app">' + others + '</ol>' : '');
+      document.body.classList.add('panel-open');
+      document.querySelectorAll('.u.open').forEach((x) => x.classList.remove('open'));
+      document.querySelectorAll('.u[data-k="' + key + '"]').forEach((x) => x.classList.add('open'));
+    };
+    const closePanel = () => { state.open = null; document.body.classList.remove('panel-open'); document.querySelectorAll('.u.open').forEach((x) => x.classList.remove('open')); };
+    $('#panel-close').addEventListener('click', closePanel);
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { pop.hidden = true; closePanel(); } });
+    document.addEventListener('mouseover', (ev) => { const u = ev.target.closest('#text .u'); if (u) showPop(u); else pop.hidden = true; });
+    window.addEventListener('scroll', () => { pop.hidden = true; }, { passive: true });
+    const head = document.querySelector('header');
+    const placePanel = () => document.documentElement.style.setProperty('--head', head.offsetHeight + 'px');
+    window.addEventListener('resize', placePanel);
+    placePanel();
     let lit = null;
     const light = (k) => {
       if (lit === k) return;
@@ -249,9 +288,12 @@
         draw();
         return;
       }
-      const u = ev.target.closest('.u');
-      if (u) { const li = document.querySelector('li[data-k="' + u.getAttribute('data-k') + '"]'); if (li) li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      const u = ev.target.closest('#text .u');
+      if (u) { pop.hidden = true; showPanel(u.getAttribute('data-k')); }
     });
+    // the apparatus under the text too, and the places marked, for those who want them
+    $('#t-app').addEventListener('change', (ev) => document.body.classList.toggle('show-app', ev.target.checked));
+    $('#t-mark').addEventListener('change', (ev) => document.body.classList.toggle('mark', ev.target.checked));
     $('#view').addEventListener('change', (ev) => { state.view = ev.target.value; draw(); });
     for (const k of ['orth', 'singular', 'ac', 'heat']) $('#t-' + k).addEventListener('change', (ev) => { state[k] = ev.target.checked; draw(); });
     $('#reset').addEventListener('click', () => { state.swapped = {}; draw(); });
@@ -271,8 +313,26 @@ main, .front { max-width: 980px; margin: 0 auto; padding: 0 16px; }
 .cite { font: 13px system-ui, sans-serif; color: var(--muted); }
 .block h2 { font: 600 14px system-ui, sans-serif; margin: 22px 0 4px; color: var(--muted); }
 .txt { font-size: 20px; line-height: 2; margin: 0 0 8px; }
-.u { border-bottom: 1px dotted #b9a98c; cursor: pointer; border-radius: 3px; }
-.u.decided { border-bottom-color: #2b8a3e; }
+.u { cursor: pointer; border-radius: 3px; }
+.u:hover, .u.open { background: #fdf0d3; }
+body.mark .u { border-bottom: 1px dotted #b9a98c; }
+body.mark .u.decided { border-bottom-color: #2b8a3e; }
+/* the apparatus: hidden under the text unless asked for; a word's entry beside it; the passage's in the panel */
+#text ol.app { display: none; }
+body.show-app #text ol.app { display: block; }
+#pop { position: fixed; z-index: 5; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px rgba(60, 40, 10, .18); padding: 6px 10px; pointer-events: none; }
+#pop ol.app { margin: 0; } #pop .swaps { display: none !important; }
+#panel { display: none; position: fixed; top: var(--head, 48px); right: 0; bottom: 0; width: 380px; overflow: auto; background: #fbf6ec; border-left: 1px solid var(--line); padding: 10px 14px; z-index: 3; }
+#panel h2 { font: 600 14px system-ui, sans-serif; margin: 0; flex: 1; }
+.panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+body.panel-open #panel { display: block; }
+body.panel-open main, body.panel-open .front, body.panel-open footer { margin-right: 400px; }
+#panel ol.app.here li { background: #fdf0d3; }
+#panel .swaps { display: inline; }
+@media (max-width: 860px) {
+  #panel { top: auto; left: 0; width: auto; height: 42vh; border-left: 0; border-top: 1px solid var(--line); }
+  body.panel-open main, body.panel-open .front { margin-right: auto; margin-bottom: 44vh; }
+}
 .u.unsure { text-decoration: underline wavy #8a5a00; text-underline-offset: 6px; }
 .u.swapped { background: #d8ecf5; }
 .u.heat1 { background: #fdf0d3; } .u.heat2 { background: #fbe0b0; } .u.heat3 { background: #f6c7a8; } .u.heat4 { background: #f0a98c; }
@@ -295,7 +355,8 @@ td, th { border-bottom: 1px solid var(--line); padding: 3px 8px; text-align: lef
 .principles p { font: 14px/1.55 system-ui, sans-serif; }
 footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
 @media print {
-  header { display: none; }
+  header, #panel, #pop { display: none !important; }
+  body.panel-open main, body.panel-open .front { margin-right: auto; }
   body { background: #fff; font-size: 11pt; }
   .txt { font-size: 13pt; line-height: 1.7; }
   .u { border: 0; }
@@ -319,6 +380,8 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + '<style>' + READER_CSS + '</style>\n</head>\n<body>\n'
       + '<header><h1>' + esc(data.title) + '</h1>'
       + '<label>Read <select id="view">' + options + '</select></label>'
+      + '<label title="Every note under the text, as in a printed edition"><input type="checkbox" id="t-app"> apparatus under the text</label>'
+      + '<label title="Underline the words where the witnesses differ"><input type="checkbox" id="t-mark"> mark the variants</label>'
       + '<label><input type="checkbox" id="t-orth"> spelling variants</label>'
       + '<label><input type="checkbox" id="t-singular" checked> singular readings</label>'
       + '<label><input type="checkbox" id="t-ac" checked> before correction</label>'
@@ -327,8 +390,10 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + '<button id="print" title="Print, or save as PDF: a draft, not a typeset edition">Print a draft</button></header>\n'
       + '<div class="front"><p class="cite">' + esc(data.citation) + '</p>'
       + '<details><summary>Conspectus siglorum and editorial principles</summary>' + consp + '<div class="principles">' + data.principles.map((p) => '<p>' + esc(p) + '</p>').join('') + '</div></details>'
-      + '<p class="cite">Point at a word to see its entry, and at an entry to see its words. Click a reading in an entry to read it in the text.</p></div>\n'
+      + '<p class="cite">The edited text, to read. Point at a word to see what the witnesses read there; click it to keep its notes open at the side, where a click on a reading puts it into the text.</p></div>\n'
       + '<main id="text"></main>\n'
+      + '<div id="pop" hidden></div>\n'
+      + '<aside id="panel" aria-label="Apparatus"><div class="panel-head"><h2>Apparatus</h2><button id="panel-close" title="Close">×</button></div><div id="panel-body"></div></aside>\n'
       + (stars.length ? '<div class="front"><h2>Additional passages</h2>' + stars.map((x) => '<p><b>' + esc(x.id) + '</b> (' + esc(x.wits.join(' ')) + '): ' + esc(x.text) + '</p>').join('') + '</div>\n' : '')
       + (data.indices && data.indices.words.length ? '<div class="front indices"><details><summary>Indices</summary>'
         + (data.indices.padas.length ? '<h2>Pādas</h2><ul>' + data.indices.padas.map(([p, r]) => '<li>' + esc(p) + ' <span class="ref">' + esc(r) + '</span></li>').join('') + '</ul>' : '')

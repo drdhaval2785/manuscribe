@@ -65,7 +65,7 @@ const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
     const textOf = async (i) => (await (await pdf.getPage(i)).getTextContent()).items.map((x) => x.str).join(' ').replace(/\s+/g, ' ');
     const p1 = await textOf(1), p2 = await textOf(2);
     ok('the title page: title, conspectus, principles', /Rāmāyaṇa-like/.test(p1) && /Conspectus siglorum/.test(p1) && /Editorial principles/.test(p1), p1.slice(0, 200));
-    ok('the text can be searched: letters come back from the glyphs', /राम/.test(p2) && /लक्ष्मणः/.test(p2) && /b1/.test(p2), p2.slice(0, 200));
+    ok('the text can be searched: letters come back from the glyphs; no block IDs are printed', /राम/.test(p2) && /लक्ष्मणः/.test(p2) && !/\bb1\b/.test(p2), p2.slice(0, 200));
     ok('a crux is in daggers, and the emendation is in the text and the apparatus', /†/.test(p2) && /Kielhorn/.test(p2), p2.slice(0, 600));
     // drawn, not blank
     const pg = await pdf.getPage(2);

@@ -92,7 +92,9 @@
       page(w, h) {
         const ops = [];
         const p = {
-          w, h, ops,
+          w, h, ops, links: [], index: pages.length,
+          /* a link from the box x1..x2, y1..y2 (y down from the top) to a place on a page of this document */
+          link(x1, y1, x2, y2, page, y) { p.links.push({ rect: [x1, h - y2, x2, h - y1], page, y }); },
           /* glyphs from the shaper at (x, y), y down from the top; text: what they spell */
           glyphs(gl, x, y, size, text, color) {
             if (!gl.length) return;
@@ -149,9 +151,13 @@
         const type0 = add('<< /Type /Font /Subtype /Type0 /BaseFont /' + font.name + ' /Encoding /Identity-H /DescendantFonts [' + cid + ' 0 R] /ToUnicode ' + toUni + ' 0 R >>');
         const pagesId = objs.length + pages.length * 2 + 1; // placed after the pages and their contents
         const pageIds = [];
+        // each page is its contents and then itself, so the number of any page is known before it is written
+        const first = objs.length + 1;
+        const idOfPage = (i) => first + 2 * i + 1;
         for (const p of pages) {
           const content = add(await streamObj('', p.ops.join('\n')));
-          pageIds.push(add('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' + num(p.w) + ' ' + num(p.h) + '] /Resources << /Font << /F1 ' + type0 + ' 0 R >> >> /Contents ' + content + ' 0 R >>'));
+          const annots = p.links.length ? ' /Annots [' + p.links.map((l) => '<< /Type /Annot /Subtype /Link /Rect [' + l.rect.map(num).join(' ') + '] /Border [0 0 0] /Dest [' + idOfPage(l.page) + ' 0 R /XYZ null ' + num(pages[l.page].h - l.y) + ' null] >>').join(' ') + ']' : '';
+          pageIds.push(add('<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 ' + num(p.w) + ' ' + num(p.h) + '] /Resources << /Font << /F1 ' + type0 + ' 0 R >> >> /Contents ' + content + ' 0 R' + annots + ' >>'));
         }
         const pagesObj = add('<< /Type /Pages /Kids [' + pageIds.map((i) => i + ' 0 R').join(' ') + '] /Count ' + pages.length + ' >>');
         if (pagesObj !== pagesId) throw new Error('PDF objects out of order');

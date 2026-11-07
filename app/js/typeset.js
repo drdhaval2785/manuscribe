@@ -105,7 +105,8 @@
       if (!a) a = atoms.filter((x) => x.to <= an.start).pop() || atoms.find((x) => x.from >= an.start) || atoms[atoms.length - 1];
       if (!a) continue;
       a.entries.push(an.i);
-      if (markers && markers.has(an.i)) a.sup = (a.sup ? a.sup + ',' : '') + markers.get(an.i);
+      // the number is given on its page (1 on); two digits are kept for it meanwhile, so that lines do not grow
+      if (markers && markers.has(an.i)) a.sup = (a.sup ? a.sup + ',' : '') + '88';
     }
     for (const a of atoms) a.unsure = unsure.some(([f, t]) => f < a.to && t > a.from);
     return atoms;
@@ -120,13 +121,10 @@
   // colours of the print page: the block's reference, and the accent of markers, note numbers and [abbreviations]
   const MUTED = [0.42, 0.35, 0.24], ACCENT = [0.55, 0.16, 0.09];
 
-  // the atoms of one note, as on the print page: ([abbreviation]) block, number or line, lemma ] readings
+  // the atoms of one note, as on the print page: its number on the page (or its line), lemma ] readings
   function noteAtoms(ed, note, s, L, size) {
-    const { e, line, unit, first, marker, abbr } = note;
-    const head = [];
-    if (first && abbr) head.push({ t: '[' + abbr + ']', size, rise: 0, gap: 0, mark: 'accent' });
-    if (first) head.push({ t: unit, size, rise: 0, gap: head.length ? L.space(size) : 0, mark: 'unit' });
-    head.push({ t: String(marker || line), size, rise: 0, gap: head.length ? L.space(size) : 0, mark: 'accent' });
+    const { e, line, marker } = note;
+    const head = [{ t: String(marker || line), size, rise: 0, gap: 0, mark: 'accent', key: note.unit + '#' + note.ei }];
     let body;
     if (s === 'B') body = (e.lemma || '⌀') + ' ] ' + e.testimonia.map(ME.Layers.formatEvidence).join('; ');
     else if (s === 'E') { const d = e.decision; body = (e.lemma || '⌀') + ' ] ' + [d.type === 'selectio' ? 'chosen' : d.type, d.source, ...(d.reasons || []), d.note].filter(Boolean).join('; '); }
@@ -165,13 +163,21 @@
     const layout = []; // for each page of the edition: its lines and its notes, to check that notes stay with their lines
     const left = () => o.inner;
     const colourOf = (a) => (a.mark === 'unit' || a.mark === 'num' ? MUTED : a.mark === 'accent' ? ACCENT : null);
-    const draw = (atoms, x0, base) => {
+    // where each note's number and each marker is drawn on this page, to link them both ways
+    let marks = [], noteAt = new Map(), wordAt = new Map();
+    const draw = (atoms, x0, base, unit) => {
       for (const a of atoms) {
         const t = a.t;
         const gl = font.shape(t, { lang: 'sa' });
         missing += gl.filter((g) => g.g === 0).length;
         page.glyphs(gl, x0 + a.x, base - (a.rise || 0), a.size, t, colourOf(a));
-        if (a.sup) { const ss = L.supSize(a); page.glyphs(font.shape(a.sup), x0 + a.x + L.bare(a) + a.size * 0.04, base - a.size * 0.38, ss, a.sup, ACCENT); }
+        if (a.key) noteAt.set(a.key, { x1: x0 + a.x, x2: x0 + a.x + L.bare(a), y1: base - a.size, y2: base + a.size * 0.25 });
+        if (unit && a.entries && a.entries.length) for (const ei of a.entries) if (!wordAt.has(unit + '#' + ei)) wordAt.set(unit + '#' + ei, { x1: x0 + a.x, x2: x0 + a.x + L.bare(a), y1: base - a.size, y2: base + a.size * 0.3 });
+        if (a.sup) {
+          const ss = L.supSize(a), sx = x0 + a.x + L.bare(a) + a.size * 0.04;
+          page.glyphs(font.shape(a.sup), sx, base - a.size * 0.38, ss, a.sup, ACCENT);
+          if (unit) marks.push({ keys: (a.entries || []).map((ei) => unit + '#' + ei), x1: sx - 1, x2: sx + font.width(a.sup) * ss / font.upem + 1, y1: base - a.size * 0.38 - ss, y2: base - a.size * 0.38 + ss * 0.3 });
+        }
         if (a.unsure) page.line(x0 + a.x, base + 2.5, x0 + a.x + L.bare(a), base + 2.5, 0.5, [1.5, 1.2]);
       }
     };
@@ -239,7 +245,8 @@
         let atoms = label ? L.words(label.trim(), o.appSize, { mark: 'label' }) : [];
         let lastUnit = null;
         here.forEach((n, k) => {
-          const a = noteAtoms(ed, Object.assign({}, n, { first: n.unit !== lastUnit }), s, L, o.appSize);
+          // measured with the number it will have on the page
+          const a = noteAtoms(ed, Object.assign({}, n, { first: n.unit !== lastUnit, marker: byMarkers ? ns.indexOf(n) + 1 : null }), s, L, o.appSize);
           lastUnit = n.unit;
           if (atoms.length && a.length) a[0].gap = k || label ? L.space(o.appSize) * 2.2 : 0;
           atoms = atoms.concat(a);
@@ -249,10 +256,21 @@
       return h;
     };
     const finishPage = () => {
+      // the notes of a page are numbered from 1 on it, in the order of the text, and the markers with them
+      if (byMarkers) {
+        const num = new Map();
+        notes.forEach((n, i) => { n.marker = i + 1; num.set(n.unit + '#' + n.ei, i + 1); });
+        for (const l of bodyLines) for (const a of l.atoms || []) {
+          if (!l.unit || !a.entries || !a.entries.length) continue;
+          const ns = a.entries.map((ei) => num.get(l.unit + '#' + ei)).filter(Boolean);
+          a.sup = ns.length ? ns.join(',') : undefined;
+        }
+      }
+      marks = []; noteAt = new Map(); wordAt = new Map();
       const rec = { page: pageNo, lines: bodyLines.filter((l) => l.unit).map((l) => l.unit + ':' + l.n), notes: notes.map((n) => n.unit + ':' + n.bline), markers: bodyLines.flatMap((l) => (l.atoms || []).filter((a) => a.sup).flatMap((a) => a.sup.split(',').map((x) => l.unit + '#' + x))), noted: notes.filter((n) => n.marker).map((n) => n.unit + '#' + n.marker), bodyEnd: bodyLines.length ? bodyLines[bodyLines.length - 1].base + o.size * 0.3 : 0, footTop: notes.length ? H - o.bottom - footHeight(notes) + 4 : H - o.bottom, limit: H - o.bottom, numbers: bodyLines.filter((l) => l.num).map((l) => l.num) };
       if (bodyLines.length) layout.push(rec);
       for (const l of bodyLines) {
-        draw(l.atoms, left() + (l.x || 0), l.base);
+        draw(l.atoms, left() + (l.x || 0), l.base, l.unit);
         if (l.num) { const n = L.lines(L.words(String(l.num), size * 0.66), 30, false)[0]; draw(n.atoms.map((a) => Object.assign({}, a, { mark: 'num' })), mm(9), l.base); }
       }
       if (notes.length) {
@@ -274,6 +292,9 @@
           for (const l of L.lines(atoms, bodyW, true)) { draw(l.atoms, left(), fy + o.appLead * 0.75); fy += o.appLead; }
           fy += 2;
         }
+        // a marker leads to its note, and a note's number back to its word in the text
+        for (const m of marks) { const t = m.keys.map((k) => noteAt.get(k)).find(Boolean); if (t) page.link(m.x1, m.y1, m.x2, m.y2, page.index, t.y1 - 4); }
+        for (const [k, r] of noteAt) { const w = wordAt.get(k); if (w) page.link(r.x1 - 1, r.y1, r.x2 + 1, r.y2, page.index, w.y1 - 6); }
       }
       notes = []; bodyLines = [];
     };
@@ -288,16 +309,15 @@
       const atoms = blockWords(ed, b, bsize, L, markers);
       if (depth && b.layer.abbr) { if (atoms.length) atoms[0].gap = L.space(bsize); atoms.unshift({ t: '[' + b.layer.abbr + ']', size: bsize, rise: 0, gap: 0, mark: 'accent', entries: [] }); }
       const abbr = depth ? b.layer.abbr : '';
-      const note = (ei, bline, line) => ({ e: b.entries[ei], line, bline, marker: markers ? markers.get(ei) : null, unit: b.table.unit, abbr, series: seriesOf(ed, b, b.entries[ei]) });
+      const note = (ei, bline, line) => ({ e: b.entries[ei], ei, line, bline, marker: markers ? markers.get(ei) : null, unit: b.table.unit, abbr, series: seriesOf(ed, b, b.entries[ei]) });
       const lines = L.lines(atoms, bodyW - indent, true);
       // the block's reference, kept with its first two lines
       const first = lines.slice(0, 2);
       const firstNotes = [];
       first.forEach((l, i) => { for (const a of l.atoms) for (const ei of a.entries || []) firstNotes.push(note(ei, i + 1, nextLine() + i)); });
-      if (!room(o.small * 2.2 + first.length * blead, firstNotes) && (bodyLines.length || notes.length)) { finishPage(); newPage(running); }
-      y += o.small * 0.7;
-      bodyLines.push({ atoms: L.lines(L.words(b.table.unit, o.small, { mark: 'unit' }), bodyW, false)[0].atoms, base: y + o.small, x: indent });
-      y += o.small * 1.5;
+      // the block's place in the text is all a reader needs: no internal reference is printed above it
+      if (!room(size * 0.35 + first.length * blead, firstNotes) && (bodyLines.length || notes.length)) { finishPage(); newPage(running); }
+      y += size * 0.35;
       lines.forEach((l, i) => {
         const here = [];
         for (const a of l.atoms) for (const ei of a.entries || []) here.push(note(ei, i + 1, nextLine()));

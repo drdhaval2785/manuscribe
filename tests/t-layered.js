@@ -133,19 +133,41 @@ const { launch, sleep, checks } = require('./h');
     for (let k = 0; k < 40 && !(await p2.evaluate(() => !!window.__paginated)); k++) await sleep(200);
     const r = await p2.evaluate(() => {
       const at = (id) => { const p = document.querySelector('.body p.txt[data-block="' + id + '"]'); return p ? p.getBoundingClientRect().left : null; };
-      return { b1: at('b1'), c11: at('c1-1'), ca: at('ca1-1-1'), foot: [...document.querySelectorAll('.foot .note .labl')].map((x) => x.textContent) };
+      return { b1: at('b1'), c11: at('c1-1'), ca: at('ca1-1-1'), foot: [...document.querySelectorAll('.foot .nk')].map((x) => x.textContent), ids: document.querySelectorAll('.body .bid').length, sups: [...document.querySelectorAll('.body .an sup a')].map((x) => x.getAttribute('href') + '>' + x.textContent), back: [...document.querySelectorAll('.foot a.nk')].every((x) => !!document.getElementById(x.getAttribute('href').slice(1))) };
     });
     await p2.close();
     return r;
   })();
   T.check('on the page, a commentary is set in from the verse, and its sub-commentary further', laid.b1 !== null && laid.c11 > laid.b1 && laid.ca > laid.c11, laid);
-  T.check('and at the foot a commentary’s notes, in the order of the blocks, begin with its [abbreviation] (only ca differs here, by a visarga)', laid.foot.includes('[CA]') && laid.foot.every((x) => /^\[(Ś|R|CA)\]$/.test(x)), laid.foot);
+  T.check('no block IDs are printed; the notes are numbered from 1 on the page, each marker linked to its note and back', laid.ids === 0 && laid.foot.length > 0 && laid.foot.every((n, i) => +n === i + 1) && laid.sups.length === laid.foot.length && laid.sups.every((x) => /^#fn-\d+-\d+>\d+$/.test(x)) && laid.back, laid);
   const reader = await page.evaluate(async (ALL) => {
     const f = await ME.ExportView.make('reader', { kind: 'edition', ed: ME.Edition.current, list: window.__list, workId: ALL });
     const html = typeof f.data === 'string' ? f.data : await new Response(f.data).text();
     return html;
   }, ALL);
-  const readerOk = await (async () => { const p3 = await browser.newPage(); await p3.setContent(reader, { waitUntil: 'load' }); await sleep(300); const r = await p3.evaluate(() => [...document.querySelectorAll('section.block')].map((x) => x.id.slice(2) + ((x.querySelector('.labl') || {}).textContent || ''))); await p3.close(); return r; })();
+  let readerUse = null;
+  const readerOk = await (async () => {
+    const p3 = await browser.newPage(); await p3.setViewport({ width: 1200, height: 800 });
+    await p3.setContent(reader, { waitUntil: 'load' }); await sleep(300);
+    const r = await p3.evaluate(() => [...document.querySelectorAll('section.block')].map((x) => x.id.slice(2) + ((x.querySelector('.labl') || {}).textContent || '')));
+    const shown = () => p3.evaluate(() => ({ app: [...document.querySelectorAll('#text ol.app')].some((x) => x.getBoundingClientRect().height > 0), pop: !document.querySelector('#pop').hidden && document.querySelector('#pop').innerText, panel: document.body.classList.contains('panel-open') && document.querySelector('#panel').getBoundingClientRect().width > 0 && document.querySelector('#panel-body').innerText, ids: document.querySelectorAll('#text h2').length }));
+    const first = await shown();
+    await p3.hover('#text .u');
+    await sleep(150);
+    const hovered = await shown();
+    await p3.click('#text .u');
+    await sleep(150);
+    const clicked = await shown();
+    await p3.evaluate(() => { const b = document.querySelector('#t-app'); b.checked = true; b.dispatchEvent(new Event('change')); });
+    const all = await shown();
+    readerUse = { first, hovered, clicked, all };
+    await p3.close();
+    return r;
+  })();
+  T.check('the reader shows the text alone at first: no apparatus, no block IDs', readerUse.first.app === false && !readerUse.first.panel && readerUse.first.ids === 0, readerUse.first);
+  T.check('pointing at a word shows its entry beside it', /आनन्दगिरे/.test(readerUse.hovered.pop || ''), readerUse.hovered.pop);
+  T.check('clicking it keeps the entry open in the panel at the side', /आनन्दगिरे/.test(readerUse.clicked.panel || '') && /\]/.test(readerUse.clicked.panel || ''), readerUse.clicked.panel);
+  T.check('and the apparatus can be put under the text, as in print', readerUse.all.app === true);
   T.check('the reader has them in the same order, with the abbreviations', readerOk.join(' ') === 'c1-0[Ś] b1 r1-1[R] c1-1[Ś] ca1-1-1[CA] b2 c2-1[Ś] ca2-5-1[CA]', readerOk);
   // the direct PDF is laid out as the print page: the commentaries listed, each block with its [abbreviation]
   const direct = await page.evaluate(async (ALL) => {

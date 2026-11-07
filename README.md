@@ -577,18 +577,23 @@ Every output below is in **Export…**, by block or by work. The dialog asks fir
 **HTML**, **LaTeX**, **TEI**, **Text** (plain text, and data for other programs) or **Archive**, and then shows only
 the options of that kind; it remembers your choice in each.
 
-- **Reader, one HTML file:** the edited text with its apparatus, the conspectus siglorum and the editorial principles,
-  in one file that opens from disk and needs no network. Point at a word or an entry to link them; click a reading in an
-  entry to read it in the text; **Read** shows the text of any one witness instead; switches show or hide spelling
-  variants, singular readings and readings before correction, and colour the words by how much the witnesses differ.
-  **Print a draft** prints, or saves as PDF, with the apparatus in two columns: a draft, not a typeset edition.
+- **Reader, one HTML file:** the edited text, the conspectus siglorum and the editorial principles, in one file that
+  opens from disk and needs no network. It opens on the critical text alone, to be read: **point at a word** and what
+  the witnesses read there appears beside it; **click it** and its notes, with the other notes of that passage, stay
+  open in a panel at the side (at the foot on a narrow screen), where a click on a reading puts it into the text; Esc
+  closes it. **Read** shows the text of any one witness instead. Switches put the whole apparatus under the text, as
+  in print, underline the words where the witnesses differ, show or hide spelling variants, singular readings and
+  readings before correction, and colour the words by how much the witnesses differ. No block IDs are shown.
+  **Print a draft** prints, or saves as PDF: a draft, not a typeset edition.
 - **Notes are keyed to the text:** each place with an entry has a small number after its reading, counting from 1
   in each block, and its note at the foot of the page begins with the block and that number. Under **How the
   apparatus is written**, *Notes keyed by* can be set to line numbers instead, as in many printed editions.
 - **PDF, in any script:** the edition laid out as pages by the browser itself, so that any language and
   script is set as the browser sets it: Arabic and Hebrew right to left, Japanese and Chinese without spaces,
   Devanagari with its conjuncts, in any fonts. The page cuts the text into pages with the notes of each page at its
-  foot, a note always on the page of its marker, in the order of the blocks. Lines are numbered in the margin on the
+  foot, a note always on the page of its marker, in the order of the blocks. The notes are numbered from 1 on each
+  page, and the markers in the text with them, so that no block IDs need be printed; each marker is a link to its
+  note, and each note's number a link back to its word, in the page and in the PDF saved from it. Lines are numbered in the margin on the
   side the text starts, counted down each page from 1 without regard to blocks (or, if you choose, on through the
   whole text), every fifth line or every line; notes keyed by line cite these numbers. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
   **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, how
@@ -599,7 +604,7 @@ the options of that kind; it remembers your choice in each.
 - **PDF file, Devanagari and Latin** (with the South Asian pack): a PDF made directly, with nothing to print: the text shaped by
   [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, laid out as the print page:
   the same paper, margins, sizes, title page and commentaries, the layers set in with their [abbreviations], lines
-  numbered down the page, markers and notes at the foot in series. Copied Devanagari comes out letter for letter, with ि
+  numbered down the page, markers numbered from 1 on each page and notes at the foot in series, linked both ways. Copied Devanagari comes out letter for letter, with ि
   and reph where they are drawn, as from most PDFs. It knows only that font, and sets text left to right: for other
   scripts, use the print edition above.
 - **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
@@ -688,7 +693,7 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
   introductions to it before it, then each commentary on it in the order of the Layers list, each followed by the
   commentaries on it, to any depth. Each deeper layer is set in further and a little smaller, and every commentary
   block begins with its abbreviation, as `[Ś]`. The front matter lists the abbreviations, and at the foot of each
-  page the notes follow the order of the blocks, a commentary's beginning with its [abbreviation]. A block whose
+  page the notes follow the order of the blocks, numbered from 1 on the page. A block whose
   parent no witness has follows its base verse.
 - **TEI.** **Export › TEI apparatus** of All layers has every layer in reading order. Each block names its layer
   with `@ana="#layer-c"`, a category of a taxonomy of layers in the header (nested as the layers comment on one

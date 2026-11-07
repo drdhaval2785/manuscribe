@@ -88,10 +88,11 @@
       if (pg && pg.lines) textLines += pg.lines;
       const p = el('section', 'page');
       pageNo++;
+      p.id = 'page-' + pageNo;
       p.innerHTML = (running ? '<header class="rh"><span class="rt"></span><span class="pn">' + pageNo + '</span></header>' : '') + '<div class="body"></div><div class="foot"></div>';
       if (running) p.querySelector('.rt').textContent = D.title;
       book.appendChild(p);
-      return { el: p, body: p.querySelector('.body'), foot: p.querySelector('.foot'), notes: [], running };
+      return { el: p, body: p.querySelector('.body'), foot: p.querySelector('.foot'), notes: [], running, no: pageNo };
     }
     // does the page's body still clear its notes, and the page's bottom?
     const fits = (pg) => {
@@ -112,18 +113,25 @@
         if (!here.length) continue;
         const p = el('p', 'ser ser-' + s);
         if (D.labels[s]) p.appendChild(el('span', 'lab', D.labels[s]));
-        let last = null;
         for (const n of here) {
           const span = el('span', 'note');
           span.dataset.k = n.block + '#' + n.note.k;
-          const ab = n.layer && abbrOf.get(n.layer) ? '<span class="labl">[' + abbrOf.get(n.layer) + ']</span> ' : '';
-          span.innerHTML = (n.block !== last ? ab + '<b class="bid">' + n.block + '</b> ' : '') + '<span class="nk">' + (D.byMarkers ? n.note.k : n.line) + '</span> ' + n.note.by[s];
-          last = n.block;
+          // the note's number on this page (or its line), a link back to its place in the text
+          const i = pg.notes.indexOf(n) + 1;
+          span.innerHTML = '<a class="nk" id="fn-' + pg.no + '-' + i + '" href="#fr-' + pg.no + '-' + i + '">' + (D.byMarkers ? i : n.line) + '</a> ' + n.note.by[s];
           p.appendChild(span);
           p.appendChild(document.createTextNode(' '));
         }
         pg.foot.appendChild(p);
       }
+      // the markers in the text take the same numbers, 1 on, on each page, and lead to their notes
+      pg.notes.forEach((n, j) => {
+        const an = [...pg.body.querySelectorAll('[data-block] .an[data-k="' + n.note.k + '"]')].find((x) => x.closest('[data-block]').dataset.block === n.block);
+        if (!an) return;
+        an.id = 'fr-' + pg.no + '-' + (j + 1);
+        const sup = an.querySelector('sup');
+        if (sup) sup.innerHTML = '<a href="#fn-' + pg.no + '-' + (j + 1) + '">' + (j + 1) + '</a>';
+      });
     }
     // ---- front matter ----
     pg = newPage(false);
@@ -183,7 +191,7 @@
       const lineOfAnchor = new Map(items.filter((x) => x.anchor).map((x) => [x.anchor, x.line + 1]));
       // a fragment of the block: lines a..z, as a paragraph of its own
       const fragment = (a, z) => {
-        const p = el('p', 'txt' + depthCls + (z < nLines - 1 ? ' cont' : ''));
+        const p = el('p', 'txt' + depthCls + (z < nLines - 1 ? ' cont' : '') + (a === 0 ? ' first' : ''));
         p.lang = D.lang; p.dir = 'auto';
         let un = null;
         for (const it of items) {
@@ -196,14 +204,11 @@
       };
       // a note cites its line as numbered in the margin: on the page, or through the text
       const notesIn = (a, z) => items.filter((x) => x.anchor && x.line >= a && x.line <= z).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: lineBase(pg) + (x.line - a) + 1 })).filter((n) => n.note);
-      // place it: on each page, as many lines as fit with their notes; the heading only with its first line
-      const head = el('div', 'bid' + depthCls);
-      head.textContent = b.id;
-      head.dir = textDir;
+      // place it: on each page, as many lines as fit with their notes. No internal reference is printed: a reader
+      // finds a place by the page, its lines and the notes' numbers
       let a = 0;
       while (a < nLines) {
-        const headEl = a === 0 ? head.cloneNode(true) : null;
-        if (headEl) pg.body.appendChild(headEl);
+        const headEl = null;
         let best = -1, shown = null;
         for (let z = a; z < nLines; z++) {
           const p = fragment(a, z);
@@ -305,6 +310,8 @@ body { font-family: var(--font); color: #1d1a16; }
 .labl { font-weight: 600; color: #8c2a17; }
 .ser-layer .labl { margin-inline-end: 0.4em; }
 .an sup, .nk { color: #8c2a17; }
+.an sup a, a.nk { color: inherit; text-decoration: none; }
+.txt.first { margin-top: 0.45em; }
 .an sup { font-size: 0.6em; line-height: 0; }
 .unsure { text-decoration: underline dotted; text-underline-offset: 0.25em; }
 .ln { position: absolute; left: 9mm; font-size: calc(var(--size) * 0.66); color: #6b5a3e; line-height: 1.6; }
