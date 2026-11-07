@@ -100,6 +100,11 @@ body.sidebar-open #sidebar { display: flex; }
 }
 #pdf-view.calibrating .pdf-scroller { top: 48px; }
 #pdf-pane:has(.calibrating) .pdf-tools { display: none; }
+/* calibrating: the PDF alone, in the whole window */
+body.calibrating #midbar, body.calibrating #editor-pane, body.calibrating #statusbar, body.calibrating #sidebar { display: none !important; }
+body.calibrating #pdf-pane { flex: 1 1 auto; height: auto !important; }
+.calib-zoom { display: inline-flex; gap: 2px; align-items: center; flex: none; }
+.calib-zoom .calib-fit { min-width: 52px; }
 .calib-step { font-weight: 700; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .calib-swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; }
 .calib-label { flex: 1; }

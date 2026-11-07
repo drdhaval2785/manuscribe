@@ -59,6 +59,7 @@
     scroller.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey) || !PdfView.doc) return;
       e.preventDefault();
+      if (PdfView.calibrating) { PdfView.calibZoom(PdfView.calibScale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e); return; }
       PdfView.setZoom(PdfView.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
     }, { passive: false });
 
@@ -129,6 +130,18 @@
   };
 
   PdfView.setMode = function (m) { PdfView.mode = m; return PdfView.render(); };
+  /* While calibrating: a zoom of its own, from the whole page (1) to eight times it, keeping the point under the
+     cursor (or the middle of the pane) where it was, so that a block can be drawn closely on a small scan. */
+  PdfView.calibScale = 1;
+  PdfView.calibZoom = function (z, at) {
+    const z1 = U.clamp(z, 1, 8), z0 = PdfView.calibScale;
+    if (z1 === z0) return Promise.resolve();
+    const box = scroller.getBoundingClientRect();
+    const ax = at ? at.clientX - box.left : box.width / 2, ay = at ? at.clientY - box.top : box.height / 2;
+    const fx = (scroller.scrollLeft + ax) / Math.max(1, scroller.scrollWidth), fy = (scroller.scrollTop + ay) / Math.max(1, scroller.scrollHeight);
+    PdfView.calibScale = z1;
+    return PdfView.render().then(() => { scroller.scrollLeft = fx * scroller.scrollWidth - ax; scroller.scrollTop = fy * scroller.scrollHeight - ay; if (PdfView.cb.onCalibZoom) PdfView.cb.onCalibZoom(z1); });
+  };
   PdfView.setZoom = function (z) { PdfView.zoom = U.clamp(z, 0.3, 8); if (PdfView.cb.onZoom) PdfView.cb.onZoom(PdfView.zoom); return PdfView.render(); };
   PdfView.setRotation = function (r) { PdfView.rotation = ((r % 360) + 360) % 360; PdfView.cache.clear(); return PdfView.render(); };
 
@@ -178,7 +191,7 @@
     let fit = availW / (region[2] * vp1.width);
     // the whole page must be visible to draw on it, and is the point of "page" mode
     if (PdfView.calibrating || PdfView.mode === 'page') fit = Math.min(fit, availH / (region[3] * vp1.height));
-    const scale = Math.round(fit * (PdfView.calibrating ? 1 : PdfView.zoom) * 1000) / 1000;
+    const scale = Math.round(fit * (PdfView.calibrating ? PdfView.calibScale : PdfView.zoom) * 1000) / 1000;
     const r = await renderToCanvas(entry.pdfPage, scale);
     if (seq !== PdfView.renderSeq) return;
     const old = stage.querySelector('canvas');
@@ -195,7 +208,7 @@
     PdfView._shownKey = entry.key;
     clip.style.marginTop = pad + 'px';
     clip.style.marginBottom = pad + 'px';
-    if (newPage || PdfView.calibrating || !PdfView.guide.rect) scroller.scrollTop = Math.max(0, pad - 14);
+    if (newPage || (PdfView.calibrating && PdfView.calibScale === 1) || !PdfView.guide.rect) scroller.scrollTop = Math.max(0, pad - 14);
     pageInfo.textContent = 'PDF page ' + entry.pdfPage + ' / ' + PdfView.doc.numPages + (entry.half !== null && entry.half !== undefined ? (entry.half ? ' · lower half' : ' · upper half') : '');
     if (PdfView.cb.onPageSize) PdfView.cb.onPageSize(entry, { width: vp1.width, height: vp1.height });
     const paper = samplePaper(r.canvas, PdfView.leaf);
@@ -326,7 +339,10 @@
   PdfView.calibrate = function (steps, existing) {
     return new Promise((resolve) => {
       PdfView.calibrating = true;
+      PdfView.calibScale = 1;
       root.classList.add('calibrating');
+      // the PDF takes the whole window while the boxes are drawn: the typing area has nothing to show meanwhile
+      document.body.classList.add('calibrating');
       const prevMode = PdfView.mode;
       const rects = Object.assign({}, existing || {});
       let i = 0;
@@ -348,6 +364,8 @@
       const finish = (ok) => {
         PdfView.calibrating = false;
         root.classList.remove('calibrating');
+        document.body.classList.remove('calibrating');
+        PdfView.calibScale = 1;
         calibBar.hidden = true;
         Object.values(shapes).forEach((s) => s.remove());
         overlay.removeEventListener('pointerdown', onDown);
@@ -378,6 +396,10 @@
           U.el('span', { class: 'calib-swatch', style: { background: st.color } }),
           U.el('span', { class: 'calib-label' }, st.label),
           linesCtl,
+          U.el('span', { class: 'calib-zoom', title: 'Zoom in to draw closely (Ctrl+wheel); the page scrolls' },
+            U.el('button', { class: 'btn small', title: 'Zoom out', onclick: () => PdfView.calibZoom(PdfView.calibScale / 1.25) }, '−'),
+            U.el('button', { class: 'btn small calib-fit', title: 'The whole page', onclick: () => PdfView.calibZoom(1) }, Math.round(PdfView.calibScale * 100) + '%'),
+            U.el('button', { class: 'btn small', title: 'Zoom in', onclick: () => PdfView.calibZoom(PdfView.calibScale * 1.25) }, '+')),
           U.el('button', { class: 'btn small' + (rects[st.key] ? ' primary' : ''), onclick: () => { i++; showStep(); } }, rects[st.key] ? (i === steps.length - 1 ? 'Finish' : 'Next') : 'Skip'),
           i > 0 ? U.el('button', { class: 'btn small', onclick: () => { i--; showStep(); } }, 'Back') : null,
           U.el('button', { class: 'btn small ghost', onclick: () => finish(false) }, 'Cancel'),
@@ -420,6 +442,7 @@
       }
       window.addEventListener('keydown', onKey, true);
       overlay.addEventListener('pointerdown', onDown);
+      PdfView.cb.onCalibZoom = (z) => { const b = calibBar.querySelector('.calib-fit'); if (b) b.textContent = Math.round(z * 100) + '%'; };
       PdfView.mode = 'page';
       PdfView.render().then(showStep);
     });

@@ -87,7 +87,8 @@ files if you use one of those.
 - list any folios missing from the manuscript, such as `7, 12-14, 20v`.
 
 **2. Calibrate.** Manuscribe offers this straight away, or use **⌖ Calibrate** above the PDF later.
-Drag a rectangle around the leaf, then one tightly around each block of text, from the top of its
+While you calibrate, the scan fills the whole window; zoom in with **+** and **−** in the bar (or
+Ctrl + wheel) to draw closely, and scroll to reach the rest of the page. Drag a rectangle around the leaf, then one tightly around each block of text, from the top of its
 first line to the bottom of its last. Dashed lines show where the line divisions fall, so you can
 compare them with the scan and correct the number of lines. Press Enter or Next to go on. At the
 end, apply the calibration to all folio sides or to this one only. One calibration normally fits a

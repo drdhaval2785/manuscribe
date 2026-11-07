@@ -20,6 +20,7 @@ apart from `t-features.js`, which starts at the default.
 | `t-xml.js` | XML out and back in gives the same text in all four layouts; folio and page numbering |
 | `t-normalize.js` | Tokens map back to their lines; before- and after-correction layers; the rules and their published examples |
 | `t-collate.js` | Editing operations and undo; on the sample, tokens back to their lines, identical re-runs, exchange formats, and locks that survive random edits |
+| `t-calibrate.js` | Calibration in one pane: the PDF takes the whole window while the boxes are drawn, zooms in to draw closely, a box drawn zoomed in lands where it was drawn, and the typing area comes back as it was (skipped without `linear.pdf`) |
 | `t-apparatus.js` | The proposal by majority and trust; faulty entries caught; decisions never moved silently; witnesses read back from the TEI |
 | `t-stemma.js` | Trees, copies and the archetype on a tradition with a known stemma; lacunae never agree; NEXUS; timings |
 | `t-metre.js` | Metres recognised in known verses, among them an ardhasama and an āryā; every metre of the list from a verse made to its pattern; seeded faults flagged; no run of words of a prose passage taken for verse |
