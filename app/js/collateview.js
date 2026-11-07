@@ -315,24 +315,78 @@
 
   // Settings, the apparatus itself, its checks and the search. tables: one or all of a work's tables.
   // How the apparatus is written: polarity, abbreviations, groups, tiers, and how notes are keyed.
+  /* The parts of a decision, explained: [what it is, an example, its name]. Shown when the pointer rests on each, and
+     all together under More › What these mean. */
+  CollateView.DECISION_HELP = {
+    crux: ['Marks a place as corrupt: no witness has a sound text and you cannot mend it. The words are printed between daggers, and the apparatus says so.', 'E.g. every copy reads a word that makes no sense and you see no likely correction: †धर्मक्षेत्रे†.', '† crux'],
+    lacuna: ['The text is lost here in every witness, for example a folio missing from all the copies. It is printed as […].', 'E.g. all three manuscripts break off after कुरुक्षेत्रे and resume two words later.', 'Lacuna'],
+    sure: ['How sure you are of this decision. Uncertain places get a wavy line under them in the edited text, so readers know to look; certain and probable are recorded in the TEI.', 'E.g. two readings both make sense and the stemma does not decide: uncertain.', 'How sure?'],
+    why: ['The reasons for the decision, recorded with it and printed in the series of decisions and in the TEI. Choose any that apply, and add a note in your own words.', 'E.g. metre and stemma, with the note “B’s reading is a gloss”.', 'Why'],
+    'lectio difficilior': ['The harder reading: scribes tend to make a text easier, not harder, so the less obvious reading is more likely to be the original.', 'E.g. a rare word kept against a common one that means the same.', 'lectio difficilior'],
+    'usus scribendi': ['The author’s own usage: this reading is how the author writes elsewhere in the work.', 'E.g. the author always says इति after a quotation, and one witness leaves it out.', 'usus scribendi'],
+    metre: ['Only this reading fits the metre of the verse.', 'E.g. B’s reading has one syllable too many for the śloka.', 'metre'],
+    stemma: ['The family tree of the witnesses decides: this is the reading of independent branches, against a group that goes back to one copy.', 'E.g. A and C, of different families, agree against B and its copies.', 'stemma'],
+    sense: ['This reading makes sense in its context; the others do not, or less well.', 'E.g. the other reading gives a word that does not fit the argument.', 'sense'],
+    'parallel or testimonium': ['Another text supports this reading: a passage that quotes this one, or a parallel passage.', 'E.g. a later commentary quotes the line with this word.', 'parallel or testimonium'],
+    grammar: ['The other readings are ungrammatical.', 'E.g. a wrong case ending, or sandhi that is not possible.', 'grammar'],
+    emend: ['Emendation: your correction of an error that every witness shares, where the right text is clear.', 'E.g. all copies read a misspelt word whose correct form is certain.', 'emendation'],
+    conj: ['Conjecture: a bolder correction, where the text is corrupt and the right one can only be guessed; it is printed as conj.', 'E.g. a word that makes no sense, replaced by one that is close in letters and makes sense.', 'conjecture'],
+    source: ['Whose correction it is, if not yours: printed after em. or conj.', 'E.g. “conj. Kielhorn”.', 'Whose emendation'],
+    join: ['Makes this word and the next one place of variation, so that they are decided and printed together. Drag across several words, or Shift+click, to emend a longer stretch.', 'E.g. one witness writes two words as a compound.', 'Join with the next word'],
+    letters: ['Opens the letters behind this word, to correct how the computer lined up the witnesses here.', 'E.g. a reading seems to belong to the next word.', 'Correct the alignment here'],
+    withdraw: ['Takes your decision back: the place follows the witnesses again (Delete).', 'E.g. you accepted a reading too quickly.', 'Withdraw'],
+  };
+
+  /* What each abbreviation of the apparatus stands for, with an example in the abbreviations in force. The
+     example is in Devanagari with sigla A, B, C, as an editor of any text can read it. */
+  CollateView.ABBR_HELP = [
+    ['om', 'omittit: omits', 'The witness does not have the words of the lemma at all.', (a) => 'धर्मक्षेत्रे ] ' + a.om + ' B'],
+    ['add', 'addit: adds', 'The witness has words that the edited text does not; printed after the word they follow.', (a) => a.post + ' युयुत्सवः ' + a.add + ' च C'],
+    ['post', 'post: after', 'Says after which word of the edited text an addition stands.', (a) => a.post + ' युयुत्सवः ' + a.add + ' च C'],
+    ['transp', 'transponit: transposes', 'The witness has these words, but elsewhere in the passage, in another order.', (a) => 'समवेता युयुत्सवः ] ' + a.transp + ' B'],
+    ['lac', 'lacuna: a gap, lost', 'The witness’s text is lost here: damage, a missing folio, a hole.', (a) => 'कुरुक्षेत्रे ] ' + a.lac + ' C'],
+    ['illeg', 'illegibilis: illegible', 'The text is there in the witness, but cannot be read.', (a) => 'कुरुक्षेत्रे ] ' + a.illeg + ' B'],
+    ['ac', 'ante correctionem: before correction', 'What the witness read before its scribe or a later hand corrected it; printed raised after the siglum.', (a) => 'समवेता ] समवेताः A<sup>' + a.ac + '</sup>'],
+    ['em', 'emendavit: emended (by the editor)', 'The edited text is your correction: no witness has it. The witnesses’ readings follow.', (a) => 'कुरुक्षेत्रेऽस्मिन् ] ' + a.em + '; कुरुक्षेत्रे A B C'],
+    ['conj', 'coniecit: conjectured', 'A bolder correction where the text is corrupt, or one proposed by another scholar, whose name follows.', (a) => 'कुरुक्षेत्रे ] ' + a.conj + ' Kielhorn; कुरुक्षेत्र A B C'],
+    ['deest', 'deest: is lacking', 'Inside a group siglum: which members of the group do not have the passage.', (a) => 'धर्मक्षेत्रे ] धर्मक्षेत्र β (' + a.deest + ' C)'],
+    ['crux', 'crux: the dagger', 'The passage is corrupt in every witness and you cannot mend it: printed between two of these.', (a) => a.crux + 'धर्मक्षेत्रे' + a.crux],
+  ];
+
   CollateView.apparatusSettings = function (ed, redraw, open) {
     const A = ME.Apparatus;
     const s = A.settings(ed);
     const set = async (k, v) => { ed.apparatus = Object.assign({}, ed.apparatus, { [k]: v }); await Edition.save(ed); redraw(); };
-    const sel = (k, label, opts) => U.el('label', null, label + ' ', U.el('select', { onchange: (e) => set(k, e.target.value) }, opts.map(([v, t]) => U.el('option', { value: v, selected: String(s[k]) === String(v) }, t))));
-    const tick = (k, label) => U.el('label', null, U.el('input', { type: 'checkbox', checked: !!s[k], onchange: (e) => set(k, e.target.checked) }), ' ' + label);
+    const sel = (k, label, opts, help) => U.el('label', { title: help || null }, label + ' ', U.el('select', { onchange: (e) => set(k, e.target.value) }, opts.map(([v, t]) => U.el('option', { value: v, selected: String(s[k]) === String(v) }, t))));
+    const tick = (k, label, help) => U.el('label', { title: help || null }, U.el('input', { type: 'checkbox', checked: !!s[k], onchange: (e) => set(k, e.target.checked) }), ' ' + label);
     const ab = A.abbr(ed);
-    const abbrFields = ['om', 'add', 'post', 'transp', 'lac', 'ac', 'em', 'conj', 'deest'];
-    const abbrBox = U.el('div', { class: 'ap-abbr' }, abbrFields.map((k) => U.el('label', null, k + ' ', U.el('input', { type: 'text', value: ab[k], 'aria-label': 'Abbreviation for ' + k, onchange: (e) => set('custom', Object.assign({}, s.custom, { [k]: e.target.value })) }))));
+    const base = A.ABBREVIATIONS[s.abbr] || A.ABBREVIATIONS.latin;
+    // each abbreviation: what it stands for, what it means, an example as it will print, and a box to change it
+    const rows = CollateView.ABBR_HELP.map(([k, full, meaning, example]) => {
+      const now = Object.assign({}, ab);
+      const ex = U.el('td', { class: 'ap-ex', html: '' });
+      const show = () => { ex.innerHTML = U.escXml(example(now)).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>'); };
+      show();
+      const box = U.el('input', { type: 'text', value: ab[k], 'aria-label': 'Abbreviation for ' + full, oninput: () => { now[k] = box.value; show(); }, onchange: () => set('custom', Object.assign({}, s.custom, { [k]: box.value })) });
+      const changed = s.custom && s.custom[k] !== undefined && s.custom[k] !== base[k];
+      return U.el('tr', null,
+        U.el('td', null, box, changed ? U.el('button', { class: 'btn small ghost', title: 'Back to “' + base[k] + '”', onclick: () => { const c = Object.assign({}, s.custom); delete c[k]; set('custom', c); } }, '↺') : null),
+        U.el('td', null, U.el('strong', null, full)), U.el('td', { class: 'help' }, meaning), ex);
+    });
     return U.el('details', { class: 'nv-fold', open: !!open }, U.el('summary', null, 'How the apparatus is written'),
       U.el('div', { class: 'nv-head' },
-        sel('polarity', 'Polarity', [['auto', 'negative, positive where few have the lemma'], ['negative', 'negative'], ['positive', 'positive']]),
-        sel('abbr', 'Abbreviations', Object.entries(A.ABBREVIATIONS).map(([k, v]) => [k, v.name])),
-        tick('groups', 'Group sigla for whole groups'), tick('deest', 'Say which members of a group are lacking'),
-        tick('singular', 'Singular readings apart'), tick('orthographica', 'List spelling variants'),
-        sel('keys', 'Notes keyed by', [['markers', 'a numbered marker in the text'], ['lines', 'line numbers']])),
-      U.el('p', { class: 'help' }, 'Abbreviations, which you can write in any language or script:'), abbrBox,
-      U.el('p', { class: 'help' }, 'Groups are the Group of each witness in the witness list. A group siglum stands for a group only where all its witnesses that can be read agree.'));
+        sel('polarity', 'Polarity', [['auto', 'negative, positive where few have the lemma'], ['negative', 'negative'], ['positive', 'positive']], 'Negative: an entry names only the witnesses that differ (धर्मक्षेत्रे ] धर्मक्षेत्र B). Positive: it names those that have the edited reading too (धर्मक्षेत्रे A C ] धर्मक्षेत्र B).'),
+        sel('abbr', 'Abbreviations', Object.entries(A.ABBREVIATIONS).map(([k, v]) => [k, v.name]), 'The set to start from: the Latin of printed editions, or plain English. Each can then be changed below.'),
+        tick('groups', 'Group sigla for whole groups', 'Where all the witnesses of a group (the Group column of the witness list) agree, print the group’s siglum instead of each of them.'),
+        tick('deest', 'Say which members of a group are lacking', 'With a group siglum, name the members that do not have the passage: β (deest C).'),
+        tick('singular', 'Singular readings apart', 'Readings of one witness alone go to a tier of their own, under the main apparatus.'),
+        tick('orthographica', 'List spelling variants', 'Readings that differ only in spelling (by the rules of comparison) are listed too, in brackets.'),
+        sel('keys', 'Notes keyed by', [['markers', 'a numbered marker in the text'], ['lines', 'line numbers']], 'Markers: a small number in the text leads to each note. Line numbers: each note begins with the number of its line on the page.')),
+      U.el('p', { class: 'help' }, 'What the abbreviations mean. Write your own in the first column, in any language or script; the example shows it as it will print.'),
+      U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table ed-boxed ap-abbr-table' },
+        U.el('thead', null, U.el('tr', null, ['Printed as', 'Stands for', 'Meaning', 'Example'].map((h) => U.el('th', null, h)))),
+        U.el('tbody', null, rows))),
+      U.el('p', { class: 'help' }, 'In the examples the edited text reads धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः, and A, B, C are witnesses; β is a group of witnesses. Groups are the Group of each witness in the witness list. A group siglum stands for a group only where all its witnesses that can be read agree.'));
   };
 
   CollateView.apparatusView = function (ed, tables, redraw, goRef, witnesses, layered) {
@@ -1041,6 +1095,7 @@
         const evs = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
         const support = ME.Layers ? ME.Layers.supportOf(evs) : { for: new Map(), other: [] };
         const d = u.decision;
+        const HELP = CollateView.DECISION_HELP;
         const rows = u.groups.map((g, gi) => {
           const n = metreOf ? metreOf.fit(g.form.text) : null;
           const backing = support.for.get(g.form.text.trim()) || [];
@@ -1059,12 +1114,12 @@
         const fields = emendFields(d, (x) => text.decide(u, x));
         const source = fields.source;
         if (emended) source.addEventListener('change', () => text.decide(u, { type: d.type, text: d.text, source: source.value.trim() || undefined }));
-        const confidence = U.el('select', { 'aria-label': 'How sure', onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, confidence: confidence.value || undefined }) },
+        const confidence = U.el('select', { 'aria-label': 'How sure', title: HELP.sure[0] + ' ' + HELP.sure[1], onchange: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, confidence: confidence.value || undefined }) },
           U.el('option', { value: '' }, 'How sure? —'), U.el('option', { value: 'high', selected: d && d.confidence === 'high' }, 'certain'), U.el('option', { value: 'medium', selected: d && d.confidence === 'medium' }, 'probable'), U.el('option', { value: 'low', selected: d && d.confidence === 'low' }, 'uncertain (marked in the text)'));
         const REASONS = ['lectio difficilior', 'usus scribendi', 'metre', 'stemma', 'sense', 'parallel or testimonium', 'grammar'];
         const chips = REASONS.map((r) => {
           const on = !!(d && d.reasons && d.reasons.includes(r));
-          return U.el('button', { class: 'btn small ct-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), onclick: () => {
+          return U.el('button', { class: 'btn small ct-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), title: HELP[r] ? HELP[r][0] + ' ' + HELP[r][1] : null, onclick: () => {
             const now = new Set((d && d.reasons) || []);
             if (now.has(r)) now.delete(r); else now.add(r);
             text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, reasons: Array.from(now) });
@@ -1082,16 +1137,19 @@
         const said = !!(d && (d.crux || (d.reasons && d.reasons.length) || d.note || d.confidence || d.type === 'lacuna'));
         const more = U.el('details', { class: 'ct-more', open: said || evs.length > 0 || !!CollateView.moreOpen }, U.el('summary', null, 'More: crux, lacuna, certainty, reasons' + (ME.Features.on('evidence') ? ', evidence' : '')),
           U.el('div', { class: 'ct-decide' },
-            U.el('button', { class: 'btn small' + (d && d.crux ? ' on' : ''), title: 'Mark this place as corrupt, between daggers', onclick: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, crux: !(d && d.crux) }) }, '† crux'),
-            U.el('button', { class: 'btn small', title: 'The text is lost here in every witness', onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
+            U.el('button', { class: 'btn small' + (d && d.crux ? ' on' : ''), title: HELP.crux[0] + ' ' + HELP.crux[1], onclick: () => text.decide(u, { type: d ? d.type : 'selectio', label: d ? d.label : u.form, text: d ? d.text : undefined, source: d ? d.source : undefined, crux: !(d && d.crux) }) }, '† crux'),
+            U.el('button', { class: 'btn small', title: HELP.lacuna[0] + ' ' + HELP.lacuna[1], onclick: () => text.decide(u, { type: 'lacuna' }) }, 'Lacuna'),
             confidence),
           U.el('label', { class: 'ct-source' }, U.el('span', { class: 'help' }, 'Whose emendation, if not yours: '), source),
-          U.el('div', { class: 'ct-reasons' }, U.el('span', { class: 'help' }, 'Why (optional): '), chips, note),
+          U.el('div', { class: 'ct-reasons' }, U.el('span', { class: 'help', title: HELP.why[0] + ' ' + HELP.why[1] }, 'Why (optional): '), chips, note),
           ME.Layers && (ME.Features.on('evidence') || evs.length) ? evidenceBox(u, evs) : null,
           history.length ? U.el('details', { class: 'ct-history' }, U.el('summary', null, history.length + ' earlier decision(s) here'), U.el('ul', null, history.map((h) => U.el('li', null, h.id + ': ' + (h.type === 'selectio' ? h.label : h.type + ' ' + (h.text || '')) + (h.reasons ? ' · ' + h.reasons.join(', ') : '') + ' · ' + h.status + (h.why ? ' (' + h.why + ')' : ''))))) : null,
           U.el('div', { class: 'nv-head' },
-            i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: 'This and the next word are one unit of variation', onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
-            ME.Features.on('letters') ? U.el('button', { class: 'btn small', title: 'The letters behind this word, to correct how they are lined up', onclick: () => showLetters(u.from, u.to) }, 'Correct the alignment here') : null));
+            i + 1 < text.proposal.units.length ? U.el('button', { class: 'btn small', title: HELP.join[0] + ' ' + HELP.join[1], onclick: () => act({ op: 'cut', at: text.proposal.units[i + 1].fromId, on: false }) }, 'Join with the next word') : null,
+            ME.Features.on('letters') ? U.el('button', { class: 'btn small', title: HELP.letters[0] + ' ' + HELP.letters[1], onclick: () => showLetters(u.from, u.to) }, 'Correct the alignment here') : null),
+          // the same, to read: for touch screens, and for anyone who wants it all at once
+          U.el('details', { class: 'ct-help' }, U.el('summary', null, 'What these mean'),
+            U.el('dl', null, ['crux', 'lacuna', 'sure', 'why', ...REASONS, 'emend', 'conj', 'source', 'join', 'withdraw'].filter((k) => HELP[k]).flatMap((k) => [U.el('dt', null, HELP[k][2] || k), U.el('dd', null, HELP[k][0], ' ', U.el('span', { class: 'ct-eg' }, HELP[k][1]))]))));
         more.addEventListener('toggle', () => { CollateView.moreOpen = more.open; });
         textPanel.append(...[
           U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : (SETTLED[u.decided] || '') + (!u.differs ? ' If they are all wrong here, Emend… gives your own text; to emend several words as one, drag across them or Shift+click the last.' : ''), !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
@@ -1148,8 +1206,8 @@
        correction; Use my text is the one button to press. Whose it is waits under More. */
     function emendFields(d, apply) {
       const input = U.el('input', { type: 'text', class: 'ct-emend', value: d && d.text ? d.text : '', placeholder: 'your text for this place', 'aria-label': 'Emended text', dataset: { translit: '1' } });
-      const kind = U.el('select', { 'aria-label': 'Kind of correction' }, U.el('option', { value: 'emendatio' }, 'emendation'), U.el('option', { value: 'conjecture', selected: !!(d && d.type === 'conjecture') }, 'conjecture'));
-      const source = U.el('input', { type: 'text', value: d && d.source ? d.source : '', placeholder: 'e.g. Kielhorn', 'aria-label': 'Whose emendation, if not yours' });
+      const kind = U.el('select', { 'aria-label': 'Kind of correction', title: CollateView.DECISION_HELP.emend[0] + ' ' + CollateView.DECISION_HELP.conj[0] }, U.el('option', { value: 'emendatio' }, 'emendation'), U.el('option', { value: 'conjecture', selected: !!(d && d.type === 'conjecture') }, 'conjecture'));
+      const source = U.el('input', { type: 'text', value: d && d.source ? d.source : '', placeholder: 'e.g. Kielhorn', 'aria-label': 'Whose emendation, if not yours', title: CollateView.DECISION_HELP.source[0] + ' ' + CollateView.DECISION_HELP.source[1] });
       const use = () => apply({ type: kind.value, text: input.value, source: source.value.trim() || undefined });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); use(); } });
       const S = ME.Translit && ME.Translit.SCHEMES;

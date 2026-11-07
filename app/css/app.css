@@ -773,3 +773,16 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 @keyframes ct-flash { 0%, 60% { background: #ffd36b; box-shadow: 0 0 0 3px #ffd36b; } 100% { box-shadow: none; } }
 .ct-u.flash { animation: ct-flash 2.4s ease-out 1; }
 .cv-units .ed-boxed td.cv-unit { white-space: nowrap; }
+/* the abbreviations of the apparatus, explained */
+.ap-abbr-table td { text-align: start !important; vertical-align: top; }
+.ap-abbr-table td:first-child { white-space: nowrap; }
+.ap-abbr-table input[type="text"] { width: 7em; text-align: center; }
+.ap-abbr-table td.ap-ex { font: 16px var(--script); white-space: nowrap; }
+.ap-abbr-table td.help { max-width: 26em; }
+/* the parts of a decision, explained */
+.ct-help { margin-top: 6px; font-size: 13px; }
+.ct-help summary { cursor: pointer; color: #6b5a3e; }
+.ct-help dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; }
+.ct-help dt { font-weight: 600; }
+.ct-help dd { margin: 0; color: #4a3f30; }
+.ct-help .ct-eg { color: #7a6c58; font-style: italic; }

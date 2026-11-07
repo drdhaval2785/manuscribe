@@ -531,6 +531,8 @@ come back if you withdraw it. Esc leaves the stretch.
   types as a transcription does: with the South Asian pack, a **Typing** menu beside it chooses Harvard-Kyoto, ITRANS
   or SLP1 into Devanagari or IAST, as the first witness typed with a scheme does unless you choose otherwise for the
   edition; any keyboard or input method of your own works too. **Withdraw emendation** takes it back.
+- Under **More**, every button and choice says what it is, with an example, when the pointer rests on it, and
+  **What these mean** lists them all to read.
 - **† crux** marks a corrupt place; **Lacuna** says the text is lost in every witness; **How sure?** sets certain,
   probable or uncertain, and uncertain places get a wavy line in the text.
 - **Why** takes any of lectio difficilior, usus scribendi, metre, stemma, sense, parallel or testimonium, grammar,
@@ -548,7 +550,10 @@ the edition screen shows the whole work.
 - **How it is written:** negative, positive, or negative with a switch to positive where few witnesses have the lemma;
   Latin or English abbreviations, each of which you can rewrite in any language or script; a group siglum for a whole
   group (the Group of each witness in the witness list), with the group's lacking members named if you like; singular
-  readings in a tier of their own; spelling variants listed or not.
+  readings in a tier of their own; spelling variants listed or not. Each setting says what it does when the pointer
+  rests on it. The abbreviations are in a table: what each is printed as (a box to write your own), what it stands
+  for (*om.*: omittit, omits), what it tells the reader, and an example entry that shows your own abbreviation as you
+  type it; ↺ puts back the one of the set.
 - **Entries** read `lemma ] reading witnesses`: `om.` for an omission, `post X add. Y` for an addition, `a.c.` for a
   text before correction, `lac. X (what survives)` for a lost passage, `em.` and `conj.` with their source, and hyphens
   for part of a word. Long additions go to an appendix of additional passages, numbered as `c2.1*1`.

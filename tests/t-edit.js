@@ -101,7 +101,46 @@ const { launch, sleep, checks } = require('./h');
   await sleep(1200);
   const landed = await page.evaluate(() => { const el = document.querySelector('.ct-text .ct-u.sel'); const u = el && ME.CollateView.lastOpen && ME.CollateView.lastOpen.text.sel; return { title: document.querySelector('.modal-head h2').textContent, flash: !!(el && el.classList.contains('flash')), at: u ? u.fromId : null, want: window.__target }; });
   T.check('clicking it opens the block at that place, highlighted', /m2/.test(landed.title) && landed.flash && landed.at === landed.want, landed);
+  // More: each part explained when the pointer rests on it, and all of them in a list
+  await page.evaluate(() => { const d = document.querySelector('.ct-panel .ct-more'); d.open = true; const h = d.querySelector('.ct-help'); if (h) h.open = true; });
+  const help = await page.evaluate(() => {
+    const m = document.querySelector('.ct-panel .ct-more');
+    const by = (t) => [...m.querySelectorAll('.btn')].find((b) => b.textContent.trim() === t);
+    return { crux: (by('† crux') || {}).title || '', lacuna: (by('Lacuna') || {}).title || '', chip: (by('lectio difficilior') || {}).title || '', sure: (m.querySelector('[aria-label="How sure"]') || {}).title || '', list: [...m.querySelectorAll('.ct-help dt')].map((x) => x.textContent) };
+  });
+  T.check('in More, crux, lacuna, certainty and each reason say what they are, with an example, when the pointer rests on them', /corrupt/.test(help.crux) && /E\.g\./.test(help.crux) && /lost here in every witness/.test(help.lacuna) && /harder reading/.test(help.chip) && /wavy line/.test(help.sure), help);
+  T.check('and What these mean lists them all, to read', ['† crux', 'Lacuna', 'How sure?', 'lectio difficilior', 'usus scribendi', 'metre', 'emendation', 'conjecture', 'Join with the next word'].every((t) => help.list.includes(t)), help.list);
   await page.evaluate(() => { document.querySelector('.modal-foot .btn').click(); window.__pub.remove(); });
+  await sleep(400);
+  // the abbreviations of the apparatus: a table that says what each means, with an example, and a box to change it
+  const abbr = await page.evaluate(async () => {
+    const el = await ME.Steps.publish(window.ed, window.list, () => {});
+    document.body.appendChild(el);
+    const t = el.querySelector('.ap-abbr-table');
+    const row = (k) => [...t.querySelectorAll('tbody tr')].find((r) => r.querySelector('input').getAttribute('aria-label').includes(k));
+    const om = row('omittit');
+    const out = { rows: t.querySelectorAll('tbody tr').length, heads: [...t.querySelectorAll('th')].map((x) => x.textContent), om: om.textContent, ex: om.querySelector('.ap-ex').textContent };
+    const box = om.querySelector('input');
+    box.value = 'deest in'; box.dispatchEvent(new Event('input'));
+    out.live = om.querySelector('.ap-ex').textContent;
+    box.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 300));
+    out.saved = ME.Apparatus.abbr(window.ed).om;
+    el.remove();
+    return out;
+  });
+  T.check('How the apparatus is written has a table: printed as, stands for, meaning, example', abbr.rows === 11 && abbr.heads.join() === 'Printed as,Stands for,Meaning,Example' && /omittit/.test(abbr.om) && /does not have the words/.test(abbr.om) && /\] om\. B/.test(abbr.ex), abbr);
+  T.check('writing another abbreviation shows it in the example at once, and the apparatus uses it', /\] deest in B/.test(abbr.live) && abbr.saved === 'deest in', abbr);
+  const back = await page.evaluate(async () => {
+    const el = await ME.Steps.publish(window.ed, window.list, () => {});
+    document.body.appendChild(el);
+    const b = el.querySelector('.ap-abbr-table button[title^="Back to"]');
+    if (b) b.click();
+    await new Promise((r) => setTimeout(r, 300));
+    el.remove();
+    return { had: !!b, now: ME.Apparatus.abbr(window.ed).om };
+  });
+  T.check('and ↺ puts back the abbreviation of the set', back.had && back.now === 'om.', back);
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });
