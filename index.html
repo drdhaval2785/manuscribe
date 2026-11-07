@@ -2,9 +2,144 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url=app/index.html">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manuscribe</title>
+<meta name="description" content="Transcribe manuscripts in any script, line by line beside their images, and make a critical edition from them. Free, in your browser; your work stays on your computer.">
 <link rel="icon" href="app/img/logo.png" type="image/png">
+<link rel="apple-touch-icon" href="app/img/apple-touch-icon.png">
+<!-- The front page of Manuscribe's website. Where things are (the download, the repository) comes from
+     app/js/site.js, the one place to change if the website moves. -->
+<script src="app/js/site.js"></script>
+<style>
+:root {
+  --bg: #f6f1e7; --card: #fffaf1; --ink: #2b2017; --muted: #6f5f4e; --line: #e3d7c3; --accent: #b23a26; --accent-ink: #fff;
+  --chrome: #2b221c; --chrome-ink: #f2e9d8; --soft: #efe6d6;
+  --ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #1d1814; --card: #27211b; --ink: #efe6d6; --muted: #b5a690; --line: #3d342b; --accent: #d9583f; --soft: #2f2821; }
+}
+:root[data-theme="dark"] { --bg: #1d1814; --card: #27211b; --ink: #efe6d6; --muted: #b5a690; --line: #3d342b; --accent: #d9583f; --soft: #2f2821; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--ui); }
+a { color: var(--accent); }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header.top { background: var(--chrome); color: var(--chrome-ink); }
+header.top .wrap { display: flex; align-items: center; gap: 12px; height: 56px; }
+header.top img { width: 34px; height: 34px; border-radius: 8px; background: #fff; }
+header.top b { font-size: 18px; letter-spacing: .2px; }
+header.top nav { margin-left: auto; display: flex; gap: 18px; font-size: 14px; }
+header.top nav a { color: var(--chrome-ink); text-decoration: none; opacity: .85; }
+header.top nav a:hover { opacity: 1; text-decoration: underline; }
+.hero { padding: 56px 0 36px; display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; }
+.hero h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.5px; }
+.hero p.lead { font-size: 19px; color: var(--muted); margin: 0 0 26px; max-width: 34em; }
+.hero .art { width: 190px; height: 190px; border-radius: 36px; background: #fff; box-shadow: 0 10px 40px rgba(60, 40, 20, .15); padding: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 24px; border-radius: 10px; font: 600 17px var(--ui); text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--card); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 4px 14px rgba(178, 58, 38, .3); }
+.btn:hover { filter: brightness(1.05); }
+.small { font-size: 14px; color: var(--muted); }
+section { padding: 30px 0; }
+h2 { font-size: 24px; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.card h3 { margin: 0 0 6px; font-size: 17px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.steps { counter-reset: s; }
+.steps .card h3::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 8px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 14px; }
+.note { background: var(--soft); border-radius: 14px; padding: 18px 22px; }
+.note p { margin: 6px 0; }
+kbd { font: 13px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--card); }
+footer { border-top: 1px solid var(--line); margin-top: 24px; padding: 22px 0 40px; font-size: 14px; color: var(--muted); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+@media (max-width: 680px) {
+  .hero { grid-template-columns: 1fr; padding-top: 32px; }
+  .hero .art { display: none; }
+  header.top nav { gap: 12px; }
+  header.top nav .wide { display: none; }
+  .btn { width: 100%; justify-content: center; }
+}
+</style>
 </head>
-<body><a href="app/index.html">Open Manuscribe</a></body>
+<body>
+<header class="top"><div class="wrap">
+  <img src="app/img/icon-192.png" alt="">
+  <b>Manuscribe</b>
+  <nav><a href="#install">Install</a><a href="#work">Your work</a><a class="wide" data-site="repo" data-path="#readme" href="https://github.com/drdhaval2785/manuscribe#readme">Guide</a></nav>
+</div></header>
+
+<main class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Transcribe manuscripts, and edit them</h1>
+      <p class="lead">Type a manuscript line by line beside its images, in any script. Then bring several manuscripts together: Manuscribe compares them, and helps you make a critical edition with its apparatus, ready to print.</p>
+      <div class="actions">
+        <a class="btn primary" href="app/index.html">Open Manuscribe</a>
+        <a class="btn" data-site="download" href="https://github.com/drdhaval2785/manuscribe/releases/latest/download/Manuscribe.zip">Download, for use without the internet</a>
+      </div>
+      <p class="small">Free. Nothing to sign up for. Opens in your browser<span id="version"></span>.</p>
+    </div>
+    <img class="art" src="app/img/icon-512.png" alt="">
+  </div>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card"><h3>Transcribe</h3><p>The scan above, the typing area below, line for line. Four layouts, commentaries around the text included. Type with your own keyboard or with built-in schemes such as ITRANS.</p></div>
+      <div class="card"><h3>Compare</h3><p>Manuscribe lines up your manuscripts word by word and shows where they differ. You choose the reading, or put in your own.</p></div>
+      <div class="card"><h3>Edit</h3><p>The apparatus is written for you, in the conventions you choose, with notes that explain themselves.</p></div>
+      <div class="card"><h3>Publish</h3><p>A PDF, a page to print, a reader to share, and TEI and LaTeX for other tools. In 38 languages and every script of Unicode.</p></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Installing it (optional)</h2>
+    <p>Manuscribe works as it is in any recent browser. Installing it gives it an icon and a window of its own, and it then opens without the internet.</p>
+    <div class="grid steps">
+      <div class="card"><h3>Chrome or Edge</h3><p>Open Manuscribe and click <b>Install Manuscribe</b> on its start screen, or the install icon at the right of the address bar.</p></div>
+      <div class="card"><h3>Safari on a Mac</h3><p>Open Manuscribe, then choose <b>File → Add to Dock</b>.</p></div>
+      <div class="card"><h3>iPad or iPhone</h3><p>Open Manuscribe in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p></div>
+      <div class="card"><h3>No internet at all?</h3><p>Download the copy above, unzip it, and double-click <b>Manuscribe.html</b>. It needs the internet once, for the fonts of your script.</p></div>
+    </div>
+  </section>
+
+  <section id="work">
+    <h2>Your work</h2>
+    <div class="note">
+      <p><b>It stays on your computer.</b> Your manuscripts and transcriptions are kept by your browser. Nothing is uploaded anywhere.</p>
+      <p><b>Keep a backup.</b> Press <kbd>Ctrl</kbd> + <kbd>S</kbd> (<kbd>⌘</kbd> + <kbd>S</kbd> on a Mac) in Manuscribe to save a backup file. Clearing your browser's data deletes your work, and a backup file also takes your work to another computer.</p>
+      <p><b>Use the same browser each time.</b> Each browser keeps its own work: what you did in Chrome is not in Safari.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Which computers</h2>
+    <p>Windows, macOS, Linux, ChromeOS and iPad. Manuscribe is tested in <b>Chrome</b> and <b>Edge</b>; it is written for <b>Safari</b> (17 or later) and <b>Firefox</b> (125 or later) too, which are being tested, so keep backups if you use them. On a phone you can read and review; transcribing wants a larger screen.</p>
+  </section>
+</main>
+
+<footer><div class="wrap">
+  <span>Manuscribe is free software (GNU GPL 3.0).</span>
+  <a data-site="repo" href="https://github.com/drdhaval2785/manuscribe">Source code</a>
+  <a data-site="repo" data-path="#readme" href="https://github.com/drdhaval2785/manuscribe#readme">Full guide</a>
+  <a data-site="repo" data-path="/issues" href="https://github.com/drdhaval2785/manuscribe/issues">Report a problem</a>
+  <a data-site="repo" data-path="#citing-manuscribe" href="https://github.com/drdhaval2785/manuscribe#citing-manuscribe">Citing Manuscribe</a>
+</div></footer>
+
+<script>
+(function () {
+  // the links, from app/js/site.js
+  const S = window.ME && window.ME.SITE;
+  if (S) for (const a of document.querySelectorAll('[data-site]')) {
+    const base = S[a.dataset.site];
+    if (base) a.href = base + (a.dataset.path || '');
+  }
+  // the version on this website
+  fetch('app/version.json', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((v) => {
+    if (v && v.version) document.getElementById('version').textContent = ' · version ' + v.version;
+  }).catch(() => {});
+})();
+</script>
+</body>
 </html>

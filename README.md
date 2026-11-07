@@ -4,6 +4,8 @@
 
 <p align="center">Diplomatic transcription of Sanskrit manuscripts, in your browser, with a scan of the folio above the text you type.</p>
 
+<p align="center"><b><a href="https://drdhaval2785.github.io/manuscribe/">Open Manuscribe</a></b> · <a href="https://github.com/drdhaval2785/manuscribe/releases/latest/download/Manuscribe.zip">Download it, for use without the internet</a></p>
+
 Manuscribe is for anyone preparing a diplomatic transcription of a manuscript. The PDF of the
 manuscript is shown at the top. Below it you type into a copy of the folio with the same
 proportions, blocks and number of lines, so that each line you type sits opposite its line on the
@@ -63,12 +65,19 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 
 ## Getting started
 
-1. Get this folder: use **Code → Download ZIP** on GitHub, or
-   `git clone https://github.com/drdhaval2785/manuscribe.git`.
-2. Double-click **`Manuscribe.html`**, or open `app/index.html` in your browser.
-3. Click **＋ New transcription** and choose the PDF of your manuscript.
+1. Open **<https://drdhaval2785.github.io/manuscribe/>** and click **Open Manuscribe**.
+2. Click **＋ New transcription** and choose the PDF of your manuscript.
 
-That is all. Bookmark the page if you like.
+That is all. To give Manuscribe an icon and a window of its own, and have it open without the
+internet, click **Install Manuscribe** on its start screen (Chrome, Edge), or in Safari choose
+**File → Add to Dock** (on an iPad or iPhone: **Share → Add to Home Screen**). A new version is
+offered with a **Reload** when there is one.
+
+**Without the internet**, use the downloadable copy: download
+[Manuscribe.zip](https://github.com/drdhaval2785/manuscribe/releases/latest/download/Manuscribe.zip),
+unzip it, and double-click **`Manuscribe.html`**. It needs the internet once, for the font of
+your script, and tells you when a newer version is out. (Developers can also clone the
+repository and open `Manuscribe.html` the same way.)
 
 Manuscribe is developed and tested in **Google Chrome**. Microsoft Edge uses the same browser
 engine. It is written for Firefox and Safari too, but has not been tested in them, so keep backup
@@ -1025,7 +1034,7 @@ tags on a `window.ME` namespace, because ES modules do not load from `file://`.
 
 ```
 Manuscribe.html         launcher to double-click (redirects to app/index.html)
-index.html              the same redirect, for a web server such as GitHub Pages
+index.html              the front page of the website (GitHub Pages); its links come from app/js/site.js
 LICENSE                 GNU General Public License, version 3
 app/index.html          the application
 app/css/app.css         the look of the application
