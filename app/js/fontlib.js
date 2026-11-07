@@ -126,8 +126,18 @@
      Serif in print.) */
   FL.needsTiro = (text) => /\p{Script=Devanagari}/u.test(String(text || ''));
 
-  /* The script of a language tag: sa-Latn is Latin, sa (by itself) Devanagari, ar Arabic. -> ISO 15924 code, or null */
-  FL.scriptOfTag = (tag) => { try { return tag ? new Intl.Locale(tag).maximize().script || null : null; } catch (e) { return null; } };
+  /* The script of a language tag: sa-Latn is Latin, sa (by itself) Devanagari, ar Arabic. -> ISO 15924 code, or null.
+     A script written in the tag wins; then these, where browsers' data differ or do not know (Safari's says Ancient
+     Greek is Cypriot and Pali Sinhala; Urdu's Aran is Arabic in its Nastaliq style); then the browser's likely one. */
+  const LIKELY = { sa: 'Deva', pra: 'Deva', pi: 'Latn', grc: 'Grek', ur: 'Arab', ks: 'Arab' };
+  FL.scriptOfTag = (tag) => {
+    if (!tag) return null;
+    try {
+      const l = new Intl.Locale(tag);
+      const s = l.script || LIKELY[l.language] || l.maximize().script || null;
+      return s === 'Aran' ? 'Arab' : s;
+    } catch (e) { return null; }
+  };
 
   /* The font that sets a script on screen: Tiro for Devanagari; none for the scripts every computer and phone has
      fonts for (Latin, Greek, Cyrillic, Armenian, Georgian, Hebrew, Arabic, Thai, Chinese, Japanese, Korean: the

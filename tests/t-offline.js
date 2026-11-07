@@ -4,10 +4,11 @@
 // newer version. The list of files the app keeps is up to date (tools/precache.mjs).
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const puppeteer = require('puppeteer-core');
-const { launch, sleep, checks, ROOT, WORK, CHROME, serve, stop } = require('./h');
+const { launch, sleep, checks, ROOT, WORK, CHROME, CHROME_ARGS, serve, stop, OTHER } = require('./h');
 
 (async () => {
   const T = checks('Manuscribe from its website, as an app');
+  if (OTHER) { T.skip('all', 'drives Chrome itself, to stop and start its service worker'); T.done(); return; }
   const pre = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'precache.mjs'), '--check'], { encoding: 'utf8' });
   T.check('the list of files the app keeps offline is up to date (node tools/precache.mjs)', pre.status === 0, pre.stdout.trim());
 
@@ -16,7 +17,7 @@ const { launch, sleep, checks, ROOT, WORK, CHROME, serve, stop } = require('./h'
   const url = 'http://127.0.0.1:' + port + '/manuscribe/app/index.html';
   const dir = path.join(WORK, 'profile-offline');
   fs.rmSync(dir, { recursive: true, force: true });
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1300, height: 900 } });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1300, height: 900 }, args: CHROME_ARGS });
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -91,6 +92,18 @@ const { launch, sleep, checks, ROOT, WORK, CHROME, serve, stop } = require('./h'
   fp.errors.length = 0;
   const same = await fp.evaluate(async () => { document.getElementById('update-bar').remove(); ME.SITE.home = 'http://127.0.0.1:1/'; const v = await ME.Install.checkCopy(true); return { v, bar: !!document.getElementById('update-bar') }; });
   T.check('and says nothing when the website cannot be reached', same.v === null && !same.bar, same);
+  // a browser too old for Manuscribe is told so, with what it lacks
+  const old = await fp.evaluate(() => {
+    const none = ME.Install.checkBrowser().length === 0 && !document.getElementById('browser-bar');
+    const keep = Intl.Segmenter; delete Intl.Segmenter;
+    const lack = ME.Install.checkBrowser();
+    Intl.Segmenter = keep;
+    const bar = document.getElementById('browser-bar');
+    const text = bar ? bar.textContent : '';
+    if (bar) bar.remove();
+    return { none, lack, text };
+  });
+  T.check('a browser too old for Manuscribe is told what it lacks, and to update it; this one lacks nothing', old.none && old.lack.length === 1 && /Intl\.Segmenter/.test(old.lack[0]) && /too old for Manuscribe/.test(old.text) && /update it/.test(old.text), old);
   fp.errors = fp.errors.filter((e) => !/Failed to load resource/.test(e));
   T.done(fp);
   await b2.close();

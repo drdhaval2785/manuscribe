@@ -144,6 +144,8 @@
     Safety.draw();
   };
   async function permitted() {
+    // a folder without permissions to ask for (the browser's own private one) may always be written
+    if (typeof folder.queryPermission !== 'function') return true;
     try { return (await folder.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) { return false; }
   }
   async function put(dir, name, blob) {

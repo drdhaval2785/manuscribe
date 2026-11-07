@@ -5,11 +5,24 @@ roadmap promise.
 
 ```
 cd tests
-PUPPETEER_SKIP_DOWNLOAD=1 npm install    # once: puppeteer-core, which drives the Chrome you have
+PUPPETEER_SKIP_DOWNLOAD=1 npm install    # once: puppeteer-core, which drives the Chrome you have, and Playwright
 node run.js                              # every test file, but the long survey of all scripts
 node run.js --all                        # every test file, t-scripts.js included
 node run.js stemma collate               # only those whose names contain these words
 ```
+
+**In Firefox and Safari's engine (WebKit) too.** The same tests run there through Playwright (`engine.js`), on the
+app served by a local web server, as people using those browsers open it from the website:
+
+```
+npx playwright install firefox webkit    # once: about 300 MB each, kept outside the repository
+MANUSCRIBE_ENGINE=firefox node run.js
+MANUSCRIBE_ENGINE=webkit node run.js
+```
+
+What only Chrome has (its own PDF of a page, its service worker driven by hand in `t-offline.js`) is skipped there.
+Every test also checks, as it starts, that the browser has all Manuscribe needs (`Install.missing`). On GitHub, the
+Tests workflow (`.github/workflows/tests.yml`) runs them on Windows, macOS and Linux in all three, after each push.
 
 Each check is shown as it runs, with a running count after each file and a line every 20 seconds while a file is
 still at work. A file that runs longer than 5 minutes (`MANUSCRIBE_TEST_LIMIT`, in seconds) is stopped and counted

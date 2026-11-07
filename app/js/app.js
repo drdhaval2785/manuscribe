@@ -222,13 +222,12 @@
      (sa-Deva), the script of the language when the transcription is a transliteration. */
   const LANG_CODES = ['sa', 'pra', 'pi', 'hi', 'mr', 'ne', 'gu', 'bn', 'pa', 'or', 'ta', 'te', 'kn', 'ml', 'si', 'bo', 'ur', 'fa', 'ar', 'he', 'syc', 'grc', 'el', 'la', 'en', 'de', 'fr', 'it', 'es', 'pt', 'ru', 'ka', 'hy', 'am', 'th', 'km', 'my', 'zh', 'ja', 'ko'];
   const LANG_NAMES = { pra: 'Prakrit', pi: 'Pali', syc: 'Syriac', grc: 'Ancient Greek', el: 'Greek (modern)' };
-  const SCRIPT_OF = { pra: 'Deva', pi: 'Latn' }; // where the browser does not know
   const KEEP_SCRIPT = new Set(['sa', 'pra', 'pi']); // tags written with their script, as sa-Deva, sa-Latn
   function languageInputs() {
     const dn = (type) => { try { return new Intl.DisplayNames(['en'], { type }); } catch (e) { return { of: (x) => x }; } };
     const langName = (c) => LANG_NAMES[c] || dn('language').of(c) || c;
     const scriptName = (c) => ({ Latn: 'Latin', Jpan: 'Japanese', Hans: 'Chinese, simplified', Hant: 'Chinese, traditional', Kore: 'Korean' })[c] || dn('script').of(c) || c;
-    const scriptOf = (lang) => SCRIPT_OF[lang] || (ME.FontLib && ME.FontLib.scriptOfTag(lang)) || 'Latn';
+    const scriptOf = (lang) => (ME.FontLib && ME.FontLib.scriptOfTag(lang)) || 'Latn';
     let last = {};
     try { last = JSON.parse(localStorage.getItem('manuscribe.newLang') || '{}'); } catch (e) { /* none */ }
     const lang = U.el('select', null, LANG_CODES.map((c) => U.el('option', { value: c }, langName(c))), U.el('option', { value: '' }, 'Other: a language code…'));

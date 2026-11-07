@@ -2,7 +2,7 @@
 // double-click, the app, the licence, the guide and a "Start here" sheet, and nothing else; small; and, unzipped,
 // it opens and runs.
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
-const { launch, sleep, checks, ROOT, WORK } = require('./h');
+const { launch, sleep, checks, ROOT, WORK, fileUrl } = require('./h');
 
 (async () => {
   const T = checks('The downloadable copy');
@@ -33,7 +33,7 @@ const { launch, sleep, checks, ROOT, WORK } = require('./h');
   const { browser, page } = await launch('package');
   try {
   // Manuscribe.html sends the browser on to app/index.html: what is asked meanwhile may meet the page in between
-  await page.goto('file://' + path.join(dir, 'Manuscribe', 'Manuscribe.html'), { waitUntil: 'load' });
+  await page.goto(fileUrl(path.join(dir, 'Manuscribe', 'Manuscribe.html')), { waitUntil: 'load' });
   const ready = () => page.evaluate(() => !!(window.ME && ME.App && document.getElementById('start-home') && /app\/index\.html$/.test(location.href))).catch(() => false);
   for (let k = 0; k < 60 && !(await ready()); k++) await sleep(150);
   await sleep(300);

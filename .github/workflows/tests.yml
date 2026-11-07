@@ -1,0 +1,60 @@
+# The tests on Windows, macOS and Linux, in Chrome, Firefox and WebKit (Safari's engine): on each push to main,
+# on each pull request, and when started by hand (Actions → Tests → Run workflow). The owner's own package is not
+# here, so the tests that need it are skipped; so is the long survey of all scripts (tests/run.js --all runs it).
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.engine }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        engine: [chrome, firefox, webkit]
+    defaults:
+      run:
+        working-directory: tests
+    env:
+      MANUSCRIBE_ENGINE: ${{ matrix.engine }}
+      MANUSCRIBE_TEST_LIMIT: '900'
+      PUPPETEER_SKIP_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the test tools
+        run: npm ci
+
+      # Chrome is already on GitHub's computers; say where
+      - name: Where Chrome is
+        if: matrix.engine == 'chrome'
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux) echo "CHROME=$(command -v google-chrome || command -v google-chrome-stable)" >> "$GITHUB_ENV" ;;
+            Windows) echo "CHROME=C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" >> "$GITHUB_ENV" ;;
+            macOS) echo "CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Get ${{ matrix.engine }}
+        if: matrix.engine != 'chrome'
+        run: npx playwright install --with-deps ${{ matrix.engine }}
+
+      - name: The offline list is up to date
+        working-directory: .
+        run: node tools/precache.mjs --check
+
+      - name: Run the tests
+        run: node run.js

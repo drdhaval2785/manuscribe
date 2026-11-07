@@ -43,6 +43,8 @@
     if (!web || !('serviceWorker' in navigator)) return null;
     let reg;
     try { reg = await navigator.serviceWorker.register('sw.js'); } catch (e) { return null; }
+    // where service workers are turned off (some private windows), there is no registration
+    if (!reg) return null;
     // a new version waits until the editor says so; the first one, with nothing before it, needs no reload
     const offer = (w) => {
       if (!navigator.serviceWorker.controller) return;
@@ -102,6 +104,22 @@
     });
   }
 
+  /* ---------- a browser too old ---------- */
+  /* What Manuscribe cannot do without, and since when browsers have it. -> [names of what this browser lacks] */
+  const NEEDS = [
+    ['storage for your work (IndexedDB)', () => !!window.indexedDB],
+    ['word division (Intl.Segmenter: Chrome 87, Safari 14.1, Firefox 125)', () => !!(window.Intl && Intl.Segmenter)],
+    ['compression, for backups and packages (CompressionStream: Chrome 80, Safari 16.4, Firefox 113)', () => typeof window.CompressionStream === 'function' && typeof window.DecompressionStream === 'function'],
+    ['the layout of its screens (CSS :has(): Chrome 105, Safari 15.4, Firefox 121)', () => !!(window.CSS && CSS.supports && CSS.supports('selector(:has(a))'))],
+    ['setting text for PDFs (WebAssembly)', () => typeof window.WebAssembly === 'object'],
+  ];
+  Install.missing = () => NEEDS.filter(([, ok]) => { try { return !ok(); } catch (e) { return true; } }).map(([name]) => name);
+  Install.checkBrowser = function () {
+    const lack = Install.missing();
+    if (lack.length) bar('browser-bar', 'This browser is too old for Manuscribe: it lacks ' + lack.join('; ') + '. Please update it, or use a recent Chrome, Edge, Firefox or Safari. Your work is safe.', { label: 'Why?', href: (ME.SITE && ME.SITE.home) || '#' });
+    return lack;
+  };
+
   /* ---------- a downloaded copy: is there a newer version? ---------- */
   const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   Install.newer = newer;
@@ -119,6 +137,7 @@
   };
 
   window.addEventListener('DOMContentLoaded', () => {
+    Install.checkBrowser();
     Install.offline();
     Install.draw();
     Install.checkCopy();

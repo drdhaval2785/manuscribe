@@ -6,6 +6,7 @@
     "test": "node run.js"
   },
   "devDependencies": {
+    "playwright": "^1.65.0",
     "puppeteer-core": "^23.11.1"
   }
 }

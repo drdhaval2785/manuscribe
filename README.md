@@ -79,9 +79,10 @@ unzip it, and double-click **`Manuscribe.html`**. It needs the internet once, fo
 your script, and tells you when a newer version is out. (Developers can also clone the
 repository and open `Manuscribe.html` the same way.)
 
-Manuscribe is developed and tested in **Google Chrome**. Microsoft Edge uses the same browser
-engine. It is written for Firefox and Safari too, but has not been tested in them, so keep backup
-files if you use one of those.
+Manuscribe is tested in **Chrome** (and so Edge, which shares its engine), **Firefox** and
+**Safari**'s engine, on Windows, macOS and Linux: the same tests in all three. Use a recent
+version (Firefox 125 or later, Safari 17 or later); an older browser is told what it lacks.
+Chrome and Edge can also keep backups in a folder by themselves.
 
 > Use the same browser each time. Each browser keeps its own storage, so a project saved in Chrome
 > is not visible in Firefox. Clearing the browser's site data deletes your projects, so keep backup

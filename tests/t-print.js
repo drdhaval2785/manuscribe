@@ -2,7 +2,7 @@
 // Manuscribe, from witnesses to the print edition. Letters are compared as written; the print page lays itself out
 // in the browser, with every note on the page of its marker; and the browser's own PDF of it can be searched.
 const fs = require('fs'), path = require('path');
-const { launch, sleep, checks, WORK } = require('./h');
+const { launch, sleep, checks, WORK, OTHER, fileUrl } = require('./h');
 
 const TEXTS = {
   ar: { check: 'قال', lang: 'ar', words: 'بسم الله الرحمن الرحيم الحمد لله رب العالمين قال الشيخ رحمه الله تعالى هذا كتاب في علم النحو والصرف وما يتعلق بهما من المسائل والفوائد'.split(' '), vary: (w) => w + 'ا' },
@@ -72,7 +72,7 @@ const TEXTS = {
     fs.writeFileSync(file, made.html);
     const p2 = await browser.newPage();
     await p2.setViewport({ width: 1100, height: 900 });
-    await p2.goto('file://' + file);
+    await p2.goto(fileUrl(file));
     for (let k = 0; k < 80 && !(await p2.evaluate(() => !!window.__paginated)); k++) await sleep(150);
     const r = await p2.evaluate(() => {
       const R = window.__paginated;
@@ -84,7 +84,8 @@ const TEXTS = {
     T.check(key + ': laid out as ' + r.pages + ' pages, every note on the page of its marker', r.pages >= 3 && !r.strays.length && r.markers > 20 && r.overfull === 0, r);
     T.check(key + ': no text runs into its notes or off the page; lines numbered', r.clear && r.lines > 3, r);
     if (key === 'ar') T.check('Arabic is set right to left', r.dir === 'rtl', r.dir);
-    // the browser's PDF of it, as Save as PDF makes it
+    // the browser's PDF of it, as Save as PDF makes it (only Chrome can be asked for one)
+    if (OTHER) { await p2.close(); T.skip(key + ': the browser’s PDF can be searched', 'only Chrome makes a PDF when asked'); continue; }
     const pdf = await p2.pdf({ preferCSSPageSize: true, printBackground: true });
     fs.writeFileSync(path.join(dir, key + '.pdf'), pdf);
     await p2.close();

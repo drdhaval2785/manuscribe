@@ -119,9 +119,10 @@ const { LANGS, make, buildInPage } = require('./languages');
     const at = Date.now() + 5 * 3600 * 1000;
     localStorage.setItem('manuscribe.unsavedSince', String(at - 10 * 60 * 1000));
     const early = Safety.check(at);
-    return { shown, withFolder, putOff, later, without, early };
+    return { shown, withFolder, putOff, later, without, early, canFolder: !!keep };
   });
-  T.check('an hour of work only in the browser brings a reminder: a folder where the browser has one, a backup file where it has not; Later puts it off', rm.shown && /Choose a folder/.test(rm.withFolder) && rm.putOff && rm.later && /Back up everything/.test(rm.without) && !rm.early, rm);
+  // (Safari and Firefox have no folders to offer: there, the first reminder offers the backup file too)
+  T.check('an hour of work only in the browser brings a reminder: a folder where the browser has one, a backup file where it has not; Later puts it off', rm.shown && (rm.canFolder ? /Choose a folder/ : /Back up everything/).test(rm.withFolder) && rm.putOff && rm.later && /Back up everything/.test(rm.without) && !rm.early, rm);
   T.done(page);
   } finally { await browser.close(); if (server) await stop(server); }
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

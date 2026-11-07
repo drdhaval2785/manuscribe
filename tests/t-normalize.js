@@ -49,6 +49,17 @@ const { launch, checks } = require('./h');
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);
+  // letters beyond the first 65,536 (hieroglyphs, Brahmi, Grantha…) are two units of a string: kept whole, each
+  // with its place in the line (half of one becomes U+FFFD in Firefox)
+  const astral = await page.evaluate(() => {
+    const N = ME.Norm;
+    const any = new Set(N.settings({ profile: 'any' }).on);
+    const t = '𓀀𓁐 𑀓𑀫𑀮, 𑌕𑌮𑌲';
+    const r = N.apply(t, { rules: any });
+    const back = [...r.text].map((ch, k) => { const u = [...r.text].slice(0, k).join('').length; return t.slice(r.at[u], r.at[u] + ch.length) === ch; });
+    return { text: r.text, places: back.every(Boolean), units: r.at.length === r.text.length + 1 };
+  });
+  T.check('letters beyond the first 65,536 (hieroglyphs, Brahmi, Grantha) are kept whole, each with its place in the line', astral.text === '𓀀𓁐𑀓𑀫𑀮𑌕𑌮𑌲' && astral.places && astral.units, astral);
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.message); process.exitCode = 1; });

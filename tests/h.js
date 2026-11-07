@@ -1,5 +1,8 @@
-// Shared by the tests: a fresh Chrome profile on the app opened from disk, and small helpers for checks.
+// Shared by the tests: a fresh Chrome profile on the app opened from disk, and small helpers for checks. With
+// MANUSCRIBE_ENGINE=firefox or webkit, the same tests run in those engines (engine.js), on the app served by a
+// local web server, as people using them would open it from the website.
 const puppeteer = require('puppeteer-core');
+const ENGINE = require('./engine');
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
@@ -8,31 +11,50 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const WORK = path.join(os.tmpdir(), 'manuscribe-tests'); // profiles, downloads, screenshots: never in the repo
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// on GitHub's Linux computers Chrome's sandbox cannot start
+const CHROME_ARGS = process.env.CI && process.platform === 'linux' ? ['--no-sandbox'] : [];
 // the owner's own package, used where it is present and never copied into the repository
 const SAMPLE = process.env.MANUSCRIBE_SAMPLE || path.join(os.homedir(), 'Downloads', 'saroddhara.edition-2.zip');
 fs.mkdirSync(WORK, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// a file's address, on every system (C:\\… on Windows too)
+const fileUrl = (p) => require('url').pathToFileURL(p).href;
 
 /* Fonts come from jsDelivr, as in the app, and the tests keep a copy of each one (WORK/fonts), so that after the
    first run they need no internet. Manuscribe's own Tiro is always to be had; the Noto fonts of other scripts only
    for the tests that ask (noto), and the others see them as not to be had; with noto 'none', no font at all, as on
    a computer that has never been online. */
 const FONTS = path.join(WORK, 'fonts');
+// -> {status, body} for a font asked of jsDelivr
+async function fontFile(url, noto) {
+  if (noto === 'none' || (!noto && !/\/tirodevanagarisanskrit\//.test(url))) return { status: 404, body: '' };
+  const file = path.join(FONTS, url.replace(/^https:\/\//, '').replace(/[^\w.-]+/g, '_'));
+  let body = fs.existsSync(file) ? fs.readFileSync(file) : null;
+  if (!body) {
+    try { const r = await fetch(url); if (r.ok) { body = Buffer.from(await r.arrayBuffer()); fs.mkdirSync(FONTS, { recursive: true }); fs.writeFileSync(file, body); } } catch (e) { /* not to be had */ }
+  }
+  return body ? { status: 200, body } : { status: 404, body: '' };
+}
+const CORS = { 'access-control-allow-origin': '*' };
 async function fontsFor(page, noto) {
+  if (page._pw) {
+    await page.route('https://cdn.jsdelivr.net/**', async (route) => { const r = await fontFile(route.request().url(), noto); await route.fulfill({ status: r.status, headers: CORS, contentType: 'application/octet-stream', body: r.body }); });
+    return;
+  }
   await page.setRequestInterception(true);
   page.on('request', async (req) => {
     const url = req.url();
     if (!/^https:\/\/cdn\.jsdelivr\.net\//.test(url)) { req.continue(); return; }
-    if (noto === 'none' || (!noto && !/\/tirodevanagarisanskrit\//.test(url))) { req.respond({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '' }); return; }
-    const file = path.join(FONTS, url.replace(/^https:\/\//, '').replace(/[^\w.-]+/g, '_'));
-    let body = fs.existsSync(file) ? fs.readFileSync(file) : null;
-    if (!body) {
-      try { const r = await fetch(url); if (r.ok) { body = Buffer.from(await r.arrayBuffer()); fs.mkdirSync(FONTS, { recursive: true }); fs.writeFileSync(file, body); } } catch (e) { /* not to be had */ }
-    }
-    if (body) req.respond({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/octet-stream', body });
-    else req.respond({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '' });
+    const r = await fontFile(url, noto);
+    req.respond({ status: r.status, headers: CORS, contentType: 'application/octet-stream', body: r.body });
   });
+}
+// the app served, for the other engines: one server for the whole test file
+let appServer = null;
+async function appUrl() {
+  if (!appServer) { appServer = await serve(0); appServer.unref(); }
+  return 'http://127.0.0.1:' + appServer.address().port + '/manuscribe/app/index.html';
 }
 
 // level: how much Manuscribe shows. The tests see everything ('full') unless they ask for the default, 'simple'.
@@ -40,8 +62,9 @@ async function launch(name, opts) {
   const level = (opts && opts.level) || 'full';
   const dir = path.join(WORK, 'profile-' + name);
   fs.rmSync(dir, { recursive: true, force: true });
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000 });
-  const page = await browser.newPage();
+  const other = ENGINE.OTHER;
+  const { browser, page } = other ? await ENGINE.launchOther(dir, { width: 1500, height: 1000 })
+    : await (async () => { const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000, args: CHROME_ARGS }); return { browser: b, page: await b.newPage() }; })();
   page.errors = [];
   // a font the tests do not give (see fontsFor) is not an error of the page
   page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
@@ -52,8 +75,11 @@ async function launch(name, opts) {
   await fontsFor(page, opts && opts.fonts === 'none' ? 'none' : !!(opts && opts.fonts));
   // the tests give the fonts themselves: whether this computer is online at the moment does not matter
   await page.evaluateOnNewDocument(() => { try { Object.defineProperty(Navigator.prototype, 'onLine', { get: () => true, configurable: true }); } catch (e) { /* as it is */ } });
-  await page.goto('file://' + ROOT + '/app/index.html');
+  await page.goto(other ? await appUrl() : fileUrl(path.join(ROOT, 'app', 'index.html')));
   await sleep(700);
+  // every engine the tests run in has all Manuscribe needs
+  const lack = await page.evaluate(() => (window.ME && ME.Install ? ME.Install.missing() : ['the app did not start'])).catch((e) => [e.message]);
+  if (lack.length) page.errors.push('this browser lacks: ' + lack.join('; '));
   return { browser, page };
 }
 
@@ -74,7 +100,7 @@ async function exportVia(page, opener, format) {
 // Results: check(name, ok, detail) prints one line; done() prints the count and sets the exit code.
 function checks(title) {
   let pass = 0, fail = 0;
-  console.log('— ' + title);
+  console.log('— ' + title + (ENGINE.OTHER ? ' (' + ENGINE.ENGINE + ')' : ''));
   return {
     check(name, ok, detail) {
       if (ok) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (detail === undefined ? '' : ' :: ' + JSON.stringify(detail).slice(0, 400))); }
@@ -128,4 +154,4 @@ function serve(port, over) {
 }
 const stop = (s) => new Promise((r) => { s.closeAllConnections && s.closeAllConnections(); s.close(() => r()); });
 
-module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME, serve, stop };
+module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME, serve, stop, fileUrl, CHROME_ARGS, ENGINE: ENGINE.ENGINE, OTHER: ENGINE.OTHER };

@@ -47,11 +47,13 @@ const { launch, checks } = require('./h');
     const rws = [new Array(20000).fill(0)];
     for (let i = 1; i < 50; i++) { const from = rws[Math.floor(r2() * i)]; rws.push(from.map((v) => (r2() < 0.02 ? v + 1 + Math.floor(r2() * 3) : v))); }
     for (let k = 0; k < 20000; k++) { const vals = rws.map((rw) => rw[k]); const ids = [...new Set(vals)]; if (ids.length > 1) big.chars.push({ ref: 'k' + k, states: ids.map(String), cells: vals.map((v) => (r2() < 0.05 ? -1 : ids.indexOf(v))) }); }
+    // Chrome's engine is Node's; Firefox's and Safari's are slower at this: ten times, there
+    const F = /Firefox\//.test(navigator.userAgent) || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome\//.test(navigator.userAgent)) ? 10 : 5;
     const time = (f) => { const a = performance.now(); const x = f(); return [performance.now() - a, x]; };
     const [td, D] = time(() => S.distances(big));
     const [tn, tr] = time(() => S.nj(D));
     const [tf] = time(() => S.fitch(tr, big));
-    ok('50 witnesses: distances, NJ, Fitch within 5x of the Node figures (' + td.toFixed(0) + ', ' + tn.toFixed(1) + ', ' + tf.toFixed(1) + ' ms)', td < 5 * 68 && tn < 5 * 2.4 && tf < 5 * 4.3);
+    ok('50 witnesses: distances, NJ, Fitch within 5x of the Node figures (10x outside Chrome) (' + td.toFixed(0) + ', ' + tn.toFixed(1) + ', ' + tf.toFixed(1) + ' ms)', td < F * 68 && tn < F * 2.4 && tf < F * 4.3);
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);

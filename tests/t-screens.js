@@ -1,7 +1,7 @@
 // The screens, driven as an editor would: copying several lines; and, with the owner's package, the trust order,
 // the text view, the apparatus, the workbench and the reader file opened from disk with no network.
 const fs = require('fs'), path = require('path');
-const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
+const { launch, sleep, checks, importSample, WORK, exportVia, fileUrl } = require('./h');
 (async () => {
   const { browser, page } = await launch('screens');
   const T = checks('Screens');
@@ -17,8 +17,10 @@ const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
   const copied = await page.evaluate(() => {
     ME.Editor.focusLine('main', 0, 0);
     ME.Editor.setMulti({ box: 'main', i: 0, offset: 0 }, { box: 'main', i: 2, offset: 4 });
-    const dt = new DataTransfer();
-    document.activeElement.dispatchEvent(new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true }));
+    // (Firefox gives the event a DataTransfer of its own: what the app wrote is read from the event)
+    const ev = new ClipboardEvent('copy', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true });
+    document.activeElement.dispatchEvent(ev);
+    const dt = ev.clipboardData;
     return { plain: dt.getData('text/plain'), lines: dt.getData('application/x-manuscribe-lines') };
   });
   T.check('copying a selection over three lines gives three lines', copied.plain.split('\n').length === 3, copied.plain);
@@ -64,7 +66,7 @@ const { launch, sleep, checks, importSample, WORK, exportVia } = require('./h');
     const requests = [];
     await p2.setRequestInterception(true);
     p2.on('request', (r) => { requests.push(r.url()); r.continue(); });
-    await p2.goto('file://' + path.join(dl, html), { waitUntil: 'load' }); await sleep(400);
+    await p2.goto(fileUrl(path.join(dl, html)), { waitUntil: 'load' }); await sleep(400);
     T.check('the reader shows the text and its apparatus', await p2.evaluate(() => document.querySelectorAll('.u').length > 5 && document.querySelectorAll('ol.app li').length > 5));
     T.check('the reader asks nothing of the network', requests.every((u) => u.startsWith('file://') || u.startsWith('data:')), requests.filter((u) => !u.startsWith('file://') && !u.startsWith('data:')));
     await b2.close();

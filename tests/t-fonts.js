@@ -118,9 +118,10 @@ const { LANGS, make, buildInPage } = require('./languages');
       const clear = [...fr.contentDocument.querySelectorAll('.page')].every((p) => { const b = p.querySelector('.body').getBoundingClientRect(), f = p.querySelector('.foot'); return !f.childElementCount || b.bottom <= f.getBoundingClientRect().top + 0.5; });
       fr.remove();
       const buf = new Uint8Array(await c.blob.arrayBuffer());
+      const size = buf.length; // (pdf.js may take the bytes over to its worker)
       await ME.PdfView.ensureWorker();
       const doc = await pdfjsLib.getDocument({ data: buf }).promise;
-      return { fonts: fonts.map((f) => f.name + ':' + Math.round(f.data.length * 0.75 / 1024) + 'KB'), pictures: c.words.pictures, text: c.words.text, clear, kb: Math.round(buf.length / 1024), pages: doc.numPages, ms: Math.round(performance.now() - t0) };
+      return { fonts: fonts.map((f) => f.name + ':' + Math.round(f.data.length * 0.75 / 1024) + 'KB'), pictures: c.words.pictures, text: c.words.text, clear, kb: Math.round(size / 1024), pages: doc.numPages, ms: Math.round(performance.now() - t0) };
     });
     T.check(L.name + ': the page carries its Noto font, cut down, the text clears the notes, and the PDF is all text (' + r.text + ' words, ' + r.kb + ' KB, ' + r.ms + ' ms)', r.fonts.some((f) => /^Noto/.test(f)) && r.clear && r.pictures === 0 && r.text > 50 && r.pages >= 1 && r.kb < 1500, r);
   }

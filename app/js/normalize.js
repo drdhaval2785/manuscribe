@@ -294,8 +294,15 @@
       if (i === dip.length) break;
       while (sk < skip.length && skip[sk][1] <= i) sk++;
       if (sk < skip.length && skip[sk][0] <= i) continue;
-      if (INVISIBLE.test(dip[i])) continue;
-      for (const c of dip[i].normalize('NFD')) { out.push(c); at.push(i); }
+      // a whole character: one beyond the first 65,536 (hieroglyphs, Brahmi, Grantha…) is two units of the string,
+      // and half of one normalises to U+FFFD in Firefox
+      const ch = String.fromCodePoint(dip.codePointAt(i));
+      if (INVISIBLE.test(ch)) { i += ch.length - 1; continue; }
+      const nfd = ch.normalize('NFD');
+      // each unit of the text keeps the place it came from
+      if (nfd === ch) for (let k = 0; k < ch.length; k++) { out.push(ch[k]); at.push(i + k); }
+      else for (let k = 0; k < nfd.length; k++) { out.push(nfd[k]); at.push(i); }
+      i += ch.length - 1;
     }
     at.push(dip.length);
     return { text: out.join(''), at };
