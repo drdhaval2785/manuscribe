@@ -42,3 +42,5 @@ Some tests use a real edition package: by default `~/Downloads/saroddhara.editio
 `MANUSCRIBE_SAMPLE`. Without it they are skipped; the package is never copied into the repository. Chrome is
 looked for in `/Applications`; set `CHROME` to use another. Profiles and downloads go to the system's temporary
 folder, under `manuscribe-tests`.
+
+`bench-languages.js` is a benchmark, not a test, and `run.js` does not run it: `node tests/bench-languages.js [la,ar,ja,grc] [witnesses] [folio sides]` makes, for each language, fifteen witnesses of about ten folio sides copied down a stemma of three families, collates them, publishes the print page, the browser's PDF of it, the reader and TEI, and reports how long each step takes; the outputs and a picture of a page of each are saved with the test files.

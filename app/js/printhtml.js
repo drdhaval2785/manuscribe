@@ -79,7 +79,11 @@
     const D = JSON.parse(document.getElementById('edition-data').textContent);
     const book = document.getElementById('book');
     const el = (tag, cls, html) => { const x = document.createElement(tag); if (cls) x.className = cls; if (html !== undefined) x.innerHTML = html; return x; };
-    const seg = (() => { try { return new Intl.Segmenter(D.lang === 'und' ? undefined : D.lang, { granularity: 'word' }); } catch (e) { return null; } })();
+    /* The text is cut into pieces whose lines are measured. Words, where a language spaces them; letters, where it
+       does not (Japanese, Chinese, Thai…), since a line may break inside a word there and a word would be counted
+       on one line though it runs onto the next. */
+    const unspaced = /^(ja|zh|yue|th|lo|km|my|bo)\b/i.test(D.lang);
+    const seg = (() => { try { return new Intl.Segmenter(D.lang === 'und' ? undefined : D.lang, { granularity: unspaced ? 'grapheme' : 'word' }); } catch (e) { return null; } })();
     let pageNo = 0;
     const report = { pages: 0, overfull: 0, pagesInfo: [] };
     let pg = null, textLines = 0;
@@ -161,6 +165,9 @@
       const full = el('p', 'txt' + depthCls);
       full.lang = D.lang; full.dir = 'auto';
       full.innerHTML = b.html;
+      // measured with the numbers its markers will have on this page, so that renumbering them cannot make a line
+      // longer (on the next page they start again from 1, and are no wider)
+      if (D.byMarkers) { let k = pg.notes.length; for (const sup of full.querySelectorAll('.an sup')) sup.textContent = String(++k); }
       measure.innerHTML = '';
       measure.appendChild(full);
       if (!textDir) textDir = getComputedStyle(full).direction;
@@ -179,10 +186,14 @@
         }
       };
       walk(full, items);
-      let line = -1, top = -Infinity;
+      // a new line where a piece starts below the bottom of the line so far: pieces set in different fonts (kanji
+      // and kana, say) sit a little higher or lower on one line, and are not a line each
+      let line = -1, bottom = -Infinity;
       for (const it of items) {
         const r = it.node.getClientRects()[0] || it.node.getBoundingClientRect();
-        if (it.node.textContent.trim() || it.anchor) { if (r.top > top + 2) { line++; top = r.top; } }
+        if (it.node.textContent.trim() || it.anchor) {
+          if (r.top >= bottom - 1) { line++; bottom = r.bottom; } else bottom = Math.max(bottom, r.bottom);
+        }
         it.line = Math.max(0, line);
       }
       const nLines = line + 1;
@@ -252,12 +263,9 @@
     function lineBase(page) { return (D.lines === 'text' ? textLines : 0) + (page.lines || 0); }
     function numberLines(page, p) {
       const tops = [];
-      for (const s of p.querySelectorAll('.w')) {
-        if (!s.textContent.trim()) continue;
-        const r = s.getClientRects()[0];
-        if (r && !tops.some((t) => Math.abs(t - r.top) < 2)) tops.push(r.top);
-      }
-      tops.sort((x, y) => x - y);
+      let bottom = -Infinity;
+      const rects = [...p.querySelectorAll('.w')].filter((s) => s.textContent.trim()).map((s) => s.getClientRects()[0]).filter(Boolean).sort((x, y) => x.top - y.top);
+      for (const r of rects) { if (r.top >= bottom - 1) { tops.push(r.top); bottom = r.bottom; } else bottom = Math.max(bottom, r.bottom); }
       const base = page.el.getBoundingClientRect();
       const rtl = getComputedStyle(p).direction === 'rtl';
       const from = lineBase(page);
@@ -320,7 +328,7 @@ body { font-family: var(--font); color: #1d1a16; }
 .foot:empty { display: none; }
 .ser { margin: 0 0 1mm; text-align: justify; }
 .lab { font-style: italic; margin-inline-end: 0.4em; }
-.note { margin-inline-end: 0.7em; }
+.note { margin-inline-end: 0.7em; unicode-bidi: isolate; }
 .bid, .foot .bid { font-weight: 600; }
 h1.title { font-size: calc(var(--size) * 2); font-weight: 600; text-align: center; margin: 45mm 0 4mm; }
 .editor { text-align: center; font-size: calc(var(--size) * 1.05); margin: 0 0 6mm; }

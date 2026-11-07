@@ -468,8 +468,13 @@ Sandhi rules read word spaces, as they do in Saktumiva. If a scribe's space fall
 whose text or settings have changed are aligned again, and the page stays usable meanwhile; **Cancel** stops it
 and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with its default scoring.
 
-- **Align by:** letters by default. On a real commentary passage, alignment by letters and by akṣaras was far
-  better than by words, as Li advises.
+- **Align by:** letters for the languages of South Asia: on a real commentary passage, alignment by letters and by
+  akṣaras was far better than by words, as Li advises. For a language that spaces its words (Latin, Greek, Arabic,
+  English…), the first Collate chooses words, since a letter aligner pairs letters of different words where one word
+  stands for another; for a script written without spaces (Japanese, Chinese, Thai…), letters, with the words found by
+  the browser's word segmenter, so that an entry is a word or two, not a run of the sentence. **Change…** chooses
+  otherwise. Fifteen witnesses of about ten folio sides each collate in one to four seconds in all
+  (`tests/bench-languages.js` measures it for Latin, Arabic, Japanese and Greek).
 - **The table:** click a citation ID. Each row is a witness, or both states of one that has corrections, in the
   order of the aligner's guide tree, so similar witnesses sit together. Columns where witnesses differ are
   shaded, and **Next difference** goes to them. **Show** switches between the normalised form and the text as

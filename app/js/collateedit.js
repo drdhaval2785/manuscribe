@@ -435,15 +435,31 @@
   /* ---------- word and lemma boundaries ---------- */
 
   // A boundary before column c: by default where most witnesses begin a word; the editor can add or remove.
+  /* Where words begin in a text written without spaces (Japanese, Chinese, Thai, Lao, Khmer, Burmese): as the
+     browser's word segmenter finds them. null for any other text, whose words are told by spaces and daṇḍas. */
+  const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
+  const segCache = new WeakMap();
+  const wordStartsOf = (st) => {
+    if (segCache.has(st)) return segCache.get(st);
+    let set = null;
+    if (typeof Intl !== 'undefined' && Intl.Segmenter && UNSPACED.test(st.dip || '')) {
+      set = new Set();
+      for (const x of new Intl.Segmenter(undefined, { granularity: 'word' }).segment(st.dip)) set.add(x.index);
+    }
+    segCache.set(st, set);
+    return set;
+  };
+
   Edit.cutMap = function (t) {
     const starts = new Int32Array(t.ncols), have = new Int32Array(t.ncols);
     for (const l of t.order) {
       const st = t.states[l];
       if (st.layer === 'ac') continue;
+      const segs = wordStartsOf(st);
       st.cols.forEach((c, k) => {
         have[c]++;
         const f = st.from[k];
-        if (f === 0 || /\s/.test(st.dip[f - 1] || '') || /[।॥|]/.test(st.dip[f - 1] || '')) starts[c]++;
+        if (f === 0 || /\s/.test(st.dip[f - 1] || '') || /[।॥|]/.test(st.dip[f - 1] || '') || (segs && segs.has(f))) starts[c]++;
       });
     }
     const out = new Uint8Array(t.ncols);

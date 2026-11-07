@@ -322,10 +322,12 @@
   Norm.split = function (st, kind) {
     const re = (Norm.TOKENIZERS[kind] || Norm.TOKENIZERS.letter).re;
     const out = [];
+    let lead = null;
     for (const m of st.text.matchAll(re)) {
-      // spaces and the like belong to the token before them
-      if (!m[0].trim() && out.length) { out[out.length - 1].end = m.index + m[0].length; continue; }
-      out.push({ start: m.index, end: m.index + m[0].length });
+      // spaces and the like belong to the token before them; those before the first, to the first. A token of
+      // nothing but a space would have no letters, and an aligner takes an empty token for a gap.
+      if (!m[0].trim()) { if (out.length) out[out.length - 1].end = m.index + m[0].length; else if (lead === null) lead = m.index; continue; }
+      out.push({ start: lead !== null && !out.length ? lead : m.index, end: m.index + m[0].length });
     }
     if (!out.length) return [{ from: 0, to: st.at[st.at.length - 1], slp: '', n: '' }];
     return out.map((t) => {

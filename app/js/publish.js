@@ -193,9 +193,10 @@
       if (!state.ac) p = p.replace(/;?\s*[^;]*<sup>[^<]*<\/sup>/g, '');
       const swaps = [e.lemma, ...e.readings.map((r) => r.text), ...e.orth.map((o) => o.text)].map((r, ri) => '<button class="swap" data-k="' + bi + ':' + i + '" data-r="' + ri + '" title="Read this in the text">' + (r ? esc(r) : '(omits)') + '</button>').join(' ');
       const why = e.decision && (e.decision.reasons.length || e.decision.note) ? '<span class="why">' + esc([e.decision.source, ...e.decision.reasons, e.decision.note].filter(Boolean).join('; ')) + '</span>' : '';
-      if (e.kind === 'testimonium') return '<li data-k="' + bi + ':' + i + '" class="testis">' + p + '</li>';
+      // each note in the direction of its own text: an Arabic lemma with Latin sigla reads right
+      if (e.kind === 'testimonium') return '<li dir="auto" data-k="' + bi + ':' + i + '" class="testis">' + p + '</li>';
       const testis = e.testimonia && e.testimonia.length ? '<span class="testis"> Testimonia: ' + esc(e.testimonia.join('; ')) + '</span>' : '';
-      return '<li data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '">' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
+      return '<li dir="auto" data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '">' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
     };
     const draw = () => {
       const main = $('#text');

@@ -40,6 +40,12 @@ const { launch, checks } = require('./h');
     ok('Devanagari and IAST give the same', Norm.apply('कृष्णं वन्दे जगद्गुरुम्', { rules: cl }).text === Norm.apply('kṛṣṇaṃ vande jagadgurum', { rules: cl }).text);
     ok('a declaration applies to its witness', Norm.sameReading('bala', 'vala', cl, ['decl-bv'], []));
     ok('six profiles, one for any language, two provisional', Norm.PROFILES.length === 6 && Norm.PROFILES.some((x) => x.id === 'any') && Norm.PROFILES.filter((x) => x.provisional).length === 2);
+    // a block that begins with a space (its paragraph begins at the end of a line) has no empty first token
+    const anyRules = new Set(Norm.settings({ profile: 'any' }).on);
+    anyRules.delete('spaces');
+    const lead = Norm.split(Object.assign(Norm.apply(' lorem ipsum dolor', { rules: anyRules }), {}), 'word');
+    ok('words: a space before the first word belongs to it, and no token is empty', lead.length === 3 && lead.every((t) => t.n !== '') && lead[0].n === 'lorem', lead.map((t) => t.n));
+    ok('lined up by words where a language spaces its words, else by letters', ME.Collate.defaultTokens(['la']) === 'word' && ME.Collate.defaultTokens(['grc']) === 'word' && ME.Collate.defaultTokens(['ar']) === 'word' && ME.Collate.defaultTokens(['ja']) === 'letter' && ME.Collate.defaultTokens(['zh-Hant']) === 'letter' && ME.Collate.defaultTokens(['sa-Deva']) === 'letter' && ME.Collate.defaultTokens([]) === 'letter');
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);

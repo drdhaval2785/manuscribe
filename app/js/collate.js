@@ -14,6 +14,18 @@
   // Saktumiva's own defaults
   const SCORING = { match: 1, mismatch: -1, gap_open: -2, gap_extend: -0.25, gap_skip_initial: true, scalegap: false, recursive: false, realigndepth: 0, distancefunc: 'ngrams', ngramsize: 3 };
   Collate.DEFAULT_TOKENS = 'letter'; // on real text words did far worse, as Li warns, and akṣaras a little worse
+  /* What to line up by, for an edition's languages: by letters in South Asian scripts (where, as Li warns, words did
+     far worse) and in scripts written without spaces (Japanese, Chinese, Thai…); by words in languages that space
+     their words (Latin, Greek, Arabic, English…), where a letter aligner pairs letters of different words. */
+  const UNSPACED = new Set(['ja', 'zh', 'yue', 'wuu', 'th', 'lo', 'km', 'my', 'bo', 'dz', 'jv-Java']);
+  Collate.defaultTokens = function (langs) {
+    const ls = (langs || []).filter(Boolean);
+    if (!ls.length) return Collate.DEFAULT_TOKENS;
+    const F = ME.Features;
+    if (F && ls.some((l) => F.packFits('south-asian', l))) return 'letter';
+    if (ls.some((l) => UNSPACED.has(String(l).split('-')[0].toLowerCase()) || /-(Hani|Hans|Hant|Jpan|Thai|Laoo|Khmr|Mymr|Tibt)\b/i.test(l))) return 'letter';
+    return 'word';
+  };
 
   /* ---------- the engine ---------- */
 

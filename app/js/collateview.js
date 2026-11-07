@@ -221,8 +221,11 @@
   CollateView.collate = async function (ed, list, workId, box, button, redraw, force) {
     if (!ed.norm && !ME.Features.pack('south-asian', ME.Features.langsOf(list), { auto: true }).active) {
       ed.norm = { profile: 'any' };
+      // lined up by words where the language spaces its words, else by letters
+      const by = (ed.collate && ed.collate.tokens) || Collate.defaultTokens(ME.Features.langsOf(list));
+      ed.collate = Object.assign({}, ed.collate, { tokens: by });
       await Edition.save(ed);
-      U.toast('The witnesses are not in a language of South Asia, so they are compared letter by letter as written (Collate › Change… to choose otherwise)', 'info', 7000);
+      U.toast('The witnesses are not in a language of South Asia, so they are compared as written, ' + (by === 'word' ? 'word by word' : 'letter by letter') + ' (Collate › Change… to choose otherwise)', 'info', 7000);
     }
     if (CollateView.running) { U.toast('A collation is already running'); return; }
     ME.App.flush();
