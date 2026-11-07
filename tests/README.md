@@ -47,3 +47,5 @@ looked for in `/Applications`; set `CHROME` to use another. Profiles and downloa
 folder, under `manuscribe-tests`.
 
 `bench-languages.js` is a benchmark, not a test, and `run.js` does not run it: `node tests/bench-languages.js [language codes, or all] [witnesses] [folio sides]` makes, for each language (from `languages.js`, shared with `t-languages.js`), fifteen witnesses of about ten folio sides copied down a stemma of three families, collates them, publishes the print page, the browser's PDF of it, the reader and TEI, and reports how long each step takes; the outputs and a picture of a page of each are saved with the test files.
+
+`make-edition.js` makes a dummy edition in one language and saves what Export would give: `node tests/make-edition.js <code> [witnesses, 15] [folio sides, 10] [folder]` writes the PDF, the print page and the reader to `~/Downloads/manuscribe-<code>/` (or the folder given). `<code>` is a language code of `languages.js` (en, ar, sa, ja, bo…) or a Unicode script code of `scripts.js` (Xsux, Egyp, Linb…). It fetches the Noto fonts as the app does; `MANUSCRIBE_FONTS=off` uses the computer's own.
