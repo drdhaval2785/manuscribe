@@ -116,6 +116,22 @@ const TEXTS = {
     return { byMarkers: d.byMarkers, sups: (d.blocks[0].html.match(/<sup>/g) || []).length, anchors: (d.blocks[0].html.match(/class="an"/g) || []).length };
   });
   T.check('notes can be keyed by line numbers instead, with no markers in the text', !lines.byMarkers && lines.sups === 0 && lines.anchors > 0, lines);
+  // lines counted down each page, or through the text; a note keyed by line cites the number in the margin
+  const layOut = async (lines) => {
+    const html = await page.evaluate((lines) => { const { ed, list, built } = window.ed_en; ed.print = Object.assign({}, ed.print, { lines, every: 1 }); return ME.PrintHTML.html(ed, list, built); }, lines);
+    const p3 = await browser.newPage();
+    await p3.setContent(html, { waitUntil: 'load' });
+    for (let k = 0; k < 80 && !(await p3.evaluate(() => !!window.__paginated)); k++) await sleep(150);
+    const r = await p3.evaluate(() => [...document.querySelectorAll('.page')].filter((p) => p.querySelector('.rh') && p.querySelector('.txt')).map((p) => ({ ln: [...p.querySelectorAll('.ln')].map((x) => +x.textContent), nk: [...p.querySelectorAll('.foot .nk')].map((x) => +x.textContent) })));
+    await p3.close();
+    return r;
+  };
+  const perPage = await layOut('page');
+  T.check('lines are numbered down each page, from 1 on every page, without regard to blocks', perPage.length >= 2 && perPage.every((p) => p.ln[0] === 1 && p.ln.every((n, i) => n === i + 1)), perPage.map((p) => p.ln.slice(0, 3).join(',') + '…' + p.ln.length));
+  T.check('and each note cites a line of its own page', perPage.every((p) => p.nk.every((n) => n >= 1 && n <= p.ln.length)) && perPage.some((p) => p.nk.length), perPage.map((p) => p.nk.slice(0, 5)));
+  const through = await layOut('text');
+  T.check('or through the whole text, page after page', through.length >= 2 && through.every((p, i) => i === 0 || p.ln[0] === through[i - 1].ln[through[i - 1].ln.length - 1] + 1), through.map((p) => p.ln[0] + '–' + p.ln[p.ln.length - 1]));
+  await page.evaluate(() => { const { ed } = window.ed_en; ed.print = Object.assign({}, ed.print, { lines: 'page', every: 5 }); ed.apparatus = Object.assign({}, ed.apparatus, { keys: 'markers' }); });
   // the buttons and settings on the apparatus screen
   await page.evaluate(() => { const { ed, list } = window.ed_ar; ME.CollateView.workApparatus(ed, list, 'main'); });
   await sleep(900);

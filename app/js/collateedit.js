@@ -652,11 +652,13 @@
         text, form: winner ? winner.form.label : null, reading: winner ? winner.form.n : '', winner, groups: voting.concat(groups.filter((g) => !g.votes)), missing, total,
       });
     });
-    const count = { words: 0, differ: 0, majority: 0, plurality: 0, trust: 0, chosen: 0, decided: 0, review: 0 };
+    // settled: places where the witnesses differ that carry the editor's decision
+    const count = { words: 0, differ: 0, majority: 0, plurality: 0, trust: 0, chosen: 0, decided: 0, review: 0, settled: 0 };
     for (const u of units) {
       if (u.text.replace(NOT_LETTERS, '')) count.words++;
       if (u.differs) { count.differ++; if (count[u.decided] !== undefined) count[u.decided]++; else count.chosen++; }
       if (u.decision) count.decided++;
+      if (u.differs && (u.decision || u.decided === 'chosen')) count.settled++;
       if (u.review) count.review++;
     }
     // a choice whose columns no longer make up one word has not been lost: it is told

@@ -509,7 +509,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     });
     return U.el('div', { class: 'ed-scroll' },
       U.el('datalist', { id: listId }, groups.map((g) => U.el('option', { value: g }))),
-      U.el('table', { class: 'ed-table' },
+      U.el('table', { class: 'ed-table ed-boxed' },
         U.el('thead', null, U.el('tr', null, ['Siglum', 'Group', 'Transcription', 'Library', 'Date, script, language', 'Folio sides', 'PDF', ''].map((h) => U.el('th', null, h)))),
         U.el('tbody', null, rows.length ? rows : U.el('tr', null, U.el('td', { colspan: 8, class: 'ed-empty' }, 'No witnesses yet. Add some below.')))));
   }
@@ -533,7 +533,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     } }, 'Add a work');
     return U.el('div', null,
       U.el('p', { class: 'help' }, 'Which work each part of a witness carries. Two manuscripts’ commentaries are collated together only if they are the same work here.'),
-      U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table' }, U.el('thead', null, U.el('tr', null, U.el('th', null, 'Siglum'), streams.map((s) => U.el('th', null, STREAM_NAMES[s])))), U.el('tbody', null, rows))),
+      U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table ed-boxed' }, U.el('thead', null, U.el('tr', null, U.el('th', null, 'Siglum'), streams.map((s) => U.el('th', null, STREAM_NAMES[s])))), U.el('tbody', null, rows))),
       U.el('div', { class: 'btn-row' }, add));
   }
 
@@ -561,13 +561,24 @@ To open it, use Import edition package on Manuscribe's start screen.
 
   const GRID_LIMIT = 400;
 
+  const GRID_ALL = '*all';
   function coverageGrid(ed, reg, redraw) {
     const works = Object.values(reg).filter((r) => r.order.length);
     if (!works.length) return U.el('p', { class: 'help' }, 'No citation IDs yet. Mark paragraphs and verses in the witnesses, each with the same xml:id across witnesses, and they appear here.');
-    Edition.gridWork = works.some((r) => r.work.id === Edition.gridWork) ? Edition.gridWork : works[0].work.id;
-    const r = works.find((x) => x.work.id === Edition.gridWork);
-    const pick = U.el('select', { onchange: () => { Edition.gridWork = pick.value; redraw(); } }, works.map((x) => U.el('option', { value: x.work.id, selected: x === r }, x.work.title + ' (' + x.order.length + ')')));
-    const cell = (id, x) => {
+    // every work, the default, or one
+    if (ME.LayerIds.layered(ed)) works.sort((a, b) => { const ca = ME.LayerIds.codeOf(a.work.id), cb = ME.LayerIds.codeOf(b.work.id); return ca && cb ? ME.LayerIds.order(ed, ca, cb) : ca ? -1 : cb ? 1 : 0; });
+    const all = works.length > 1;
+    if (!(Edition.gridWork === GRID_ALL && all) && !works.some((r) => r.work.id === Edition.gridWork)) Edition.gridWork = all ? GRID_ALL : works[0].work.id;
+    const showAll = Edition.gridWork === GRID_ALL;
+    const shownWorks = showAll ? works : works.filter((x) => x.work.id === Edition.gridWork);
+    const total = shownWorks.reduce((n, x) => n + x.order.length, 0);
+    const pick = U.el('select', { 'aria-label': 'Which work', onchange: () => { Edition.gridWork = pick.value; redraw(); } },
+      all ? U.el('option', { value: GRID_ALL, selected: showAll }, 'All (' + works.reduce((n, x) => n + x.order.length, 0) + ')') : null,
+      works.map((x) => U.el('option', { value: x.work.id, selected: !showAll && x.work.id === Edition.gridWork }, x.work.title + ' (' + x.order.length + ')')));
+    // the witnesses across: every one that has a part of the works shown
+    const sigla = ed.witnesses.map((w) => w.siglum).filter((sg) => shownWorks.some((x) => x.witnesses.some((y) => y.siglum === sg)));
+    const cell = (id, x, r) => {
+      if (!x) return U.el('td', { class: 'cov muted', title: 'This witness does not carry this work' }, '—');
       const places = x.units.get(id);
       if (places) {
         return U.el('td', { class: 'cov has' + (places.length > 1 ? ' dup' : '') }, U.el('button', { title: places.map(placeText).join(', '), onclick: () => openPlace(x.projectId, r.work.id, places[0]) }, places.length > 1 ? String(places.length) : '✓'));
@@ -587,14 +598,21 @@ To open it, use Import edition package on Manuscribe's start screen.
         },
       }, now ? { lacuna: 'lac', pending: '…', outside: '–' }[now] : ''));
     };
-    const shown = r.order.slice(0, GRID_LIMIT);
+    let left = GRID_LIMIT;
+    const body = [];
+    for (const r of shownWorks) {
+      if (left <= 0) break;
+      if (showAll) body.push(U.el('tr', { class: 'cov-work' }, U.el('th', { colspan: sigla.length + 1 }, r.work.title)));
+      for (const id of r.order.slice(0, left)) body.push(U.el('tr', null, U.el('th', { class: 'unit' }, id), sigla.map((sg) => cell(id, r.witnesses.find((y) => y.siglum === sg), r))));
+      left -= r.order.length;
+    }
     return U.el('div', null,
       U.el('div', { class: 'ed-grid-head' }, U.el('label', null, 'Work ', pick),
         U.el('span', { class: 'help' }, '✓ present · number: times it occurs · empty: missing · click an empty cell to explain it: lac = lacuna, … = not yet transcribed, – = outside its scope')),
       U.el('div', { class: 'ed-scroll ed-grid' }, U.el('table', { class: 'ed-table cov-table' },
-        U.el('thead', null, U.el('tr', null, U.el('th', { class: 'unit' }, 'Citation ID'), r.witnesses.map((x) => U.el('th', null, x.siglum)))),
-        U.el('tbody', null, shown.map((id) => U.el('tr', null, U.el('th', { class: 'unit' }, id), r.witnesses.map((x) => cell(id, x))))))),
-      r.order.length > GRID_LIMIT ? U.el('p', { class: 'help' }, 'Showing the first ' + GRID_LIMIT + ' of ' + r.order.length + ' IDs.') : null);
+        U.el('thead', null, U.el('tr', null, U.el('th', { class: 'unit' }, 'Citation ID'), sigla.map((sg) => U.el('th', null, sg)))),
+        U.el('tbody', null, body))),
+      total > GRID_LIMIT ? U.el('p', { class: 'help' }, 'Showing the first ' + GRID_LIMIT + ' of ' + total + ' IDs.') : null);
   }
 
   /* The edition screen: three steps, Witnesses, Collate (deciding included) and Publish, each showing only its own
@@ -673,6 +691,9 @@ To open it, use Import edition package on Manuscribe's start screen.
     if (step === 'witnesses') body = witnessesStep(ed, list, reg, redraw);
     else if (step === 'collate') body = await ME.CollateView.section(ed, list, redraw);
     else body = await ME.Steps.publish(ed, list, redraw);
+    // what the editor opened or closed stays so when the screen is drawn again
+    const foldKey = (d) => d.dataset.fold || (d.querySelector('summary') ? d.querySelector('summary').textContent.replace(/\d+/g, '#').slice(0, 60) : null);
+    for (const d of host.querySelectorAll('details')) { const k = foldKey(d); if (k) Edition.folds[k] = d.open; }
     host.innerHTML = '';
     host.append(...[
       U.el('div', { class: 'ed-bar' },
@@ -684,8 +705,10 @@ To open it, use Import edition package on Manuscribe's start screen.
         U.el('button', { class: 'btn small icon', title: 'How the edition goes, and its keys', dataset: { action: 'help' }, onclick: () => ME.Steps.help() }, '?')),
       steps, status, remind,
       U.el('div', { class: 'ed-stepbody', dataset: { step } }, body)].filter(Boolean)); // append would write an empty value out as "null"
+    for (const d of host.querySelectorAll('details')) { const k = foldKey(d); if (k && Object.prototype.hasOwnProperty.call(Edition.folds, k)) d.open = Edition.folds[k]; }
     scroller.scrollTop = top;
   };
+  Edition.folds = {};
 
   // Step 1: the witnesses, one way to add them, and their citation IDs in one line.
   function witnessesStep(ed, list, reg, redraw) {
@@ -697,8 +720,8 @@ To open it, use Import edition package on Manuscribe's start screen.
       U.el('div', { class: 'nv-head' }, U.el('h2', null, 'Witnesses (' + ed.witnesses.length + ')'),
         U.el('button', { class: 'btn small primary', dataset: { action: 'add-witnesses' }, onclick: () => addWitnesses(ed, redraw) }, 'Add witnesses…')),
       ed.witnesses.length ? witnessTable(ed, list, redraw) : U.el('p', { class: 'help' }, 'An edition brings together the transcriptions of several manuscripts of one text. Add them here: from this browser, or from XML or backup files.'),
-      manyStreams ? U.el('details', { class: 'nv-fold' }, U.el('summary', null, 'Works: ' + ed.works.filter((w) => list.some((x) => x.p && Export.streamsUsed(x.p).some((k) => ((x.w.streams && x.w.streams[k]) || k) === w.id))).map((w) => w.title.toLowerCase()).join(', ') + ', in each witness'), streamTable(ed, list, redraw)) : null,
-      ed.witnesses.length ? U.el('details', { class: 'nv-fold', open: nProblems > 0 && nProblems < 8 }, U.el('summary', null, !ids ? 'No citation IDs yet' : nProblems ? 'Citation IDs: ' + nProblems + ' thing(s) to look at' : 'Citation IDs: ' + ids + ' block(s), in every witness'),
+      manyStreams ? U.el('details', { class: 'nv-fold', dataset: { fold: 'works' } }, U.el('summary', null, 'Works: ' + ed.works.filter((w) => list.some((x) => x.p && Export.streamsUsed(x.p).some((k) => ((x.w.streams && x.w.streams[k]) || k) === w.id))).map((w) => w.title.toLowerCase()).join(', ') + ', in each witness'), streamTable(ed, list, redraw)) : null,
+      ed.witnesses.length ? U.el('details', { class: 'nv-fold', dataset: { fold: 'ids' }, open: nProblems > 0 && nProblems < 8 }, U.el('summary', null, !ids ? 'No citation IDs yet' : nProblems ? 'Citation IDs: ' + nProblems + ' thing(s) to look at' : 'Citation IDs: ' + ids + ' block(s), in every witness'),
         problems, coverageGrid(ed, reg, redraw)) : null,
       ME.LayerIds.layered(ed) ? layersFold(ed, reg, redraw) : null);
   }
@@ -733,10 +756,10 @@ To open it, use Import edition package on Manuscribe's start screen.
           U.el('button', { class: 'btn small', title: 'Before the commentary above it', disabled: i === 0, onclick: () => move(l.code, -1) }, '↑'),
           U.el('button', { class: 'btn small', title: 'After the commentary below it', disabled: i === sib.length - 1, onclick: () => move(l.code, 1) }, '↓')]));
     });
-    return U.el('details', { class: 'nv-fold ly-fold', open: problems.length > 0 && problems.length < 12 },
+    return U.el('details', { class: 'nv-fold ly-fold', dataset: { fold: 'layers' }, open: problems.length > 0 && problems.length < 12 },
       U.el('summary', null, 'Layers: ' + ed.layers.length + (problems.length ? ' · ' + problems.length + ' thing(s) to look at' : '')),
       U.el('p', { class: 'help' }, 'The IDs say which layer each block is in and what it comments on: b2.47 is the base, c2.47-1 a commentary on it, ca2.47-1-1 a commentary on c2.47-1. Name each layer here, and give it the one or two letters printed in [ ] before its blocks.'),
-      U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table ly-table' },
+      U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table ed-boxed ly-table' },
         U.el('thead', null, U.el('tr', null, ['Letters', 'Layer', 'In [ ]', 'Blocks', 'Comments on', ''].map((h) => U.el('th', null, h)))),
         U.el('tbody', null, rows))),
       problems.length ? U.el('ul', { class: 'ap-problems' }, problems.slice(0, 200).map((p) => U.el('li', { class: 'warn' }, U.el('span', { class: 'ed-tag warn' }, 'look'), ' ', p.text))) : null);

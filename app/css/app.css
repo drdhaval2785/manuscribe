@@ -747,3 +747,20 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .lw-text { margin: 2px 0; font: 19px/1.6 var(--script); }
 .lw-d1 .lw-text { font-size: 17.5px; } .lw-d2 .lw-text { font-size: 16.5px; } .lw-d3 .lw-text, .lw-d4 .lw-text, .lw-d5 .lw-text, .lw-d6 .lw-text { font-size: 15.5px; }
 .lw-app { margin: 2px 0 0; padding-inline-start: 1.2em; font-size: 13px; color: #4a3f30; }
+/* tables of the Witnesses step: ruled, every cell centred */
+.ed-table.ed-boxed { border-collapse: collapse; }
+.ed-table.ed-boxed th, .ed-table.ed-boxed td { border: 1px solid #ddd3c2; text-align: center; vertical-align: middle; padding: 5px 9px; }
+.ed-table.ed-boxed thead th { background: #f4eee3; }
+.ed-table.ed-boxed td.num { text-align: center; }
+.ed-table.ed-boxed td input[type="text"], .ed-table.ed-boxed td select { text-align: center; text-align-last: center; }
+.ed-table.ed-boxed.ly-table td.ly-code { text-align: start; }
+.cov-table tr.cov-work th { text-align: start; background: #f4eee3; font-weight: 600; padding: 4px 8px; }
+/* how far a block has been decided */
+.cv-prog { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; color: #6b5a3e; }
+.cv-prog-bar { display: inline-block; width: 70px; height: 7px; border-radius: 4px; background: #ece4d6; overflow: hidden; }
+.cv-prog-bar > span { display: block; height: 100%; background: #c9822b; }
+.cv-prog.full .cv-prog-bar > span { background: #2b8a3e; }
+.cv-progress-box { display: inline-flex; margin-inline-end: 6px; }
+/* the keys of the block window, always in view */
+.ct-keys { font-size: 12.5px; line-height: 1.9; color: #4a3f30; background: #f6f1e7; border: 1px solid #e6dccb; border-radius: 8px; padding: 4px 10px; margin: 4px 0 8px; }
+.ct-keys kbd { font: 600 11.5px var(--ui); border: 1px solid #cdbfa6; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; }

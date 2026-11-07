@@ -133,13 +133,13 @@ const { launch, sleep, checks } = require('./h');
     for (let k = 0; k < 40 && !(await p2.evaluate(() => !!window.__paginated)); k++) await sleep(200);
     const r = await p2.evaluate(() => {
       const at = (id) => { const p = document.querySelector('.body p.txt[data-block="' + id + '"]'); return p ? p.getBoundingClientRect().left : null; };
-      return { b1: at('b1'), c11: at('c1-1'), ca: at('ca1-1-1'), foot: [...document.querySelectorAll('.foot .ser-layer .labl')].map((x) => x.textContent) };
+      return { b1: at('b1'), c11: at('c1-1'), ca: at('ca1-1-1'), foot: [...document.querySelectorAll('.foot .note .labl')].map((x) => x.textContent) };
     });
     await p2.close();
     return r;
   })();
   T.check('on the page, a commentary is set in from the verse, and its sub-commentary further', laid.b1 !== null && laid.c11 > laid.b1 && laid.ca > laid.c11, laid);
-  T.check('and each commentary’s notes are under its [abbreviation] at the foot (only ca differs here, by a visarga)', laid.foot.includes('[CA]') && laid.foot.every((x) => /^\[(Ś|R|CA)\]$/.test(x)), laid.foot);
+  T.check('and at the foot a commentary’s notes, in the order of the blocks, begin with its [abbreviation] (only ca differs here, by a visarga)', laid.foot.includes('[CA]') && laid.foot.every((x) => /^\[(Ś|R|CA)\]$/.test(x)), laid.foot);
   const reader = await page.evaluate(async (ALL) => {
     const f = await ME.ExportView.make('reader', { kind: 'edition', ed: ME.Edition.current, list: window.__list, workId: ALL });
     const html = typeof f.data === 'string' ? f.data : await new Response(f.data).text();
@@ -147,6 +147,17 @@ const { launch, sleep, checks } = require('./h');
   }, ALL);
   const readerOk = await (async () => { const p3 = await browser.newPage(); await p3.setContent(reader, { waitUntil: 'load' }); await sleep(300); const r = await p3.evaluate(() => [...document.querySelectorAll('section.block')].map((x) => x.id.slice(2) + ((x.querySelector('.labl') || {}).textContent || ''))); await p3.close(); return r; })();
   T.check('the reader has them in the same order, with the abbreviations', readerOk.join(' ') === 'c1-0[Ś] b1 r1-1[R] c1-1[Ś] ca1-1-1[CA] b2 c2-1[Ś] ca2-5-1[CA]', readerOk);
+  // the direct PDF is laid out as the print page: the commentaries listed, each block with its [abbreviation]
+  const direct = await page.evaluate(async (ALL) => {
+    const f = await ME.ExportView.make('pdf-direct', { kind: 'edition', ed: ME.Edition.current, list: window.__list, workId: ALL });
+    const buf = new Uint8Array(await f.data.arrayBuffer());
+    await ME.PdfView.ensureWorker();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for (let i = 1; i <= doc.numPages; i++) text += (await (await doc.getPage(i)).getTextContent()).items.map((x) => x.str).join(' ') + '\n';
+    return text.replace(/\s+/g, '');
+  }, ALL);
+  T.check('the direct PDF lists the commentaries and begins each commentary block with its [abbreviation], as the print page does', /Thecommentaries/.test(direct) && /\[Ś\]/.test(direct) && /\[CA\]/.test(direct) && /\[R\]/.test(direct), direct.slice(0, 300));
   // TEI: each block names its layer, each commentary block points to what it comments on
   const tei = await page.evaluate(async (ALL) => {
     const f = await ME.ExportView.make('tei', { kind: 'edition', ed: ME.Edition.current, list: window.__list, workId: ALL });

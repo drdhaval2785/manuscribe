@@ -412,8 +412,9 @@ Above the steps: **‹ Start**, the title, **Export…** (every output, see [Pub
     manuscripts' commentaries are compared only if they are the same work here.
   - **Citation IDs,** in one line: witnesses are compared by the `xml:id` of their paragraphs and verses.
     Opened, it lists duplicate IDs, automatic IDs, lines outside any paragraph or verse, and IDs a witness
-    lacks, with links to the place. In the grid, click an empty cell to explain the gap: lacuna, not yet
-    transcribed, or outside that witness's scope.
+    lacks, with links to the place. The grid shows **All** works at first, each under its own heading, or one
+    work. Click an empty cell to explain the gap: lacuna, not yet transcribed, or outside that witness's scope.
+  - A fold you open stays open while you change things in it.
 - **2 Collate:** how the witnesses are compared, in one line with **Change…**; **Collate**; the blocks, each with
   its words, the places where the witnesses differ, how many you have decided and how many wait for review (click
   a block to open it and decide); **Edited text and apparatus…** for the whole work, with its indices; and
@@ -517,6 +518,10 @@ witness reads over the whole stretch, and your text replaces all of it as one pl
 how words a scribe split, or ran together, are put right. Decisions on words inside the stretch give way to it, and
 come back if you withdraw it. Esc leaves the stretch.
 
+- **The keys are shown above the text,** and work as soon as the window opens: ↓ or N to the next place to decide, ↑
+  or P back, A to accept, 1 to 9 to choose, E to emend, Delete to withdraw, ] and [ for the next and previous block.
+  A bar beside the counts shows how many of the places where the witnesses differ you have decided; the Collate
+  step shows the same bar for every block, so that you can see what is still to go through.
 - **Choose a reading** with its button or the keys 1 to 9; **Accept** (A) makes the proposed one yours, and
   **Withdraw decision** (Delete) takes it back, so that the place follows the witnesses again. **Emend…** opens a field
   for your own text; the crux, lacuna, certainty, reasons, evidence and history are under **More**. **‹ Block** and **Block ›**, or [ and ], go through the blocks of the work without closing the window.
@@ -581,16 +586,18 @@ Every output below is in **Export…**, by block or by work.
 - **PDF, in any script:** the edition laid out as pages by the browser itself, so that any language and
   script is set as the browser sets it: Arabic and Hebrew right to left, Japanese and Chinese without spaces,
   Devanagari with its conjuncts, in any fonts. The page cuts the text into pages with the notes of each page at its
-  foot, a note always on the page of its marker; lines are numbered every five, in the margin on the side the text
-  starts. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
-  **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, the
-  fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Print page, one HTML file**
+  foot, a note always on the page of its marker, in the order of the blocks. Lines are numbered in the margin on the
+  side the text starts, counted down each page from 1 without regard to blocks (or, if you choose, on through the
+  whole text), every fifth line or every line; notes keyed by line cite these numbers. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
+  **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, how
+  lines are numbered, the fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Print page, one HTML file**
   saves the same page as one HTML file, to open and print on any computer. Copying text out of Chrome's PDF
   keeps every letter in most scripts (an Arabic ligature such as Allah comes out as one sign), but not the letters
   inside Devanagari conjuncts: for Devanagari, the next PDF copies better.
 - **PDF file, Devanagari and Latin** (with the South Asian pack): a PDF made directly, with nothing to print: the text shaped by
-  [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, with the same title page,
-  numbered lines, markers and notes at the foot in series. Copied Devanagari comes out letter for letter, with ि
+  [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, laid out as the print page:
+  the same paper, margins, sizes, title page and commentaries, the layers set in with their [abbreviations], lines
+  numbered down the page, markers and notes at the foot in series. Copied Devanagari comes out letter for letter, with ि
   and reph where they are drawn, as from most PDFs. It knows only that font, and sets text left to right: for other
   scripts, use the print edition above.
 - **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
@@ -679,8 +686,8 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
   introductions to it before it, then each commentary on it in the order of the Layers list, each followed by the
   commentaries on it, to any depth. Each deeper layer is set in further and a little smaller, and every commentary
   block begins with its abbreviation, as `[Ś]`. The front matter lists the abbreviations, and at the foot of each
-  page each commentary's notes stand apart under its [abbreviation]. A block whose parent no witness has follows its
-  base verse.
+  page the notes follow the order of the blocks, a commentary's beginning with its [abbreviation]. A block whose
+  parent no witness has follows its base verse.
 - **TEI.** **Export › TEI apparatus** of All layers has every layer in reading order. Each block names its layer
   with `@ana="#layer-c"`, a category of a taxonomy of layers in the header (nested as the layers comment on one
   another, each with its `<abbr>`), and each commentary block points to the blocks it comments on with

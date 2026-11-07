@@ -9,7 +9,8 @@
   const P = {};
 
   P.PAPER = { a4: { name: 'A4', w: '210mm', h: '297mm' }, letter: { name: 'US Letter', w: '8.5in', h: '11in' }, book: { name: 'Book, 156 × 234 mm', w: '156mm', h: '234mm' } };
-  P.DEFAULTS = { paper: 'a4', size: 12, font: '', fontId: null };
+  // lines: numbered afresh on each page, or through the whole text; every: which lines carry their number
+  P.DEFAULTS = { paper: 'a4', size: 12, font: '', fontId: null, lines: 'page', every: 5 };
   P.settings = (ed) => Object.assign({}, P.DEFAULTS, ed.print || {});
 
   const esc = (s) => U.escXml(String(s));
@@ -67,7 +68,7 @@
       layers: layered ? ME.LayerIds.legend(ed) : [],
       stars: built.flatMap((b) => b.stars).map((x) => ({ id: x.id, wits: x.wits.join(' '), text: x.text })),
       labels: { B: 'Testimonia:', C: 'Singular readings:', D: 'Spelling:', E: 'Decisions:' },
-      paper: P.PAPER[s.paper] || P.PAPER.a4, size: s.size,
+      paper: P.PAPER[s.paper] || P.PAPER.a4, size: s.size, lines: s.lines === 'text' ? 'text' : 'page', every: s.every === 1 ? 1 : 5,
     };
   };
 
@@ -81,7 +82,10 @@
     const seg = (() => { try { return new Intl.Segmenter(D.lang === 'und' ? undefined : D.lang, { granularity: 'word' }); } catch (e) { return null; } })();
     let pageNo = 0;
     const report = { pages: 0, overfull: 0, pagesInfo: [] };
+    let pg = null, textLines = 0;
     function newPage(running) {
+      // the lines of the page before go into the count through the text
+      if (pg && pg.lines) textLines += pg.lines;
       const p = el('section', 'page');
       pageNo++;
       p.innerHTML = (running ? '<header class="rh"><span class="rt"></span><span class="pn">' + pageNo + '</span></header>' : '') + '<div class="body"></div><div class="foot"></div>';
@@ -97,25 +101,23 @@
     };
     const SER = ['A', 'B', 'C', 'D', 'E'];
     let textDir = '';
-    // in a layered edition, each layer's notes apart, the base first, each commentary's under its [abbreviation]
-    const layerRank = new Map([''].concat(D.layers.filter((l) => l.depth).map((l) => l.code)).map((c, i) => [c, i]));
+    // in a layered edition, the notes keep the order of the blocks: a verse's, then its commentary's under its [abbreviation]
     const abbrOf = new Map(D.layers.map((l) => [l.code, l.abbr]));
     function drawNotes(pg) {
       pg.foot.innerHTML = '';
       // the notes run in the direction of the text, right to left for Arabic or Hebrew
       if (textDir) pg.foot.dir = textDir;
-      const layersHere = [...new Set(pg.notes.map((n) => n.layer || ''))].sort((a, b) => (layerRank.get(a) || 0) - (layerRank.get(b) || 0));
-      for (const ly of layersHere) for (const s of SER) {
-        const here = pg.notes.filter((n) => (n.layer || '') === ly && n.note.by[s]);
+      for (const s of SER) {
+        const here = pg.notes.filter((n) => n.note.by[s]);
         if (!here.length) continue;
-        const p = el('p', 'ser ser-' + s + (ly ? ' ser-layer' : ''));
-        if (ly) p.appendChild(el('span', 'labl', '[' + abbrOf.get(ly) + ']'));
+        const p = el('p', 'ser ser-' + s);
         if (D.labels[s]) p.appendChild(el('span', 'lab', D.labels[s]));
         let last = null;
         for (const n of here) {
           const span = el('span', 'note');
           span.dataset.k = n.block + '#' + n.note.k;
-          span.innerHTML = (n.block !== last ? '<b class="bid">' + n.block + '</b> ' : '') + '<span class="nk">' + (D.byMarkers ? n.note.k : n.line) + '</span> ' + n.note.by[s];
+          const ab = n.layer && abbrOf.get(n.layer) ? '<span class="labl">[' + abbrOf.get(n.layer) + ']</span> ' : '';
+          span.innerHTML = (n.block !== last ? ab + '<b class="bid">' + n.block + '</b> ' : '') + '<span class="nk">' + (D.byMarkers ? n.note.k : n.line) + '</span> ' + n.note.by[s];
           last = n.block;
           p.appendChild(span);
           p.appendChild(document.createTextNode(' '));
@@ -124,7 +126,7 @@
       }
     }
     // ---- front matter ----
-    let pg = newPage(false);
+    pg = newPage(false);
     const front = (node) => { pg.body.appendChild(node); if (!fits(pg) && pg.body.childElementCount > 1) { pg.body.removeChild(node); pg = newPage(false); pg.body.appendChild(node); } };
     { const x = el('h1', 'title'); x.textContent = D.title; front(x); }
     if (D.editor) { const x = el('p', 'editor'); x.textContent = 'edited by ' + D.editor; front(x); }
@@ -192,7 +194,8 @@
         p.dataset.from = a; p.dataset.block = b.id;
         return p;
       };
-      const notesIn = (a, z) => items.filter((x) => x.anchor && x.line >= a && x.line <= z).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: x.line + 1 })).filter((n) => n.note);
+      // a note cites its line as numbered in the margin: on the page, or through the text
+      const notesIn = (a, z) => items.filter((x) => x.anchor && x.line >= a && x.line <= z).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: lineBase(pg) + (x.line - a) + 1 })).filter((n) => n.note);
       // place it: on each page, as many lines as fit with their notes; the heading only with its first line
       const head = el('div', 'bid' + depthCls);
       head.textContent = b.id;
@@ -226,7 +229,7 @@
           pg.notes = pg.notes.concat(notesIn(a, a));
           drawNotes(pg);
           report.overfull++;
-          numberLines(pg, p, a);
+          numberLines(pg, p);
           a++;
           if (a < nLines) pg = newPage(true);
           continue;
@@ -235,12 +238,14 @@
         shown.replaceWith(p);
         pg.notes = pg.notes.concat(notesIn(a, best));
         drawNotes(pg);
-        numberLines(pg, p, a);
+        numberLines(pg, p);
         a = best + 1;
         if (a < nLines) pg = newPage(true);
       }
     }
-    function numberLines(page, p, from) {
+    // the lines of the text, counted down the page, or on through the text; every fifth (or every one) numbered
+    function lineBase(page) { return (D.lines === 'text' ? textLines : 0) + (page.lines || 0); }
+    function numberLines(page, p) {
       const tops = [];
       for (const s of p.querySelectorAll('.w')) {
         if (!s.textContent.trim()) continue;
@@ -250,9 +255,11 @@
       tops.sort((x, y) => x - y);
       const base = page.el.getBoundingClientRect();
       const rtl = getComputedStyle(p).direction === 'rtl';
+      const from = lineBase(page);
+      page.lines = (page.lines || 0) + tops.length;
       tops.forEach((t, i) => {
         const n = from + i + 1;
-        if (n % 5) return;
+        if (n % D.every) return;
         const m = el('span', 'ln' + (rtl ? ' rtl' : ''));
         m.textContent = n;
         m.style.top = (t - base.top) + 'px';

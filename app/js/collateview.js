@@ -25,6 +25,15 @@
 
   /* ---------- the part of the edition screen ---------- */
 
+  /* How far the editor has gone through a block: of the places where the witnesses differ, how many carry a
+     decision. -> an element */
+  CollateView.progress = function (settled, differ) {
+    const done = differ ? Math.min(settled || 0, differ) : 0;
+    const pct = differ ? Math.round((100 * done) / differ) : 100;
+    return U.el('span', { class: 'cv-prog' + (!differ || done === differ ? ' full' : ''), title: differ ? done + ' of ' + differ + ' places where the witnesses differ decided by you' : 'The witnesses do not differ here' },
+      U.el('span', { class: 'cv-prog-bar' }, U.el('span', { style: 'width:' + pct + '%' })), U.el('span', { class: 'cv-prog-n' }, differ ? done + '/' + differ : '—'));
+  };
+
   function statusOf(ed, list, s) {
     if (!s) return { text: 'not collated', cls: 'warn' };
     const c = Collate.isCurrent(ed, list, s);
@@ -144,7 +153,7 @@
       const idCell = U.el('td', { class: 'cv-unit' }, tag, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, wk, id, redraw) }, id) : id);
       const state = U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text));
       const has = s && s.words !== undefined;
-      return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''), num(has ? s.decided : ''), num(s && s.review ? s.review : ''),
+      return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''), U.el('td', { class: 'cv-progress-cell' }, has ? CollateView.progress(s.settled, s.differ) : null), num(s && s.review ? s.review : ''),
         ...(full ? [num(s ? s.labels : ''), num(has ? s.ties : ''), num(s && s.corrections ? s.corrections : ''), num(s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : '')] : []));
     });
     const heads = (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ', 'Decided', 'To review'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
@@ -409,6 +418,10 @@
       U.el('div', { class: 'nv-head' },
         U.el('label', null, 'Paper ', U.el('select', { onchange: (e) => set('paper', e.target.value) }, Object.entries(P.PAPER).map(([k, v]) => U.el('option', { value: k, selected: s.paper === k }, v.name)))),
         U.el('label', null, 'Text size ', U.el('input', { type: 'number', min: 7, max: 20, step: 0.5, value: s.size, style: { width: '4.5em' }, onchange: (e) => set('size', +e.target.value || 12) }), ' pt'),
+        U.el('label', null, 'Line numbers ', U.el('select', { 'aria-label': 'Line numbers', onchange: (e) => set('lines', e.target.value) },
+          U.el('option', { value: 'page', selected: s.lines === 'page' }, 'counted on each page'), U.el('option', { value: 'text', selected: s.lines === 'text' }, 'counted through the whole text'))),
+        U.el('label', null, U.el('select', { 'aria-label': 'Which lines are numbered', onchange: (e) => set('every', +e.target.value) },
+          U.el('option', { value: 5, selected: s.every === 5 }, 'every fifth line'), U.el('option', { value: 1, selected: s.every === 1 }, 'every line'))),
         U.el('label', null, 'Fonts ', U.el('input', { type: 'text', value: s.font, placeholder: "e.g. 'Noto Naskh Arabic', 'Hiragino Mincho ProN'", style: { width: '22em' }, onchange: (e) => set('font', e.target.value.trim()) }))),
       U.el('div', { class: 'nv-head' }, fileName,
         U.el('button', { class: 'btn small', onclick: async () => {
@@ -730,6 +743,7 @@
     const saveSoon = () => { if (saving) clearTimeout(saving); saving = setTimeout(() => { saving = null; Collate.saveTable(ed, rec); }, 600); };
 
     const status = U.el('span', { class: 'help cv-count' });
+    const progressBox = U.el('span', { class: 'cv-progress-box' });
     const showStatus = () => {
       const bits = [];
       if (state.mode === 'text') {
@@ -743,6 +757,8 @@
         bits.push('read through: the aligner had ' + (100 * acc.recall).toFixed(1) + '% as you have it');
       }
       status.textContent = bits.join(' · ');
+      progressBox.innerHTML = '';
+      if (state.mode === 'text' && text.proposal) progressBox.append(CollateView.progress(text.proposal.count.settled, text.proposal.count.differ));
     };
 
     const selTokens = () => {
@@ -1282,7 +1298,14 @@
         U.el('label', null, 'Go through ', filterSel),
         U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) { text.render(); showStatus(); } } }, 'Trust order…'),
         U.el('button', { class: 'btn small', title: 'Undo (Ctrl or Cmd+Z)', onclick: () => ui.undo() }, 'Undo')),
-      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words differ between witnesses: click one to see the readings, or press N. Click any other word to emend it, where every witness is wrong; drag across several words, or Shift+click, to emend them as one. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
+      U.el('p', { class: 'help' }, 'The text most witnesses read, word by word. Coloured words are where the witnesses differ; plain words are where they agree, and can be emended too. Words that differ only in spelling the rules ignore, or only in spacing and punctuation, are not marked.'),
+      U.el('div', { class: 'ct-keys', title: 'These keys work while the text has the focus: click in it first if they do not' },
+        U.el('strong', null, 'Quickest way through: '),
+        U.el('kbd', null, '↓'), ' or ', U.el('kbd', null, 'N'), ' next place to decide, ', U.el('kbd', null, '↑'), ' or ', U.el('kbd', null, 'P'), ' back · ',
+        U.el('kbd', null, 'A'), ' accept the proposal · ', U.el('kbd', null, '1'), '–', U.el('kbd', null, '9'), ' choose a reading · ',
+        U.el('kbd', null, 'E'), ' emend, ', U.el('kbd', null, 'Enter'), ' to put it in · ', U.el('kbd', null, 'Delete'), ' withdraw · ',
+        'drag or ', U.el('kbd', null, 'Shift'), '+click: several words as one · ', U.el('kbd', null, ']'), ' ', U.el('kbd', null, '['), ' next or previous block. ',
+        'The bar above counts the places you have decided.'),
       textBox, textPanel, textScan,
       U.el('p', { class: 'nv-legend' }, U.el('span', { class: 'ct-u d-majority' }, 'most witnesses'), ' ', U.el('span', { class: 'ct-u d-plurality' }, 'most votes, not most witnesses'), ' ', U.el('span', { class: 'ct-u d-trust' }, 'a tie, settled by trust'), ' ', U.el('span', { class: 'ct-u d-chosen' }, 'your choice'), ' ', U.el('span', { class: 'ct-u d-lost' }, 'a witness cannot be read here'), ' · ⌀ the proposed reading omits the word'));
     const letterPane = U.el('div', { class: 'cv-letters', hidden: true });
@@ -1328,7 +1351,7 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, checkBtn,
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, checkBtn,
         U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));
@@ -1336,6 +1359,8 @@
       title: 'Collation: ' + table.unit, body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }],
       onOpen: () => {
         setMode('text');
+        // the keys work at once
+        setTimeout(() => { if (state.mode === 'text') textBox.focus({ preventScroll: true }); }, 0);
         CollateView.lastOpen = { table, state, ui, rec, text, setMode };
       },
     });
