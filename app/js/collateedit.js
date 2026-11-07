@@ -459,7 +459,8 @@
       st.cols.forEach((c, k) => {
         have[c]++;
         const f = st.from[k];
-        if (f === 0 || /\s/.test(st.dip[f - 1] || '') || /[।॥|]/.test(st.dip[f - 1] || '') || (segs && segs.has(f))) starts[c]++;
+        // a word begins after a space, a daṇḍa, a Tibetan tsheg or shad, or where the segmenter says
+        if (f === 0 || /\s/.test(st.dip[f - 1] || '') || /[।॥|་།༎]/.test(st.dip[f - 1] || '') || (segs && segs.has(f))) starts[c]++;
       });
     }
     const out = new Uint8Array(t.ncols);

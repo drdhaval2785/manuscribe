@@ -472,7 +472,8 @@ and keeps what is done. The aligner is Charles Li's, from Saktumiva 2.0, with it
   akṣaras was far better than by words, as Li advises. For a language that spaces its words (Latin, Greek, Arabic,
   English…), the first Collate chooses words, since a letter aligner pairs letters of different words where one word
   stands for another; for a script written without spaces (Japanese, Chinese, Thai…), letters, with the words found by
-  the browser's word segmenter, so that an entry is a word or two, not a run of the sentence. **Change…** chooses
+  the browser's word segmenter, so that an entry is a word or two, not a run of the sentence; in Tibetan, the tsheg and
+  the shad divide the words. **Change…** chooses
   otherwise. Fifteen witnesses of about ten folio sides each collate in one to four seconds in all
   (`tests/bench-languages.js` measures it for Latin, Arabic, Japanese and Greek).
 - **The table:** click a citation ID. Each row is a witness, or both states of one that has corrections, in the
@@ -622,7 +623,9 @@ the options of that kind; it remembers your choice in each.
 - **PDF file, Devanagari and Latin** (with the South Asian pack): a PDF made directly, with nothing to print: the text shaped by
   [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit, laid out as the print page:
   the same paper, margins, sizes, title page and commentaries, the layers set in with their [abbreviations], lines
-  numbered down the page, markers numbered from 1 on each page and notes at the foot in series, linked both ways. Copied Devanagari comes out letter for letter, with ि
+  numbered down the page, markers numbered from 1 on each page and notes at the foot in series, linked both ways. It is offered only for
+  text in Devanagari and Latin script, the letters its font has: for Gujarati, Bengali, Tamil or any other script, use the
+  PDF in any script. Copied Devanagari comes out letter for letter, with ि
   and reph where they are drawn, as from most PDFs. It knows only that font, and sets text left to right: for other
   scripts, use the print edition above.
 - **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the

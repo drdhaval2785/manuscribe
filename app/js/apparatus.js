@@ -34,7 +34,7 @@
     const stars = [];
     let word = 0;
     let prevText = '';
-    const ends = (t) => !t || /[\s।॥|]$/.test(t);
+    const ends = (t) => !t || /[\s।॥|་།༎]$/.test(t);
     P.units.forEach((u, ui) => {
       const before = ui > 0 ? P.units[ui - 1].text : '';
       const after = ui + 1 < P.units.length;

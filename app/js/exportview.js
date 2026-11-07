@@ -55,7 +55,7 @@
           return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built) }), 'text/html');
         }
       } },
-    { id: 'pdf-direct', for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: () => F().on('pdfDeva'),
+    { id: 'pdf-direct', for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: (ctx) => F().on('pdfDeva') && ME.Typeset.fits(ctx.list),
       make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Typeset.pdf(ctx.ed, ctx.list, s.built); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     { id: 'latex', for: 'edition', group: 'print', label: 'LaTeX for reledmac', desc: 'A folder for XeLaTeX with its font: the finest print, on your computer or on Overleaf.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ctx.ed, ctx.list, s.built)), 'application/zip'); } },

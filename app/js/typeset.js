@@ -346,5 +346,22 @@
     return { blob, pages: pageNo, overfull, missing, layout };
   };
 
+  /* Can the direct PDF set these witnesses? Its one font has Devanagari and Latin letters and no others: a text in
+     Gujarati, Tamil or any other script goes to the PDF in any script instead. */
+  T.fits = function (list) {
+    const other = /[^\p{Script=Devanagari}\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}\s]/u;
+    let seen = 0;
+    for (const { p } of list || []) {
+      if (!p || !p.pages) continue;
+      for (const pg of Object.values(p.pages)) for (const box of Object.values(pg.boxes || {})) for (const line of box || []) {
+        const t = String(line || '').replace(/<[^>]*>/g, '');
+        if (other.test(t)) return false;
+        seen += t.length;
+        if (seen > 20000) return true;
+      }
+    }
+    return true;
+  };
+
   ME.Typeset = T;
 })(window.ME);

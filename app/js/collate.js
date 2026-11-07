@@ -18,6 +18,17 @@
      far worse) and in scripts written without spaces (Japanese, Chinese, Thai…); by words in languages that space
      their words (Latin, Greek, Arabic, English…), where a letter aligner pairs letters of different words. */
   const UNSPACED = new Set(['ja', 'zh', 'yue', 'wuu', 'th', 'lo', 'km', 'my', 'bo', 'dz', 'jv-Java']);
+  /* What the first Collate chooses for an edition that has not chosen: for the languages of South Asia, the
+     Sanskrit profile and letters, as Manuscribe always has; for any other, letters as written, lined up by words or
+     by letters as the language writes them. -> true if it chose */
+  Collate.chooseFor = function (ed, langs) {
+    if (ed.norm) return false;
+    if (ME.Features.pack('south-asian', langs, { auto: true }).active) return false;
+    ed.norm = { profile: 'any' };
+    ed.collate = Object.assign({}, ed.collate, { tokens: (ed.collate && ed.collate.tokens) || Collate.defaultTokens(langs) });
+    return true;
+  };
+
   Collate.defaultTokens = function (langs) {
     const ls = (langs || []).filter(Boolean);
     if (!ls.length) return Collate.DEFAULT_TOKENS;
