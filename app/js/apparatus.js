@@ -77,6 +77,8 @@
       const inside = unspaced ? { left: false, right: false } : { left: ui > 0 && !ends(before), right: after && !ends(u.text) };
       const testimonia = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
       const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId };
+      // an addition before the first word of a block is placed by the word after it
+      if (kind === 'addition' && !prevText) { const nx = P.units.slice(ui + 1).find((x) => trim(x.text)); entry.next = nx ? trim(nx.text) : ''; }
       // a long addition in few witnesses goes to an appendix, as a starred passage
       if (kind === 'addition') {
         for (const r of readings) {
@@ -117,10 +119,16 @@
         rest = rest.filter((x) => !here.includes(x));
       }
     }
-    return { text: parts.concat(rest).join(' '), expands: wits.slice() };
+    // single letters are set close, as one group that a line does not break (A B C), so that they do not read as words
+    const all = parts.concat(rest);
+    return { text: all.join(all.every((x) => [...x].length === 1) ? '\u202f' : ' '), expands: wits.slice() };
   };
 
   const shorten = (t) => { const w = trim(t).split(' '); return w.length > 4 ? w[0] + '…' + w[w.length - 1] : trim(t); };
+  /* The text's own punctuation is not printed with a lemma or a reading (ἀνήρ. ] ἀνρ. is ἀνήρ ] ἀνρ), unless the
+     punctuation is what differs. Brackets and signs of the editor are kept. */
+  const EDGE = /^[\s.,;:!?·\u037e\u0387।॥|،؛؟۔。、，．！？：；።፣፤༎།׃"“”‘’«»„]+|[\s.,;:!?·\u037e\u0387।॥|،؛؟۔。、，．！？：；።፣፤༎།׃"“”‘’«»„]+$/g;
+  const bare = (t) => trim(t).replace(EDGE, '') || trim(t);
 
   /* One entry, printed. -> string */
   App_.format = function (ed, e, opts) {
@@ -132,7 +140,20 @@
     const bits = [];
     const d = e.decision;
     const hy = (t) => (t ? (e.inside && e.inside.left ? '-' : '') + t + (e.inside && e.inside.right ? '-' : '') : t);
-    let lem = hy(shorten(e.lemma));
+    // punctuation is left off, unless a reading differs from the lemma only by it
+    const plain = !e.readings.some((r) => r.text && bare(r.text) === bare(e.lemma) && trim(r.text) !== trim(e.lemma));
+    const pr = (t) => (plain ? bare(t) : trim(t));
+    // readings that differ only in punctuation are printed once, with all their witnesses
+    const merged = (rs) => {
+      const out = [];
+      for (const r of rs) {
+        const k = r.star || (r.text ? pr(r.text) : '');
+        const same = out.find((x) => x.k === k && !x.star && !r.star);
+        if (same) same.wits = same.wits.concat(r.wits); else out.push(Object.assign({}, r, { k, wits: r.wits.slice() }));
+      }
+      return out;
+    };
+    let lem = hy(shorten(pr(e.lemma)));
     if (d && d.crux) lem = ab.crux + lem + ab.crux;
     const lemWho = d && (d.type === 'emendatio' || d.type === 'conjecture') ? (d.type === 'conjecture' ? ab.conj : ab.em) + (d.source ? ' ' + d.source : '') : sig(e.lemWits);
     // negative leaves out who reads the lemma, unless few do
@@ -140,13 +161,16 @@
     if (e.kind === 'testimonium') return lem + ' ]' + (e.testimonia || []).map((t) => ' ' + ME.Layers.formatEvidence(t)).join(';');
     if (e.kind === 'orthographic') {
       // spelling only: the forms, each with its witnesses
-      return lem + ' ] ' + e.orth.map((o) => hy(o.text) + ' ' + sig(o.wits)).join('; ');
+      return lem + ' ] ' + e.orth.map((o) => hy(pr(o.text)) + ' ' + sig(o.wits)).join('; ');
     }
     if (e.kind === 'addition') {
-      for (const r of e.readings) bits.push(ab.post + ' ' + (shorten(e.prev).split(' ').pop() || '…') + ' ' + ab.add + ' ' + (r.star ? r.star : r.text) + ' ' + sig(r.wits));
+      // after the word before it, or, at the start of a block, before the word after it; once for all the additions
+      const before = bare(shorten(e.prev || '').split(' ').pop() || ''), after = bare((e.next || '').split(' ')[0] || '');
+      const where = before ? ab.post + ' ' + before : after ? ab.ante + ' ' + after : ab.post + ' …';
+      bits.push(where + ' ' + ab.add + ' ' + merged(e.readings).map((r) => (r.star ? r.star : bare(r.text)) + ' ' + sig(r.wits)).join('; '));
     } else {
       const shown = negative && lemWho === sig(e.lemWits) ? '' : lemWho;
-      const rdgs = e.readings.map((r) => (r.text ? hy(r.text) : ab.om) + ' ' + sig(r.wits));
+      const rdgs = merged(e.readings).map((r) => (r.text ? hy(pr(r.text)) : ab.om) + ' ' + sig(r.wits));
       bits.push((lem || '—') + ' ]' + (shown ? ' ' + shown + (rdgs.length ? ';' : '') : '') + (rdgs.length ? ' ' + rdgs.join('; ') : ''));
     }
     for (const a of e.ac) bits.push((a.text ? hy(a.text) : ab.om) + ' ' + a.wit + '<sup>' + ab.ac + '</sup>');

@@ -154,8 +154,10 @@ async function buildInPage(page, L, data, lines) {
     const ed = Edition.create(L.name + ': a test edition');
     ed.editor = 'Test';
     const list = [];
+    // the script of the language, as its manuscripts are written (the Model's default is Devanagari)
+    const script = (() => { try { return new Intl.Locale(L.tag).maximize().script || ''; } catch (e) { return ''; } })();
     for (const d of data) {
-      const p = Model.upgrade(Model.newProject({ meta: { title: 'Codex ' + d.siglum, siglum: d.siglum, textLang: L.tag, repository: 'Bibliotheca', shelfmark: 'Ms. ' + d.siglum }, layoutType: 'linear', lines: { main: lines }, folios: {} }));
+      const p = Model.upgrade(Model.newProject({ meta: { title: 'Codex ' + d.siglum, siglum: d.siglum, textLang: L.tag, script: script, repository: 'Bibliotheca', shelfmark: 'Ms. ' + d.siglum }, layoutType: 'linear', lines: { main: lines }, folios: {} }));
       p.pdf = { name: d.siglum + '.pdf', pages: d.pages.length };
       const labels = Model.entries(p).map((e) => e.label);
       p.pages = {};

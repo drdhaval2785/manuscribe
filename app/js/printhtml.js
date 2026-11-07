@@ -17,6 +17,12 @@
   // an apparatus entry as printed, with its <sup> kept and everything else as text
   const rich = (s) => esc(s).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>').replace(/‡/g, '[…]');
 
+  // a script as its name: sa-Deva or Deva is Devanagari; anything else as written
+  const scriptName = (t) => {
+    const m = /^(?:[a-z]{2,3}-)?([A-Z][a-z]{3})$/.exec(String(t || '').trim());
+    if (!m) return t;
+    try { return new Intl.DisplayNames(['en'], { type: 'script' }).of(m[1]) || t; } catch (e) { return t; }
+  };
   // the language of the edited text, from its witnesses
   const langOf = (list) => { const l = list.map((x) => x.p && x.p.meta && x.p.meta.textLang).find(Boolean); return l || 'und'; };
 
@@ -63,7 +69,7 @@
     const s = P.settings(ed);
     return {
       title: ed.title || 'Edition', editor: ed.editor || '', citation: ME.Publish.citation(ed), lang: langOf(list),
-      conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, r.script].filter(Boolean).join('; ') })),
+      conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, scriptName(r.script)].filter(Boolean).join('; ') })),
       principles: ME.Publish.declaration(ed, built), byMarkers, blocks,
       unspaced: ME.Norm.unspacedText(built.map((b) => b.text).join(' ').slice(0, 20000)),
       layers: layered ? ME.LayerIds.legend(ed) : [],
@@ -319,7 +325,8 @@ body { font-family: var(--font); color: #1d1a16; }
 .labl { font-weight: 600; color: #8c2a17; }
 .ser-layer .labl { margin-inline-end: 0.4em; }
 .an sup, .nk { color: #8c2a17; }
-.an sup a, a.nk { color: inherit; text-decoration: none; }
+.an sup a { color: inherit; text-decoration: none; }
+a.nk { color: #8c2a17; text-decoration: none; }
 .txt.first { margin-top: 0.45em; }
 .an sup { font-size: 0.6em; line-height: 0; }
 .unsure { text-decoration: underline dotted; text-underline-offset: 0.25em; }
@@ -329,7 +336,8 @@ body { font-family: var(--font); color: #1d1a16; }
 .foot:empty { display: none; }
 .ser { margin: 0 0 1mm; text-align: justify; }
 .lab { font-style: italic; margin-inline-end: 0.4em; }
-.note { margin-inline-end: 0.7em; unicode-bidi: isolate; }
+.note { margin-inline-end: 1.1em; unicode-bidi: isolate; }
+.nk { font-weight: 700; }
 .bid, .foot .bid { font-weight: 600; }
 h1.title { font-size: calc(var(--size) * 2); font-weight: 600; text-align: center; margin: 45mm 0 4mm; }
 .editor { text-align: center; font-size: calc(var(--size) * 1.05); margin: 0 0 6mm; }
@@ -356,7 +364,7 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
     return '<!doctype html>\n<html lang="' + esc(d.lang) + '">\n<head>\n<meta charset="utf-8">\n<title>' + esc(d.title) + '</title>\n<meta name="generator" content="Manuscribe ' + esc(ME.VERSION) + '">\n'
       + '<style>' + faces + '\n:root { --font: ' + stack + '; }' + CSS(d) + '</style>\n</head>\n<body>\n<div id="book"></div>\n'
       + '<script type="application/json" id="edition-data">' + json + '</script>\n'
-      + '<script>(function () { const go = () => (' + paginate.toString().replace(/<\/script/gi, '<\\/script') + ')(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(go); else window.addEventListener("load", go); })();</' + 'script>\n</body>\n</html>\n';
+      + '<script>(function () { const go = () => (' + paginate.toString().replace(/<\/script/gi, '<\\/script') + ')(); if (document.fonts && document.fonts.ready) Promise.all([...document.fonts].map((f) => f.load().catch(() => null))).then(() => document.fonts.ready).then(go, go); else window.addEventListener("load", go); })();</' + 'script>\n</body>\n</html>\n';
   };
 
   /* The fonts to embed: the editor's own, if given, and the Devanagari font of Manuscribe where the text needs it. */

@@ -129,7 +129,7 @@
                  width a browser reports for a word can be less (Safari's, at the end of a line), and fitting the word
                  to it squeezed it; the place of each word, with the space justification gives, is the browser's. */
               void width;
-              page.glyphs(gl, x, base, size, word, colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1 });
+              page.glyphs(gl, x, base, size, word, colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1, bold: +st.fontWeight >= 600 });
               count.text++;
               return;
             }

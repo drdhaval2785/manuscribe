@@ -115,8 +115,10 @@
             p.fontsUsed.add(fi);
             ops.push('/Span <</ActualText <' + utf16hex(text) + '>>> BDC');
             if (color) ops.push(color.map(num).join(' ') + ' rg');
+            // bold, where the font has no bold face: the letters are also stroked, in their own colour, a little
+            if (o && o.bold) ops.push('q ' + (color || [0, 0, 0]).map(num).join(' ') + ' RG ' + num(size * 0.03) + ' w');
             // the scaling and the rendering mode last beyond a text object: each word sets its own
-            ops.push('BT 0 Tr /F' + (fi + 1) + ' ' + num(size) + ' Tf ' + num(o && o.scale ? o.scale * 100 : 100) + ' Tz 1 0 0 1 ' + num(x) + ' ' + num(h - y) + ' Tm');
+            ops.push('BT ' + (o && o.bold ? 2 : 0) + ' Tr /F' + (fi + 1) + ' ' + num(size) + ' Tf ' + num(o && o.scale ? o.scale * 100 : 100) + ' Tz 1 0 0 1 ' + num(x) + ' ' + num(h - y) + ' Tm');
             mapsFor(F, gl, text);
             /* One run for the word: each glyph advances by its own width in the font, and the shaper's positions are
                kept by kerning steps, with a rise for marks set above or below, so that readers see one word. */
@@ -135,6 +137,7 @@
             }
             flushRun();
             ops.push('ET');
+            if (o && o.bold) ops.push('Q');
             if (color) ops.push('0 0 0 rg');
             ops.push('EMC');
           },

@@ -39,21 +39,26 @@ const { LANGS, make, buildInPage } = require('./languages');
   if (!online) { T.skip('fonts fetched from the internet', 'the internet cannot be reached'); T.done(page); await browser.close(); return; }
   T.check('a font is fetched once and kept in the browser', await page.evaluate(async () => { const k = await ME.Store.getFont('noto:NotoSansOgham'); return !!(k && k.bytes && k.bytes.byteLength > 1000); }));
   const egyp = { name: 'Egyptian hieroglyphs', tag: 'egy-Egyp', words: ['𓀀𓁐', '𓂀𓃀', '𓄿𓅓', '𓆑𓇋', '𓈖𓉐', '𓊃𓋴', '𓌳𓍿', '𓎛𓏏', '𓐍𓀭', '𓁷𓂋', '𓃭𓄡', '𓅱𓆓'], stop: '.', comma: ',', join: ' ', perLine: 40, code: 'egy' };
-  for (const [code, L] of [['ar', LANGS.ar], ['ja', LANGS.ja], ['bo', LANGS.bo], ['egy', egyp]]) {
-    await buildInPage(page, L, make.length && L.code === code && LANGS[code] ? make(code, 3, 1, 20, 5) : require('./languages').makeFrom(L, 3, 1, 20, 5), 20);
+  for (const [code, L] of [['ar', LANGS.ar], ['ja', LANGS.ja], ['bo', LANGS.bo], ['egy', egyp], ['grc', LANGS.grc]]) {
+    // Greek with fifteen witnesses: notes enough that a font arriving after the layout pushed the text into them
+    await buildInPage(page, L, code === 'grc' ? make(code, 15, 2, 26) : LANGS[code] ? make(code, 3, 1, 20, 5) : require('./languages').makeFrom(L, 3, 1, 20, 5), code === 'grc' ? 26 : 20);
     const r = await page.evaluate(async () => {
       const { ed, list } = window.lang;
       await ME.Collate.run(ed, list, 'main', {});
       const built = (await ME.Release.works(ed, list))[0].built;
       const fonts = await ME.PrintHTML.fonts(ed, built, list);
       const t0 = performance.now();
-      const c = await ME.Capture.pdf(ed, list, built);
+      const c = await ME.Capture.pdf(ed, list, built, { keep: true });
+      // the page laid itself out with its fonts in: now that they surely are, the text still clears the notes
+      const fr = document.querySelector('iframe[aria-hidden]');
+      const clear = [...fr.contentDocument.querySelectorAll('.page')].every((p) => { const b = p.querySelector('.body').getBoundingClientRect(), f = p.querySelector('.foot'); return !f.childElementCount || b.bottom <= f.getBoundingClientRect().top + 0.5; });
+      fr.remove();
       const buf = new Uint8Array(await c.blob.arrayBuffer());
       await ME.PdfView.ensureWorker();
       const doc = await pdfjsLib.getDocument({ data: buf }).promise;
-      return { fonts: fonts.map((f) => f.name + ':' + Math.round(f.data.length * 0.75 / 1024) + 'KB'), pictures: c.words.pictures, text: c.words.text, kb: Math.round(buf.length / 1024), pages: doc.numPages, ms: Math.round(performance.now() - t0) };
+      return { fonts: fonts.map((f) => f.name + ':' + Math.round(f.data.length * 0.75 / 1024) + 'KB'), pictures: c.words.pictures, text: c.words.text, clear, kb: Math.round(buf.length / 1024), pages: doc.numPages, ms: Math.round(performance.now() - t0) };
     });
-    T.check(L.name + ': the page carries its Noto font, cut down, and the PDF is all text (' + r.text + ' words, ' + r.kb + ' KB, ' + r.ms + ' ms)', r.fonts.some((f) => /^Noto/.test(f)) && r.pictures === 0 && r.text > 50 && r.pages >= 1 && r.kb < 1500, r);
+    T.check(L.name + ': the page carries its Noto font, cut down, the text clears the notes, and the PDF is all text (' + r.text + ' words, ' + r.kb + ' KB, ' + r.ms + ' ms)', r.fonts.some((f) => /^Noto/.test(f)) && r.clear && r.pictures === 0 && r.text > 50 && r.pages >= 1 && r.kb < 1500, r);
   }
   T.done(page);
   await browser.close();
