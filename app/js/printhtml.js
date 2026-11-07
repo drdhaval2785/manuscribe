@@ -358,9 +358,10 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
   };
 
   // Opens the edition, laid out, in a new window, and asks the browser to print it.
-  P.open = async function (ed, list, built) {
+  // win: a tab opened already, in the click that asked for it (as Safari requires); else one is opened now
+  P.open = async function (ed, list, built, win) {
     const html = P.html(ed, list, built, { autoPrint: true, fonts: await P.fonts(ed, built) });
-    const w = window.open('', '_blank');
+    const w = win && !win.closed ? win : window.open('', '_blank');
     if (!w) throw new Error('the browser blocked the new window: allow pop-ups for this page, or save the page and open it');
     w.document.open(); w.document.write(html); w.document.close();
     return w;

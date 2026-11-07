@@ -226,7 +226,8 @@
     const sigla = new Set(ed.witnesses.map((w) => w.siglum));
     const groups = groupsOf(ed);
     const states = new Set(Object.values(table.states).map((st) => st.siglum));
-    const say = (level, e, text) => out.push({ level, unit: table.unit, ref: e ? e.ref : table.unit, text });
+    // where: the block and the place in it, so that the editor can be taken there
+    const say = (level, e, text) => out.push({ level, work: table.work, unit: table.unit, from: e ? e.fromId : null, ref: e ? e.ref : table.unit, text });
     for (const e of b.entries) {
       const all = [...e.lemWits, ...e.readings.flatMap((r) => r.wits), ...e.missing.map((m) => m.wit)];
       // every extant state exactly once

@@ -315,8 +315,9 @@ main, .front { max-width: 980px; margin: 0 auto; padding: 0 16px; }
 .txt { font-size: 20px; line-height: 2; margin: 0 0 8px; }
 .u { cursor: pointer; border-radius: 3px; }
 .u:hover, .u.open { background: #fdf0d3; }
-body.mark .u { border-bottom: 1px dotted #b9a98c; }
-body.mark .u.decided { border-bottom-color: #2b8a3e; }
+/* the words with variant readings are underlined, dotted, so that a reader knows where to point */
+body.mark .u { text-decoration: underline dotted #a8916b; text-decoration-thickness: 1.5px; text-underline-offset: 6px; }
+body.mark .u.decided { text-decoration-color: #2b8a3e; }
 /* the apparatus: hidden under the text unless asked for; a word's entry beside it; the passage's in the panel */
 #text ol.app { display: none; }
 body.show-app #text ol.app { display: block; }
@@ -359,7 +360,7 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
   body.panel-open main, body.panel-open .front { margin-right: auto; }
   body { background: #fff; font-size: 11pt; }
   .txt { font-size: 13pt; line-height: 1.7; }
-  .u { border: 0; }
+  .u { border: 0; text-decoration: none !important; }
   .swaps { display: none !important; }
   .block { break-inside: avoid-page; }
   ol.app { font-size: 9.5pt; column-count: 2; column-gap: 18px; }
@@ -377,11 +378,11 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
     return '<!doctype html>\n<html lang="sa">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
       + '<title>' + esc(data.title) + '</title>\n<meta name="generator" content="Manuscribe">\n<meta name="citation" content="' + U.escAttr(data.citation) + '">\n'
       + (font ? '<!-- The font embedded below is Tiro Devanagari Sanskrit.\n' + font.licence.replace(/--+/g, '-') + '\n-->\n<style>@font-face { font-family: \'Tiro Devanagari Sanskrit\'; src: url(\'data:font/ttf;base64,' + font.base64 + '\') format(\'truetype\'); }</style>\n' : '')
-      + '<style>' + READER_CSS + '</style>\n</head>\n<body>\n'
+      + '<style>' + READER_CSS + '</style>\n</head>\n<body class="mark">\n'
       + '<header><h1>' + esc(data.title) + '</h1>'
       + '<label>Read <select id="view">' + options + '</select></label>'
       + '<label title="Every note under the text, as in a printed edition"><input type="checkbox" id="t-app"> apparatus under the text</label>'
-      + '<label title="Underline the words where the witnesses differ"><input type="checkbox" id="t-mark"> mark the variants</label>'
+      + '<label title="Underline the words where the witnesses differ"><input type="checkbox" id="t-mark" checked> mark the variants</label>'
       + '<label><input type="checkbox" id="t-orth"> spelling variants</label>'
       + '<label><input type="checkbox" id="t-singular" checked> singular readings</label>'
       + '<label><input type="checkbox" id="t-ac" checked> before correction</label>'
@@ -390,7 +391,7 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + '<button id="print" title="Print, or save as PDF: a draft, not a typeset edition">Print a draft</button></header>\n'
       + '<div class="front"><p class="cite">' + esc(data.citation) + '</p>'
       + '<details><summary>Conspectus siglorum and editorial principles</summary>' + consp + '<div class="principles">' + data.principles.map((p) => '<p>' + esc(p) + '</p>').join('') + '</div></details>'
-      + '<p class="cite">The edited text, to read. Point at a word to see what the witnesses read there; click it to keep its notes open at the side, where a click on a reading puts it into the text.</p></div>\n'
+      + '<p class="cite">The edited text, to read. Point at an underlined word to see what the witnesses read there; click it to keep its notes open at the side, where a click on a reading puts it into the text.</p></div>\n'
       + '<main id="text"></main>\n'
       + '<div id="pop" hidden></div>\n'
       + '<aside id="panel" aria-label="Apparatus"><div class="panel-head"><h2>Apparatus</h2><button id="panel-close" title="Close">×</button></div><div id="panel-body"></div></aside>\n'

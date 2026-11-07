@@ -157,7 +157,7 @@
         ...(full ? [num(s ? s.labels : ''), num(has ? s.ties : ''), num(s && s.corrections ? s.corrections : ''), num(s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : '')] : []));
     });
     const heads = (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ', 'Decided', 'To review'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
-    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table' },
+    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table ed-boxed' },
       U.el('thead', null, U.el('tr', null, heads.map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
       U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
     const anyTable = [...summaries.values()].some((s) => workIds.includes(s.work));
@@ -927,6 +927,7 @@
     };
     const prevBlock = U.el('button', { class: 'btn small', title: 'The block before ([)', disabled: at <= 0, dataset: { action: 'block-prev' }, onclick: () => goBlock(-1) }, '‹ Block');
     const nextBlock = U.el('button', { class: 'btn small', title: 'The next block (])', disabled: at < 0 || at >= blockIds.length - 1, dataset: { action: 'block-next' }, onclick: () => goBlock(1) }, 'Block ›');
+    goBlock.has = (d) => !!blockIds[at + d];
     CollateView.goBlock = goBlock;
     const checkBtn = U.el('button', { class: 'btn small', title: 'You have read this whole block against the witnesses. It locks the block, and measures how close the aligner came to your version.', onclick: () => ui.checked() }, 'Mark as read');
     ui.buttons = () => {
@@ -994,7 +995,9 @@
         const units = text.proposal.units;
         let i = text.sel ? units.findIndex((u) => u.fromId === text.sel.fromId) : (d > 0 ? -1 : units.length);
         for (i += d; i >= 0 && i < units.length; i += d) if (text.wanted(units[i])) { text.choose(i); return; }
-        U.toast(d > 0 ? 'No more places after this one' : 'No more places before this one');
+        // past the last place of the block, on to the first of the next (or back to the last of the one before)
+        if (CollateView.goBlock && CollateView.goBlock.has(d)) { CollateView.landAt = d > 0 ? { first: true } : { last: true }; CollateView.goBlock(d); return; }
+        U.toast(d > 0 ? 'No more places: this is the last block' : 'No more places: this is the first block');
       },
       showScanOf(m) {
         const st = table.states[m.label];
@@ -1361,6 +1364,22 @@
         setMode('text');
         // the keys work at once
         setTimeout(() => { if (state.mode === 'text') textBox.focus({ preventScroll: true }); }, 0);
+        /* where to land: the first or last place to decide (coming from the block before or after), or one place,
+           highlighted (coming from a problem in the apparatus) */
+        const land = CollateView.landAt;
+        CollateView.landAt = null;
+        if (land && text.proposal) {
+          const units = text.proposal.units;
+          let i = -1;
+          const at = land.fromId !== undefined && land.fromId !== null; // a column's id may be 0
+          if (at) i = units.findIndex((u) => u.fromId === land.fromId);
+          else if (land.first) i = units.findIndex((u) => text.wanted(u));
+          else if (land.last) { for (let k = units.length - 1; k >= 0 && i < 0; k--) if (text.wanted(units[k])) i = k; }
+          if (i >= 0) {
+            text.choose(i);
+            if (land.flash) { const el = textBox.querySelector('[data-u="' + i + '"]'); if (el) { el.classList.add('flash'); el.scrollIntoView({ block: 'center' }); } }
+          } else if (at) U.toast('That place is no longer in this block: collate again, or look for it here', 'warn', 5000);
+        }
         CollateView.lastOpen = { table, state, ui, rec, text, setMode };
       },
     });

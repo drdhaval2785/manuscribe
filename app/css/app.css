@@ -769,3 +769,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .xp-kind { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #ddd3c2; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; background: #fff; }
 .xp-kind:has(input:checked) { border-color: #a8341f; background: #fbeee9; color: #8c2a17; }
 .xp-kind-help { margin: 2px 0 8px; }
+/* a place the editor was sent to, from a problem in the apparatus */
+@keyframes ct-flash { 0%, 60% { background: #ffd36b; box-shadow: 0 0 0 3px #ffd36b; } 100% { box-shadow: none; } }
+.ct-u.flash { animation: ct-flash 2.4s ease-out 1; }
+.cv-units .ed-boxed td.cv-unit { white-space: nowrap; }

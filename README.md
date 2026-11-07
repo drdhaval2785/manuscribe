@@ -520,6 +520,8 @@ come back if you withdraw it. Esc leaves the stretch.
 
 - **The keys are shown above the text,** and work as soon as the window opens: ↓ or N to the next place to decide, ↑
   or P back, A to accept, 1 to 9 to choose, E to emend, Delete to withdraw, ] and [ for the next and previous block.
+  ↓ after the last place of a block goes on to the first place of the next, and ↑ before the first back to the last
+  of the block before, so that a whole work can be gone through from the keyboard.
   A bar beside the counts shows how many of the places where the witnesses differ you have decided; the Collate
   step shows the same bar for every block, so that you can see what is still to go through.
 - **Choose a reading** with its button or the keys 1 to 9; **Accept** (A) makes the proposed one yours, and
@@ -573,12 +575,16 @@ In the **Publish** step, give the editor's name, the version, the licence and a 
 draft). Every output then carries the same citation line. To release a version, use **Issue edition…** (see
 [Sharing and releasing](#sharing-and-releasing)): until a version is issued, its outputs say that they are a draft.
 
+The checks of the apparatus are listed there too. Each problem names its place: click it, and its block opens at
+that place, highlighted, to be put right.
+
 Every output below is in **Export…**, by block or by work. The dialog asks first for the kind of file, **PDF**,
 **HTML**, **LaTeX**, **TEI**, **Text** (plain text, and data for other programs) or **Archive**, and then shows only
 the options of that kind; it remembers your choice in each.
 
 - **Reader, one HTML file:** the edited text, the conspectus siglorum and the editorial principles, in one file that
-  opens from disk and needs no network. It opens on the critical text alone, to be read: **point at a word** and what
+  opens from disk and needs no network. It opens on the critical text alone, to be read, the words with variant
+  readings underlined with dots: **point at one** and what
   the witnesses read there appears beside it; **click it** and its notes, with the other notes of that passage, stay
   open in a panel at the side (at the foot on a narrow screen), where a click on a reading puts it into the text; Esc
   closes it. **Read** shows the text of any one witness instead. Switches put the whole apparatus under the text, as
@@ -595,7 +601,9 @@ the options of that kind; it remembers your choice in each.
   page, and the markers in the text with them, so that no block IDs need be printed; each marker is a link to its
   note, and each note's number a link back to its word, in the page and in the PDF saved from it. Lines are numbered in the margin on the
   side the text starts, counted down each page from 1 without regard to blocks (or, if you choose, on through the
-  whole text), every fifth line or every line; notes keyed by line cite these numbers. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
+  whole text), every fifth line or every line; notes keyed by line cite these numbers. In Safari, and other browsers that allow a new tab
+  only at once, the tab opens as you click Export and shows *Laying out the edition…* until it is ready; if a browser
+  refuses even that, the print page is saved as a file instead, to open and print. In the print dialog, choose **Save as PDF**: the PDF has its fonts and its text can be searched. Under
   **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, how
   lines are numbered, the fonts to use, by name, and a font file of your own, kept in this browser and put into the page. **Print page, one HTML file**
   saves the same page as one HTML file, to open and print on any computer. Copying text out of Chrome's PDF

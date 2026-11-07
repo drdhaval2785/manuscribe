@@ -91,7 +91,9 @@
     const problems = works.flatMap(({ built }) => built.flatMap((b) => ME.Apparatus.validate(ed, b.table, b)));
     const errors = problems.filter((p) => p.level === 'error');
     const checks = U.el('details', { class: 'nv-fold', open: errors.length > 0 && errors.length < 10 }, U.el('summary', null, !works.length ? 'Collate first' : errors.length ? errors.length + ' problem(s) in the apparatus' : '✓ The apparatus passes every check' + (problems.length ? '; ' + problems.length + ' place(s) to look at' : '')),
-      U.el('ul', { class: 'ap-problems' }, problems.slice(0, 200).map((p) => U.el('li', { class: p.level }, U.el('span', { class: 'ed-tag ' + (p.level === 'error' ? 'bad' : 'warn') }, p.level === 'error' ? 'problem' : 'look'), ' ', p.ref + ': ' + p.text))));
+      U.el('ul', { class: 'ap-problems' }, problems.slice(0, 200).map((p) => U.el('li', { class: p.level }, U.el('span', { class: 'ed-tag ' + (p.level === 'error' ? 'bad' : 'warn') }, p.level === 'error' ? 'problem' : 'look'), ' ',
+        // each problem opens its block, at its place, highlighted
+        U.el('button', { class: 'link', title: 'Open the block at this place', dataset: { action: 'go-problem' }, onclick: () => { ME.CollateView.landAt = { fromId: p.from, flash: true }; ME.CollateView.open(ed, list, p.work, p.unit, redraw); } }, p.ref), ': ' + p.text))));
     return U.el('div', null,
       U.el('h2', null, 'How the edition is cited'),
       U.el('div', { class: 'xv-grid' }, field('editor', 'Edited by', 'your name'), field('version', 'Version', 'e.g. 1.0, or empty for a dated draft'), U.el('label', { class: 'field' }, U.el('span', null, 'Licence'), lic), field('doi', 'DOI (optional)', 'e.g. 10.5281/zenodo.1234567')),

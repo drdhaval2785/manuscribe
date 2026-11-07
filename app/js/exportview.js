@@ -46,7 +46,15 @@
   X.FORMATS = [
     // an edition
     { id: 'pdf-any', for: 'edition', group: 'print', label: 'PDF, in any script', desc: 'The edition laid out as pages by this browser, in any script and font; then choose Save as PDF in the print dialog.',
-      make: async (ctx) => { const s = await scoped(ctx); await ME.PrintHTML.open(ctx.ed, ctx.list, s.built); return null; } },
+      opensWindow: true,
+      make: async (ctx) => {
+        const s = await scoped(ctx);
+        try { await ME.PrintHTML.open(ctx.ed, ctx.list, s.built, ctx.win); return null; } catch (e) {
+          // the browser would not open a tab: the page is saved instead, to open and print
+          U.toast('The browser did not open a new tab, so the print page is saved instead: open it, and print it or save it as PDF.', 'warn', 9000);
+          return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built) }), 'text/html');
+        }
+      } },
     { id: 'pdf-direct', for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: () => F().on('pdfDeva'),
       make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Typeset.pdf(ctx.ed, ctx.list, s.built); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     { id: 'latex', for: 'edition', group: 'print', label: 'LaTeX for reledmac', desc: 'A folder for XeLaTeX with its font: the finest print, on your computer or on Overleaf.',
@@ -142,17 +150,27 @@
       go.disabled = true;
       const was = go.textContent;
       go.textContent = 'Making it…';
+      let c = null;
       try {
         last[ctx.kind] = pick.id;
         last[ctx.kind + ':' + X.kindOf(pick)] = pick.id;
         try { localStorage.setItem(KEY, JSON.stringify(last)); } catch (e) { /* not kept */ }
-        const c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null });
+        c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null });
+        /* A format that opens a tab opens it now, in the click itself, before anything is waited for: Safari, and
+           other browsers with a strict pop-up blocker, allow a new tab only then. It is filled when ready. */
+        if (pick.opensWindow) {
+          c.win = window.open('', '_blank');
+          if (c.win) { try { c.win.document.write('<!doctype html><meta charset="utf-8"><title>Laying out the edition…</title><p style="font:16px system-ui,sans-serif;padding:2em;color:#6b5a3e">Laying out the edition…</p>'); } catch (e) { /* filled later */ } }
+        }
         // this dialog closes first, since a format may open a screen of its own
         const dlg = go.closest('.modal-backdrop');
         if (dlg) dlg.querySelector('.modal-foot .btn').click();
         const f = await pick.make(c);
         if (f) { U.download(f.name, f.data instanceof Blob ? f.data : new Blob([f.data], { type: f.type })); U.toast('Saved ' + f.name, 'ok'); }
-      } catch (e) { U.toast('Not exported: ' + e.message, 'err', 8000); }
+      } catch (e) {
+        U.toast('Not exported: ' + e.message, 'err', 8000);
+        if (c && c.win && !c.win.closed) { try { if (/Laying out/.test(c.win.document.title)) c.win.close(); } catch (x) { /* leave it */ } }
+      }
       go.disabled = false;
       go.textContent = was;
     } }, 'Export');

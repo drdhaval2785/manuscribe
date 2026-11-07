@@ -33,6 +33,7 @@ const { launch, sleep, checks } = require('./h');
   await sleep(500);
   const steps = await page.evaluate(() => [...document.querySelectorAll('.ed-step')].map((b) => b.textContent.replace(/\d+/g, '').replace(/\//g, '').trim()));
   T.check('the edition has three steps: Witnesses, Collate, Publish', steps.join() === 'Witnesses,Collate,Publish', steps);
+  T.check('the table of blocks is ruled and centred', await page.evaluate(() => { const t = document.querySelector('.cv-units table'); const td = t && t.querySelector('tbody td:nth-child(3)'); return !!t && t.classList.contains('ed-boxed') && getComputedStyle(td).textAlign === 'center' && getComputedStyle(td).borderTopStyle === 'solid'; }));
   const cards = await page.evaluate(() => ({ actions: [...document.querySelectorAll('.cv-tools .menu-items .btn')].map((b) => b.dataset.action), drawn: document.querySelectorAll('.sv-heat, .sv-tree, .sv-net').length }));
   T.check('the Tools menu of Collate has each tool switched on, and nothing is computed yet', ['an-agreement', 'an-trees', 'an-network', 'an-copies', 'an-stemma', 'an-registers', 'an-metre', 'stemmatics', 'tools-settings'].every((a) => cards.actions.includes(a)) && !cards.actions.includes('an-indices') && cards.drawn === 0, cards);
   const part = async (action) => {

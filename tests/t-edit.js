@@ -67,6 +67,41 @@ const { launch, sleep, checks } = require('./h');
   const groups = await page.evaluate(() => [...document.querySelectorAll('.cv-tgroup .cv-tlabel')].map((x) => x.textContent));
   T.check('at Full, the letter tools are in two groups, Move and Mark', groups.join() === 'Move,Mark', groups);
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  await sleep(400);
+  // ↓ past the last place of a block goes on to the first of the next; ↑ before the first, back to the last
+  await page.evaluate(() => { ME.Features.save({ level: 'simple' }); ME.CollateView.open(window.ed, window.list, 'main', 'm1', () => {}); });
+  await sleep(1000);
+  const where = () => page.evaluate(() => ({ title: document.querySelector('.modal-head h2').textContent, sel: (document.querySelector('.ct-text .ct-u.sel') || {}).textContent || null }));
+  for (let k = 0; k < 6 && /m1/.test((await where()).title); k++) { await page.keyboard.press('ArrowDown'); await sleep(350); }
+  await sleep(800);
+  const down = await where();
+  T.check('↓ after the last place of a block opens the next, at its first place', /Collation: m2/.test(down.title) && !!down.sel, down);
+  for (let k = 0; k < 6 && /m2/.test((await where()).title); k++) { await page.keyboard.press('ArrowUp'); await sleep(350); }
+  await sleep(800);
+  const up = await where();
+  T.check('↑ before the first place goes back to the block before, at its last place', /Collation: m1/.test(up.title) && !!up.sel, up);
+  await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  await sleep(500);
+  // a problem of the apparatus, in the Publish step, opens its block at its place, highlighted
+  await page.evaluate(async () => {
+    const rec = await ME.Store.getCollation(ME.Collate.keyOf(window.ed.id, 'main', 'm2'));
+    const t = ME.CollateEdit.ensure(rec.table);
+    const u = ME.CollateEdit.proposal(t, ['A', 'B', 'C']).units.find((x) => x.differs);
+    // a decision whose witness no longer reads what it read: it needs review, and the checks say so
+    t.decisions.push({ id: 'dX', key: u.key, from: u.fromId, to: u.toId, type: 'selectio', label: 'A', status: 'accepted', quote: { A: 'something else' } });
+    await ME.Store.putCollation(rec);
+    window.__target = u.fromId;
+    const el = await ME.Steps.publish(window.ed, window.list, () => {});
+    document.body.appendChild(el);
+    window.__pub = el;
+  });
+  const problem = await page.evaluate(() => { const b = window.__pub.querySelector('[data-action="go-problem"]'); return b ? b.parentNode.textContent : null; });
+  T.check('the Publish step lists the problem with a link to its place', !!problem && /needs review/.test(problem), problem);
+  await page.evaluate(() => window.__pub.querySelector('[data-action="go-problem"]').click());
+  await sleep(1200);
+  const landed = await page.evaluate(() => { const el = document.querySelector('.ct-text .ct-u.sel'); const u = el && ME.CollateView.lastOpen && ME.CollateView.lastOpen.text.sel; return { title: document.querySelector('.modal-head h2').textContent, flash: !!(el && el.classList.contains('flash')), at: u ? u.fromId : null, want: window.__target }; });
+  T.check('clicking it opens the block at that place, highlighted', /m2/.test(landed.title) && landed.flash && landed.at === landed.want, landed);
+  await page.evaluate(() => { document.querySelector('.modal-foot .btn').click(); window.__pub.remove(); });
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });
