@@ -100,7 +100,7 @@ async function exportVia(page, opener, format) {
 // Results: check(name, ok, detail) prints one line; done() prints the count and sets the exit code.
 function checks(title) {
   let pass = 0, fail = 0;
-  console.log('— ' + title + (ENGINE.OTHER ? ' (' + ENGINE.ENGINE + ')' : ''));
+  console.log('— ' + title + (ENGINE.ENGINE !== 'chrome' ? ' (' + ENGINE.ENGINE + ')' : ''));
   return {
     check(name, ok, detail) {
       if (ok) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (detail === undefined ? '' : ' :: ' + JSON.stringify(detail).slice(0, 400))); }

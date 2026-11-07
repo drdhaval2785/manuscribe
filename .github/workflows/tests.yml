@@ -1,4 +1,4 @@
-# The tests on Windows, macOS and Linux, in Chrome, Firefox and WebKit (Safari's engine): on each push to main,
+# The tests on Windows, macOS and Linux, in Chrome, Edge, Firefox and WebKit (Safari's engine): on each push to main,
 # on each pull request, and when started by hand (Actions → Tests → Run workflow). The owner's own package is not
 # here, so the tests that need it are skipped; so is the long survey of all scripts (tests/run.js --all runs it).
 name: Tests
@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        engine: [chrome, firefox, webkit]
+        engine: [chrome, edge, firefox, webkit]
     defaults:
       run:
         working-directory: tests
@@ -48,8 +48,19 @@ jobs:
             macOS) echo "CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" >> "$GITHUB_ENV" ;;
           esac
 
+      # so is Edge: the same tests, as in Chrome
+      - name: Where Edge is
+        if: matrix.engine == 'edge'
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux) echo "CHROME=$(command -v microsoft-edge || command -v microsoft-edge-stable)" >> "$GITHUB_ENV" ;;
+            Windows) echo "CHROME=C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" >> "$GITHUB_ENV" ;;
+            macOS) echo "CHROME=/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" >> "$GITHUB_ENV" ;;
+          esac
+
       - name: Get ${{ matrix.engine }}
-        if: matrix.engine != 'chrome'
+        if: matrix.engine == 'firefox' || matrix.engine == 'webkit'
         run: npx playwright install --with-deps ${{ matrix.engine }}
 
       - name: The offline list is up to date

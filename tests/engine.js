@@ -1,6 +1,7 @@
 // The tests in other browser engines: MANUSCRIBE_ENGINE=firefox or webkit (Safari's engine) runs them through
 // Playwright, behind the same few calls the tests make of Puppeteer in Chrome (h.js launch). What only Chrome has
-// (its own PDF writer) is said to be so (EngineOnly), and the tests skip it.
+// (its own PDF writer) is said to be so (EngineOnly), and the tests skip it. MANUSCRIBE_ENGINE=edge runs them in
+// Microsoft Edge as in Chrome (the same engine), with CHROME set to where Edge is.
 //
 //   cd tests && npm install && npx playwright install firefox webkit     (once)
 //   MANUSCRIBE_ENGINE=firefox node run.js

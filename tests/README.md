@@ -22,7 +22,8 @@ MANUSCRIBE_ENGINE=webkit node run.js
 
 What only Chrome has (its own PDF of a page, its service worker driven by hand in `t-offline.js`) is skipped there.
 Every test also checks, as it starts, that the browser has all Manuscribe needs (`Install.missing`). On GitHub, the
-Tests workflow (`.github/workflows/tests.yml`) runs them on Windows, macOS and Linux in all three, after each push.
+Tests workflow (`.github/workflows/tests.yml`) runs them on Windows, macOS and Linux in all three, and in Microsoft
+Edge (`MANUSCRIBE_ENGINE=edge`, with `CHROME` set to where Edge is: the same tests as in Chrome), after each push.
 
 Each check is shown as it runs, with a running count after each file and a line every 20 seconds while a file is
 still at work. A file that runs longer than 5 minutes (`MANUSCRIBE_TEST_LIMIT`, in seconds) is stopped and counted
