@@ -71,7 +71,8 @@
   const ua = navigator.userAgent;
   const ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|FxiOS|Android/.test(ua);
-  Install.how = () => (!web || standalone() ? null : asked ? 'prompt' : ios ? 'ios' : safari ? 'safari' : null);
+  // (Safari never offers to install by itself: its own way first)
+  Install.how = () => (!web || standalone() ? null : ios ? 'ios' : safari ? 'safari' : asked ? 'prompt' : null);
   Install.draw = function () {
     const row = document.getElementById('install-row');
     if (!row) return;
@@ -89,8 +90,8 @@
       b.addEventListener('click', async () => { const e = asked; if (!e) return; asked = null; e.prompt(); await e.userChoice.catch(() => null); Install.draw(); });
       row.appendChild(b);
       say('Gives Manuscribe an icon and a window of its own, and it opens without the internet. Your work stays where it is.');
-    } else if (how === 'ios') say('To install Manuscribe: tap <b>Share</b> <span aria-hidden="true">⎙</span>, then <b>Add to Home Screen</b>. It then opens without the internet, and your work is kept safely.');
-    else say('To install Manuscribe: in Safari’s menu, <b>File → Add to Dock</b>. It then opens without the internet, in a window of its own.');
+    } else if (how === 'ios') say('To install Manuscribe: tap <b>Share</b> <span aria-hidden="true">⎙</span>, then <b>Add to Home Screen</b>, and open it from its icon from then on: it opens without the internet, and your work is kept safely. The installed Manuscribe keeps its work apart from Safari’s: if you have work here, first <b>Back up everything</b> (below), then <b>Open…</b> that file in the installed one.');
+    else say('To install Manuscribe: in Safari’s menu, <b>File → Add to Dock…</b>, then <b>Add</b>. Nothing changes here: Manuscribe is now in your Dock, in a window of its own, and opens without the internet. Open it from the Dock from then on. It keeps its work apart from Safari’s: if you have work here, first <b>Back up everything</b> (below), then <b>Open…</b> that file in the installed one.');
   };
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); asked = e; Install.draw(); });
   window.addEventListener('appinstalled', () => { asked = null; Install.draw(); });
@@ -142,6 +143,9 @@
     Install.draw();
     Install.checkCopy();
   });
+  /* In an installed app with nothing in it yet (Safari keeps an app's work apart from its own): how to bring it in. */
+  Install.emptyHint = () => (standalone() && /Safari\//.test(ua) && !/Chrome|Chromium|Edg/.test(ua)
+    ? 'Working in Safari before? That work stays in Safari: open Manuscribe there, click Back up everything, and open that file here with Open….' : '');
   Install.bar = bar;
   ME.Install = Install;
 })(window.ME);

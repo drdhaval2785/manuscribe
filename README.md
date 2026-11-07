@@ -69,9 +69,17 @@ keyboard shortcuts, and export [TEI](https://tei-c.org/) XML in the
 2. Click **＋ New transcription** and choose the PDF of your manuscript.
 
 That is all. To give Manuscribe an icon and a window of its own, and have it open without the
-internet, click **Install Manuscribe** on its start screen (Chrome, Edge), or in Safari choose
-**File → Add to Dock** (on an iPad or iPhone: **Share → Add to Home Screen**). A new version is
-offered with a **Reload** when there is one.
+internet, install it:
+
+- **Chrome, Edge:** click **Install Manuscribe** on its start screen.
+- **Safari on a Mac:** with Manuscribe open, choose **File → Add to Dock…**, then **Add**. Nothing
+  changes in Safari; Manuscribe is now in the Dock. Open it from there from then on.
+- **iPad, iPhone:** in Safari, **Share → Add to Home Screen**, and open it from its icon.
+
+On a Mac, iPad or iPhone, the installed Manuscribe keeps its work apart from Safari's. If you have
+already worked in Safari, click **Back up everything** there first, then **Open…** that file in the
+installed Manuscribe. (Chrome and Edge share the work between the browser and the installed app.)
+A new version is offered with a **Reload** when there is one.
 
 **Without the internet**, use the downloadable copy: download
 [Manuscribe.zip](https://github.com/drdhaval2785/manuscribe/releases/latest/download/Manuscribe.zip),

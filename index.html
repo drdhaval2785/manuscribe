@@ -7,6 +7,9 @@
 <meta name="description" content="Transcribe manuscripts in any script, line by line beside their images, and make a critical edition from them. Free, in your browser; your work stays on your computer.">
 <link rel="icon" href="app/img/logo.png" type="image/png">
 <link rel="apple-touch-icon" href="app/img/apple-touch-icon.png">
+<!-- Manuscribe's own manifest: an app added to the Dock or the Home Screen from this page opens Manuscribe itself -->
+<link rel="manifest" href="app/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Manuscribe">
 <!-- The front page of Manuscribe's website. Where things are (the download, the repository) comes from
      app/js/site.js, the one place to change if the website moves. -->
 <script src="app/js/site.js"></script>
@@ -96,10 +99,11 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 22px; }
   <section id="install">
     <h2>Installing it (optional)</h2>
     <p>Manuscribe works as it is in any recent browser. Installing it gives it an icon and a window of its own, and it then opens without the internet.</p>
+    <p class="small"><b>Already working in Safari?</b> On a Mac, iPad or iPhone, Manuscribe added to the Dock or the Home Screen keeps its work apart from Safari's. Before installing, open Manuscribe in Safari and click <b>Back up everything</b> on its start screen; then, in the installed Manuscribe, choose <b>Open…</b> and pick that file. (Chrome and Edge share the work between the browser and the installed app.)</p>
     <div class="grid steps">
       <div class="card"><h3>Chrome or Edge</h3><p>Open Manuscribe and click <b>Install Manuscribe</b> on its start screen, or the install icon at the right of the address bar.</p></div>
-      <div class="card"><h3>Safari on a Mac</h3><p>Open Manuscribe, then choose <b>File → Add to Dock</b>.</p></div>
-      <div class="card"><h3>iPad or iPhone</h3><p>Open Manuscribe in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p></div>
+      <div class="card"><h3>Safari on a Mac</h3><p>Click <b>Open Manuscribe</b>. With Manuscribe open, choose <b>File → Add to Dock…</b>, then <b>Add</b>. Nothing changes in Safari: Manuscribe is now in your Dock. Open it from there from now on.</p></div>
+      <div class="card"><h3>iPad or iPhone</h3><p>Open Manuscribe in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>. Open it from its icon from now on.</p></div>
       <div class="card"><h3>No internet at all?</h3><p>Download the copy above, unzip it, and double-click <b>Manuscribe.html</b>. It needs the internet once, for the fonts of your script.</p></div>
     </div>
   </section>

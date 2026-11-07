@@ -167,7 +167,8 @@
     list.innerHTML = '';
     const projects = await Store.listProjects();
     if (!projects.length) {
-      list.appendChild(U.el('div', { class: 'empty-list' }, U.el('p', null, 'No transcriptions yet.'), U.el('p', { class: 'help' }, 'Start a new one with a manuscript PDF, or import a project backup (.manuscribe.json).')));
+      const moved = ME.Install && ME.Install.emptyHint();
+      list.appendChild(U.el('div', { class: 'empty-list' }, U.el('p', null, 'No transcriptions yet.'), U.el('p', { class: 'help' }, 'Start a new one with a manuscript PDF, or import a project backup (.manuscribe.json).'), moved ? U.el('p', { class: 'help' }, moved) : null));
     }
     for (const p of projects) {
       Model.upgrade(p);

@@ -74,11 +74,26 @@ const { launch, sleep, checks, ROOT, WORK, CHROME, CHROME_ARGS, serve, stop, OTH
     return { shown, prompted, gone: !document.querySelector('#install-row [data-action="install"]') };
   });
   T.check('where the browser can install it, the start screen has an Install button, which asks the browser', inst.shown && inst.prompted && inst.gone, inst);
+  // Safari: the front page carries Manuscribe's manifest, so that an app added to the Dock from it opens Manuscribe;
+  // the app tells Safari how to add it, and that the added app keeps its work apart from Safari's
+  await stop(server);
+  server = await serve(port);
+  const front = await browser.newPage();
+  await front.goto('http://127.0.0.1:' + port + '/manuscribe/', { waitUntil: 'load' });
+  const fm = await front.evaluate(async () => { const l = document.querySelector('link[rel=manifest]'); if (!l) return null; const m = await (await fetch(l.href)).json(); return new URL(m.start_url, l.href).pathname; });
+  await front.close();
+  const sf = await browser.newPage();
+  await sf.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15');
+  await sf.goto(url, { waitUntil: 'load' });
+  await sleep(600);
+  const how = await sf.evaluate(() => ({ how: ME.Install.how(), text: (document.getElementById('install-row') || {}).textContent || '' }));
+  await sf.close();
+  T.check('Safari: the front page carries Manuscribe’s manifest (an app added from it opens Manuscribe), and the app says how to add it to the Dock, that nothing changes in Safari, and that its work is kept apart, with how to bring it over', fm === '/manuscribe/app/index.html' && how.how === 'safari' && /Add to Dock/.test(how.text) && /Nothing changes here/.test(how.text) && /apart from Safari/.test(how.text) && /Back up everything/.test(how.text), { fm, how });
+  await stop(server);
   await browser.close();
 
   // a copy opened from a file looks for a newer version on the website
   const { browser: b2, page: fp } = await launch('offline-copy');
-  await stop(server);
   server = await serve(port, { 'app/version.json': JSON.stringify({ version: '9.9.9' }) });
   const copy = await fp.evaluate(async (home) => {
     ME.SITE.home = home;
