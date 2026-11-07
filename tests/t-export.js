@@ -111,6 +111,19 @@ const { launch, sleep, checks, WORK, exportVia } = require('./h');
   await page.evaluate(() => document.querySelector('.ed-bar [data-action="export"]').click());
   await sleep(400);
   T.check('and remembers it the next time', await page.evaluate(() => document.querySelector('.modal input[name="xp-format"]:checked').value === 'text'));
+  // the kind of file first, and only its options under it
+  const kinds = await page.evaluate(() => {
+    const vis = () => [...document.querySelectorAll('.modal .xp-row')].filter((r) => !r.hidden).map((r) => r.dataset.format);
+    const out = { kinds: [...document.querySelectorAll('.modal .xp-kind')].map((k) => k.textContent.trim()), text: vis() };
+    document.querySelector('.modal input[name="xp-kind"][value="tei"]').click();
+    out.tei = vis();
+    document.querySelector('.modal input[name="xp-kind"][value="pdf"]').click();
+    out.pdf = vis();
+    out.checked = document.querySelector('.modal input[name="xp-format"]:checked').value;
+    return out;
+  });
+  T.check('Export asks first for the kind of file: PDF, HTML, LaTeX, TEI, Text, Archive', ['PDF', 'HTML', 'LaTeX', 'TEI', 'Text', 'Archive'].every((k) => kinds.kinds.includes(k)), kinds.kinds);
+  T.check('and shows only the options of the kind chosen', kinds.text.includes('text') && !kinds.text.includes('tei') && kinds.tei.includes('tei') && !kinds.tei.includes('text') && kinds.pdf.every((f) => /^pdf-/.test(f)) && /^pdf-/.test(kinds.checked), kinds);
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
   T.done(page);
   await browser.close();

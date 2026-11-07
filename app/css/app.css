@@ -764,3 +764,8 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 /* the keys of the block window, always in view */
 .ct-keys { font-size: 12.5px; line-height: 1.9; color: #4a3f30; background: #f6f1e7; border: 1px solid #e6dccb; border-radius: 8px; padding: 4px 10px; margin: 4px 0 8px; }
 .ct-keys kbd { font: 600 11.5px var(--ui); border: 1px solid #cdbfa6; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; }
+/* Export: the kind of file first, its options under it */
+.xp-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.xp-kind { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #ddd3c2; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; background: #fff; }
+.xp-kind:has(input:checked) { border-color: #a8341f; background: #fbeee9; color: #8c2a17; }
+.xp-kind-help { margin: 2px 0 8px; }

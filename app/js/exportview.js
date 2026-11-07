@@ -10,6 +10,12 @@
   const F = () => ME.Features;
 
   X.GROUPS = { print: 'Print', read: 'Read on screen', exchange: 'Exchange with other programs', archive: 'Keep and archive' };
+  /* What the dialog asks first: the kind of file. Each format is of one kind; the options of a kind are shown only
+     when it is chosen. */
+  X.KINDS = { pdf: 'PDF', html: 'HTML', latex: 'LaTeX', tei: 'TEI', text: 'Text', archive: 'Archive' };
+  const KIND_OF = { 'pdf-any': 'pdf', 'pdf-direct': 'pdf', reader: 'html', 'print-page': 'html', latex: 'latex', tei: 'tei', saktumiva: 'tei', 'tei-corpus': 'tei', 'tei-xml': 'tei', package: 'archive', release: 'archive', backup: 'archive' };
+  X.kindOf = (f) => KIND_OF[f.id] || 'text';
+  const KIND_HELP = { pdf: 'Pages to print or to send.', html: 'A page to read on screen, or to print later; it opens with no network.', latex: 'For XeLaTeX and reledmac.', tei: 'XML for other editions and programs.', text: 'Plain text, and data for other programs.', archive: 'Everything, to keep, to move or to publish in an archive.' };
 
   /* ---------- what an edition export works on ---------- */
 
@@ -106,18 +112,31 @@
     const scope = ctx.kind === 'edition' ? U.el('select', { 'aria-label': 'How much', dataset: { action: 'export-scope' } },
       ctx.blockScope ? U.el('option', { value: 'block' }, 'This block, ' + ctx.tables[0].unit) : null,
       U.el('option', { value: 'work' }, 'The whole work')) : null;
+    // first the kind of file; then, under it, only its own options
+    const kinds = Object.keys(X.KINDS).filter((k) => formats.some((f) => X.kindOf(f) === k));
+    const kindRow = U.el('div', { class: 'xp-kinds', role: 'radiogroup', 'aria-label': 'Kind of file' });
+    const kindRadios = {};
+    for (const k of kinds) {
+      kindRadios[k] = U.el('input', { type: 'radio', name: 'xp-kind', value: k, checked: X.kindOf(pick) === k, onchange: () => { pick = formats.find((f) => f.id === (last[ctx.kind + ':' + k] || '')) || formats.find((f) => X.kindOf(f) === k); sync(); } });
+      kindRow.append(U.el('label', { class: 'xp-kind', dataset: { kind: k } }, kindRadios[k], ' ' + X.KINDS[k]));
+    }
+    const kindHelp = U.el('p', { class: 'help xp-kind-help' });
     const list = U.el('div', { class: 'xp-list' });
-    for (const [g, gname] of Object.entries(X.GROUPS)) {
-      const here = formats.filter((f) => f.group === g);
-      if (!here.length) continue;
-      list.append(U.el('div', { class: 'xp-group' }, gname));
-      for (const f of here) {
-        const radio = U.el('input', { type: 'radio', name: 'xp-format', value: f.id, checked: f === pick, onchange: () => { pick = f; sync(); } });
-        list.append(U.el('label', { class: 'xp-row', dataset: { format: f.id } }, radio, U.el('span', null, U.el('strong', null, f.label), U.el('span', { class: 'help' }, ' ' + f.desc))));
-      }
+    const rows = [];
+    for (const f of formats) {
+      const radio = U.el('input', { type: 'radio', name: 'xp-format', value: f.id, checked: f === pick, onchange: () => { pick = f; sync(); } });
+      const row = U.el('label', { class: 'xp-row', dataset: { format: f.id, kind: X.kindOf(f) } }, radio, U.el('span', null, U.el('strong', null, f.label), U.el('span', { class: 'help' }, ' ' + f.desc)));
+      rows.push({ f, row, radio });
+      list.append(row);
     }
     const scopeRow = scope ? U.el('label', { class: 'xp-scope' }, 'How much: ', scope) : null;
-    const sync = () => { if (scopeRow) scopeRow.hidden = !!pick.whole || pick.scope === 'block'; };
+    const sync = () => {
+      const k = X.kindOf(pick);
+      for (const [kk, r] of Object.entries(kindRadios)) r.checked = kk === k;
+      for (const x of rows) { x.row.hidden = X.kindOf(x.f) !== k; x.radio.checked = x.f === pick; }
+      kindHelp.textContent = KIND_HELP[k] || '';
+      if (scopeRow) scopeRow.hidden = !!pick.whole || pick.scope === 'block';
+    };
     sync();
     const go = U.el('button', { class: 'btn primary', dataset: { action: 'export-go' }, onclick: async () => {
       go.disabled = true;
@@ -125,6 +144,7 @@
       go.textContent = 'Making it…';
       try {
         last[ctx.kind] = pick.id;
+        last[ctx.kind + ':' + X.kindOf(pick)] = pick.id;
         try { localStorage.setItem(KEY, JSON.stringify(last)); } catch (e) { /* not kept */ }
         const c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null });
         // this dialog closes first, since a format may open a screen of its own
@@ -136,7 +156,7 @@
       go.disabled = false;
       go.textContent = was;
     } }, 'Export');
-    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, list, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
+    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, kindRow, kindHelp, list, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
   };
 
   ME.ExportView = X;

@@ -573,7 +573,9 @@ In the **Publish** step, give the editor's name, the version, the licence and a 
 draft). Every output then carries the same citation line. To release a version, use **Issue edition…** (see
 [Sharing and releasing](#sharing-and-releasing)): until a version is issued, its outputs say that they are a draft.
 
-Every output below is in **Export…**, by block or by work.
+Every output below is in **Export…**, by block or by work. The dialog asks first for the kind of file, **PDF**,
+**HTML**, **LaTeX**, **TEI**, **Text** (plain text, and data for other programs) or **Archive**, and then shows only
+the options of that kind; it remembers your choice in each.
 
 - **Reader, one HTML file:** the edited text with its apparatus, the conspectus siglorum and the editorial principles,
   in one file that opens from disk and needs no network. Point at a word or an entry to link them; click a reading in an
