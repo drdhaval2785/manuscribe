@@ -6,7 +6,8 @@ roadmap promise.
 ```
 cd tests
 PUPPETEER_SKIP_DOWNLOAD=1 npm install    # once: puppeteer-core, which drives the Chrome you have
-node run.js                              # every test file
+node run.js                              # every test file, but the long survey of all scripts
+node run.js --all                        # every test file, t-scripts.js included
 node run.js stemma collate               # only those whose names contain these words
 ```
 
@@ -36,7 +37,8 @@ apart from `t-features.js`, which starts at the default.
 | `t-notes.js` | How a note reads: the text's punctuation is left off lemmas and readings unless it is the variant; readings that then print alike are given once; one "post X add." for all the additions at a place, and "ante X add." at the start of a block; single-letter sigla set close, on one line |
 | `t-offline.js` | Manuscribe from its website, as an app (a local web server stands in): it keeps every file of itself and opens with the server gone; a new version is offered with Reload, which brings it in; the browser's offer to install becomes a button; a downloaded copy learns of a newer version; the offline list is up to date |
 | `t-package.js` | The downloadable copy (`tools/package.mjs`): one folder with Manuscribe.html, the app, the licence, the guide and "Start here", nothing else; under 2 MB; unzipped, it opens the app of this version |
-| `t-scripts.js` | All 172 scripts of Unicode 17.0, from cuneiform and hieroglyphs to Adlam: three witnesses in each, of words made of the script's own letters and marks (`scripts.js`), tagged und-Xxxx; collated and published, every output checked as in `t-languages.js`. `SCRIPTS=Brai,Tibt` runs some only |
+| `t-backup.js` | Work kept safe outside the browser: a backup of everything reads back into an empty browser as it was (editions, witnesses, tables), adds what is missing and replaces only what is older; Open… asks first; a backup folder (the browser's private folder stands in, on a served page) gets the backup and seven daily copies, rewritten after a change; the reminder after an hour, with a folder or a file, and Later |
+| `t-scripts.js` | *Run now and then, with `--all` or by name, when collation, normalisation or the fonts change.* All 172 scripts of Unicode 17.0, from cuneiform and hieroglyphs to Adlam: three witnesses in each, of words made of the script's own letters and marks (`scripts.js`), tagged und-Xxxx; collated and published, every output checked as in `t-languages.js`. `SCRIPTS=Brai,Tibt` runs some only |
 | `t-languages.js` | Thirty-eight languages by their codes (en, es, fr, de, it, pt, la, ru, el, grc, ka, hy, ar, fa, ur, he, syc, sa, hi, mr, ne, gu, bn, pa, or, ta, te, kn, ml, si, bo, th, km, my, zh, ja, ko, am): set up as Manuscribe sets them up, collated, published; the apparatus passes its checks with lemmas of a word or two, the print page lays out (right to left where it should), the reader opens, TEI is well-formed, and the direct PDF is offered only where its font has the letters. `LANGS=gu,ta` runs some only |
 | `t-layered.js` | Layers by their IDs (b, c, ca, r): found, named, abbreviated and ordered; the parent of an ID; the checks; All layers in Collate, each layer with its own text; links from the IDs; the layers woven in reading order, in the app, the print page (set in by depth, [abbreviation], notes by layer) and the reader; TEI with @ana, @corresp, the taxonomy of layers and standOff links, every element and attribute TEI P5 |
 | `t-emend.js` | Emending any word (E), and a stretch of several chosen by Shift+click or by dragging, typed in Harvard-Kyoto as Devanagari; in the edited text and the apparatus as one emendation; Esc; withdrawing an emendation (Delete) and an accepted reading |

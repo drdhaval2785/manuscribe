@@ -1,13 +1,22 @@
 // Runs every test file in this folder, one after another, showing each check as it happens and a running count,
 // with a line every 20 seconds while a file is still at work, and a limit on how long a file may take.
 // Usage: node tests/run.js [name ...]   e.g. node tests/run.js stemma
+//        node tests/run.js --all           also the long surveys (OCCASIONAL below)
 //        MANUSCRIBE_TEST_LIMIT=600 node tests/run.js   (seconds a file may take; 300 by default)
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const want = process.argv.slice(2);
-const files = fs.readdirSync(__dirname).filter((f) => /^t-.*\.js$/.test(f)).filter((f) => !want.length || want.some((w) => f.includes(w))).sort();
+// Long surveys, worth running when collation, normalisation or the fonts change, not every time: only with --all, or
+// when named (node tests/run.js scripts).
+const OCCASIONAL = ['t-scripts.js'];
+const args = process.argv.slice(2);
+const all = args.includes('--all');
+const want = args.filter((a) => a !== '--all');
+const files = fs.readdirSync(__dirname).filter((f) => /^t-.*\.js$/.test(f))
+  .filter((f) => (want.length ? want.some((w) => f.includes(w)) : all || !OCCASIONAL.includes(f))).sort();
+const left = want.length || all ? [] : OCCASIONAL.filter((f) => fs.existsSync(path.join(__dirname, f)));
+if (left.length) console.log('(Left out, as surveys to run now and then: ' + left.join(', ') + '. Run them with --all, or by name.)');
 const LIMIT = (+process.env.MANUSCRIBE_TEST_LIMIT || 300) * 1000;
 const total = { pass: 0, fail: 0, skip: 0 };
 const failed = [];
