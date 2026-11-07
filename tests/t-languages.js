@@ -28,7 +28,7 @@ const LINES = 26;
       const problems = built.flatMap((b) => ME.Apparatus.validate(ed, b.table, b)).filter((p) => p.level === 'error').map((p) => p.text);
       const lemmas = entries.filter((e) => e.kind !== 'testimonium').map((e) => [...(e.lemma || '')].length).sort((a, b) => a - b);
       const median = lemmas.length ? lemmas[Math.floor(lemmas.length / 2)] : 0;
-      const print = ME.PrintHTML.html(ed, list, built, { fonts: await ME.PrintHTML.fonts(ed, built) });
+      const print = ME.PrintHTML.html(ed, list, built, { fonts: await ME.PrintHTML.fonts(ed, built, list) });
       const reader = await ME.Publish.reader(ed, list, built, null);
       const tei = ME.Apparatus.tei(ed, built, works[0].work);
       const wellFormed = !new DOMParser().parseFromString(tei, 'application/xml').getElementsByTagName('parsererror').length;

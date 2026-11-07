@@ -493,6 +493,8 @@
           inp.click();
         } }, 'Use a font file…'),
         s.fontId ? U.el('button', { class: 'btn small', onclick: async () => { await Store.deleteFont(s.fontId); set('fontId', null); } }, 'Stop using it') : null),
+      U.el('label', { class: 'nv-head', title: 'Each script not in Manuscribe’s own font gets its Noto font (SIL Open Font Licence), fetched once from the internet and kept in this browser, so that the page and the PDF look the same on every computer' },
+        U.el('input', { type: 'checkbox', checked: ME.FontLib ? ME.FontLib.fetchAllowed() : false, dataset: { action: 'fetch-fonts' }, onchange: (e) => { if (ME.FontLib) ME.FontLib.setFetch(e.target.checked); } }), ' Fetch the Noto font of each other script from the internet, once (kept in this browser)'),
       U.el('p', { class: 'help' }, 'Fonts are tried in turn for each letter: a font file of yours first, then the fonts named here, then Manuscribe’s Devanagari font where the text needs it, then the browser’s own. A font file is kept in this browser and put into the print page.'));
   }
 

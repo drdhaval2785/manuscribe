@@ -611,26 +611,30 @@ the options of that kind; it remembers your choice in each.
 - **Notes are keyed to the text:** each place with an entry has a small number after its reading, counting from 1
   in each block, and its note at the foot of the page begins with the block and that number. Under **How the
   apparatus is written**, *Notes keyed by* can be set to line numbers instead, as in many printed editions.
-- **PDF:** one choice, made the way that suits the text. **Made by Manuscribe** where the text is Devanagari or Latin
-  (with the South Asian pack): in one click, with nothing to print, the text shaped by
-  [HarfBuzz](https://harfbuzz.github.io/) in Manuscribe's own Tiro Devanagari Sanskrit; it is a third of the size of
-  the browser's, and its text copies and searches letter for letter, conjuncts such as ण्ड and ज्ञ included, which
-  Chrome's PDF loses. **Made by this browser's print dialog** in any other script, or when you choose it: the edition
-  is laid out as pages by the browser itself, so that any language and script is set as the browser sets it: Arabic
-  and Hebrew right to left, Japanese and Chinese without spaces, in any fonts; choose **Save as PDF** in the print
-  dialog. In Safari, and other browsers that allow a new tab only at once, the tab opens as you click Export and shows
-  *Laying out the edition…* until it is ready; if a browser refuses even that, the print page is saved as a file
-  instead, to open and print. Either way the pages are the same: the paper, margins, sizes, title page and
-  commentaries, the layers set in with their [abbreviations], the notes of each page at its foot, in the order of the
-  blocks, numbered from 1 on each page with the markers in the text, so that no block IDs need be printed; each marker
-  is a link to its note, and each note's number a link back to its word. Lines are numbered in the margin on the side
-  the text starts, counted down each page from 1 without regard to blocks (or, if you choose, on through the whole
-  text), every fifth line or every line; notes keyed by line cite these numbers. Under **Paper and fonts for
-  printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text, how lines are numbered, the
-  fonts to use, by name, and a font file of your own, kept in this browser and put into the page; a script the
-  computer has no font for is drawn only with one. **Print page, one HTML file** saves the browser's page as one HTML
-  file, to open and print on any computer. An issued release holds Manuscribe's PDF where it can make it, and the
-  print page otherwise.
+- **PDF:** saved at once as a file, in any script, with no print dialog and no new tab. Manuscribe lays the print page
+  out in this browser, out of sight, exactly as the HTML page is shown, and writes each word into the PDF where the
+  browser put it, set in its font and shaped by [HarfBuzz](https://harfbuzz.github.io/): the PDF looks as the page
+  does, its text can be searched and copied, and its markers and notes are linked both ways. The pages are the print
+  page's: the paper, margins, sizes, title page and commentaries, the layers set in with their [abbreviations], the
+  notes of each page at its foot in the order of the blocks, numbered from 1 on each page with the markers in the text,
+  so that no block IDs need be printed. Lines are numbered in the margin on the side the text starts, counted down each
+  page from 1 without regard to blocks (or, if you choose, on through the whole text), every fifth line or every line;
+  notes keyed by line cite these numbers. **Through this browser's print dialog** is still there, to print on paper.
+  Under **Paper and fonts for printing**: the paper (A4, US Letter, or a book of 156 × 234 mm), the size of the text,
+  how lines are numbered, the fonts to use, by name, a font file of your own, kept in this browser and put into the
+  page, and whether to fetch fonts. **Print page, one HTML file** saves the same page as one HTML file, to open and
+  print on any computer. An issued release holds the PDF and the print page.
+- **A font for every script.** Devanagari and Latin are set in Manuscribe's own Tiro Devanagari Sanskrit. Every other
+  script gets its [Noto](https://notofonts.github.io/) font, Google's family for all the world's scripts (serif where
+  there is one: Noto Naskh Arabic, Noto Serif Tibetan, Noto Serif JP, SC, TC or KR by the language, Noto Sans Egyptian
+  Hieroglyphs…), fetched from the internet the first time an edition needs it and kept in this browser, so that later
+  it prints offline. The page and the PDF carry only the glyphs the edition uses, so even a Chinese font adds little:
+  a PDF of three witnesses in Arabic, Japanese, Tibetan or hieroglyphs comes to 60–190 KB. Fetching can be switched
+  off under **Paper and fonts for printing**; then the page uses the computer's own fonts, and in the PDF a word in a
+  script no font at hand has is put in as the browser drew it, with its letters over it, invisible, so that it can
+  still be searched. Search and copy are exact in most scripts; where a script draws letters out of their order (a
+  Devanagari vowel sign before its consonant), each word also carries its letters in reading order for readers that
+  read them (ActualText, as Acrobat and Chrome do).
 - **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
   variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
@@ -1105,6 +1109,7 @@ It includes these components, which keep their own licences:
 |---|---|
 | [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174, Mozilla | Apache License 2.0 |
 | Tiro Devanagari Sanskrit, © The Indigo Project Authors ([Tiro Typeworks](https://github.com/TiroTypeworks/Indigo)) | SIL Open Font License 1.1 (`app/fonts/OFL.txt`) |
+| Noto fonts, © Google and the Noto Project Authors, fetched when an edition needs them and kept in the browser, never shipped with Manuscribe ([notofonts](https://github.com/notofonts), [google/fonts](https://github.com/google/fonts)) | SIL Open Font License 1.1 |
 | The aligner of [Saktumiva 2.0](https://github.com/chchch/saktumiva), Charles Li (`app/vendor/saktumiva-aligner.js`), and its normalisation rules, rewritten as data in `app/js/normalize.js` | GNU GPL 3.0 |
 | [HarfBuzz](https://github.com/harfbuzz/harfbuzz), as compiled to WebAssembly by [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) 1.6.4 (`app/vendor/harfbuzz.wasm.js`, made by `tools/bundle-harfbuzz.mjs`) | MIT (harfbuzzjs) and "Old MIT" (HarfBuzz) |
 | Metre lists of [Sanskrit metres](https://github.com/shreevatsa/sanskrit), Shreevatsa Rajagopalan, from the Vṛttaratnākara and a large list input by Dr. Dhaval Patel, the latter after Anand Mishra's [Chanda](http://sanskrit.sai.uni-heidelberg.de/Chanda/HTML/) as scraped by Mārcis Gasūns (`app/vendor/metres.js`, made by `tools/bundle-metres.mjs`) | GNU GPL 2.0, as in that project |

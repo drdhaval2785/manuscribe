@@ -348,7 +348,10 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
     d.autoPrint = !!(opts && opts.autoPrint);
     const s = P.settings(ed);
     const faces = ((opts && opts.fonts) || []).map((f) => "@font-face { font-family: '" + f.name.replace(/'/g, '') + "'; src: url(data:font/" + (f.format || 'ttf') + ';base64,' + f.data + "); }").join('\n');
-    const stack = [].concat(((opts && opts.fonts) || []).map((f) => "'" + f.name.replace(/'/g, '') + "'"), s.font ? [s.font] : [], ["'Noto Serif'", "'Times New Roman'", 'serif']).join(', ');
+    // the edition's font file, then the fonts the editor names, then Manuscribe's own, then the browser's
+    const q = (f) => "'" + f.name.replace(/'/g, '') + "'";
+    const given = (opts && opts.fonts) || [];
+    const stack = [].concat(given.filter((f) => f.kind === 'edition' || (!f.kind && f.name !== 'Tiro Devanagari Sanskrit')).map(q), s.font ? [s.font] : [], given.filter((f) => f.name === 'Tiro Devanagari Sanskrit').map(q), given.filter((f) => f.kind === 'noto').map(q), ["'Noto Serif'", "'Times New Roman'", 'serif']).join(', ');
     const json = JSON.stringify(d).replace(/</g, '\\u003c');
     return '<!doctype html>\n<html lang="' + esc(d.lang) + '">\n<head>\n<meta charset="utf-8">\n<title>' + esc(d.title) + '</title>\n<meta name="generator" content="Manuscribe ' + esc(ME.VERSION) + '">\n'
       + '<style>' + faces + '\n:root { --font: ' + stack + '; }' + CSS(d) + '</style>\n</head>\n<body>\n<div id="book"></div>\n'
@@ -357,12 +360,37 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
   };
 
   /* The fonts to embed: the editor's own, if given, and the Devanagari font of Manuscribe where the text needs it. */
-  P.fonts = async function (ed, built) {
+  /* The fonts the page carries, in the order it tries them: the edition's own font file; Manuscribe's Tiro, for
+     Devanagari and Latin; and for every other letter of the edition, the Noto font of its script (FontLib), fetched
+     once and kept in this browser, with only the glyphs the edition uses. list: the witnesses, whose languages choose
+     between the Chinese, Japanese and Korean fonts. -> [{name, data (base64), format, kind}] */
+  const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 32768) s += String.fromCharCode.apply(null, u8.subarray(i, i + 32768)); return btoa(s); };
+  P.textOf = (ed, built) => [ed.title || '', ed.editor || '', ME.Publish.citation(ed), ...ME.Publish.declaration(ed, built), ...built.map((b) => b.text),
+    ...built.flatMap((b) => b.entries.map((e) => ME.Apparatus.format(ed, e))), ...ME.LayerIds.legend(ed).map((l) => l.abbr + ' ' + l.name)].join('\n');
+  P.fonts = async function (ed, built, list) {
     const out = [];
     const s = P.settings(ed);
-    if (s.fontId && ME.Store.getFont) { const f = await ME.Store.getFont(s.fontId); if (f) out.push({ name: 'Edition ' + f.name, data: f.data, format: f.format }); }
-    const text = built.map((b) => b.text).join(' ');
-    if (/[ऀ-ॿ]/.test(text)) { const t = await ME.Publish.font(); if (t) out.push({ name: 'Tiro Devanagari Sanskrit', data: t.base64, format: 'ttf' }); }
+    if (s.fontId && ME.Store.getFont) { const f = await ME.Store.getFont(s.fontId); if (f) out.push({ name: 'Edition ' + f.name, data: f.data, format: f.format, kind: 'edition' }); }
+    // Manuscribe's own font, always: the page and the PDF captured from it then set Latin and Devanagari alike
+    const t = await ME.Publish.font();
+    if (t) out.push({ name: 'Tiro Devanagari Sanskrit', data: t.base64, format: 'ttf', kind: 'tiro' });
+    if (!t || !ME.FontLib || !ME.Shaper || typeof WebAssembly === 'undefined') return out;
+    try {
+      await ME.Shaper.load();
+      if (!P.tiro) P.tiro = ME.Shaper.font(Uint8Array.from(atob(t.base64), (c) => c.charCodeAt(0)));
+      const text = P.textOf(ed, built);
+      // the letters Tiro has not: the scripts whose fonts the page needs
+      const lacking = [...new Set(Array.from(text))].filter((ch) => /\S/.test(ch) && !/[\u200B-\u200D\uFEFF]/.test(ch) && !P.tiro.nominal(ch.codePointAt(0))).join('');
+      if (!lacking) return out;
+      const langs = (list || []).map((x) => x.p && x.p.meta && x.p.meta.textLang).filter(Boolean);
+      const got = await ME.FontLib.ensure(lacking, langs, (family) => { if (ME.U && ME.U.toast) ME.U.toast('Getting the font for ' + family.replace(/^Noto(Sans|Serif)?/, '').replace(/([a-z])([A-Z])/g, '$1 $2') + ' (Noto), once: it is kept in this browser', 'info', 4000); });
+      for (const f of got.fonts) {
+        const sh = ME.Shaper.font(f.bytes);
+        const keep = ME.FontLib.glyphsOf(sh, text);
+        out.push({ name: f.family, data: b64(ME.FontLib.subset(f.bytes, keep, 'web')), format: 'ttf', kind: 'noto', script: f.script });
+      }
+      P.missingFonts = got.missing;
+    } catch (e) { /* the page then uses the browser's fonts */ }
     return out;
   };
 

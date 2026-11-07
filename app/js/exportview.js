@@ -43,17 +43,18 @@
   const file = (name, data, type) => ({ name, data, type: type || 'application/octet-stream' });
 
   /* Each format: {id, group, label, desc, on: (ctx) -> shown?, scopes: which, make(ctx) -> file | null (it opened a screen)} */
-  /* The PDF is one choice, made by whichever route suits the text: Manuscribe's own PDF where the text is
-     Devanagari or Latin (one click; the text copies letter for letter, conjuncts included; a third of the size), the
-     browser's print page in any other script. The editor can choose the other route where both can. */
-  X.pdfRoutes = (ctx) => ({ manuscribe: !!(F().on('pdfDeva') && ctx.list && ME.Typeset && ME.Typeset.fits(ctx.list)), browser: true });
-  X.pdfRoute = (ctx) => { const r = X.pdfRoutes(ctx); return ctx.pdfRoute === 'browser' || !r.manuscribe ? 'browser' : ctx.pdfRoute === 'manuscribe' || last.pdfRoute !== 'browser' ? 'manuscribe' : 'browser'; };
+  /* The PDF is one choice. It is made from the print page as this browser lays it out, captured without a print
+     dialog (Capture): in any script, the page as shown. The print dialog stays for those who want to print on paper,
+     or to save the PDF themselves. */
+  X.pdfRoute = (ctx) => (ctx.pdfRoute === 'print' || (!ctx.pdfRoute && last.pdfRoute === 'print') ? 'print' : 'direct');
 
   X.FORMATS = [
     // an edition
-    { id: 'pdf', for: 'edition', group: 'print', label: 'PDF', desc: 'The print edition as a PDF. For Devanagari and Latin text Manuscribe makes it itself, in one click, and its text copies letter for letter; for any other script this browser lays it out, and you choose Save as PDF in its print dialog.',
-      opensWindow: (ctx) => X.pdfRoute(ctx) === 'browser',
-      make: (ctx) => X.format(X.pdfRoute(ctx) === 'manuscribe' ? 'pdf-direct' : 'pdf-any').make(ctx) },
+    { id: 'pdf', for: 'edition', group: 'print', label: 'PDF', desc: 'The print edition as a PDF file, saved at once, in any script: the page as this browser lays it out, with its text searchable.',
+      opensWindow: (ctx) => X.pdfRoute(ctx) === 'print',
+      make: (ctx) => X.format(X.pdfRoute(ctx) === 'print' ? 'pdf-any' : 'pdf-capture').make(ctx) },
+    { id: 'pdf-capture', hidden: true, for: 'edition', group: 'print', label: 'PDF, captured from the page',
+      make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Capture.pdf(ctx.ed, ctx.list, s.built); if (r.words.pictures) U.toast(r.words.pictures + ' word(s) in a script Manuscribe has no font for were put in as the browser drew them, with their text searchable. A font file under Paper and fonts for printing makes them text.', 'info', 7000); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     // the two routes, for the code that asks for one of them
     { id: 'pdf-any', hidden: true, for: 'edition', group: 'print', label: 'PDF, in any script', desc: 'The edition laid out as pages by this browser, in any script and font; then choose Save as PDF in the print dialog.',
       opensWindow: true,
@@ -62,7 +63,7 @@
         try { await ME.PrintHTML.open(ctx.ed, ctx.list, s.built, ctx.win); return null; } catch (e) {
           // the browser would not open a tab: the page is saved instead, to open and print
           U.toast('The browser did not open a new tab, so the print page is saved instead: open it, and print it or save it as PDF.', 'warn', 9000);
-          return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built) }), 'text/html');
+          return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }), 'text/html');
         }
       } },
     { id: 'pdf-direct', hidden: true, for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: (ctx) => F().on('pdfDeva') && ME.Typeset.fits(ctx.list),
@@ -72,7 +73,7 @@
     { id: 'reader', for: 'edition', group: 'read', label: 'Reader, one HTML file', desc: 'The edited text and its apparatus, linked, with each witness’s text; opens with no network.',
       make: async (ctx) => { const s = await scoped(ctx); const layered = ME.LayersView ? await ME.LayersView.baseTexts(ctx.ed, s.work.id) : null; return file(base(ctx) + '.reader.html', await ME.Publish.reader(ctx.ed, ctx.list, s.built, layered), 'text/html'); } },
     { id: 'print-page', for: 'edition', group: 'read', label: 'Print page, one HTML file', desc: 'The print edition as a page, to open and print later on any computer.',
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { fonts: await ME.PrintHTML.fonts(ctx.ed, s.built) }), 'text/html'); } },
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }), 'text/html'); } },
     { id: 'tei', for: 'edition', group: 'exchange', label: 'TEI apparatus', desc: 'TEI P5, parallel segmentation: for other editions, teiphy and open-cbgm.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.edition.xml', ME.Apparatus.tei(ctx.ed, s.built, s.work), 'application/xml'); } },
     { id: 'text', for: 'edition', group: 'exchange', label: 'Apparatus as text', desc: 'The edited text with its apparatus under it, plain text.',
@@ -148,11 +149,10 @@
       // the PDF: made by Manuscribe or by this browser, where both can make it
       let extra = null;
       if (f.id === 'pdf') {
-        const routes = X.pdfRoutes(ctx);
-        const sel = U.el('select', { 'aria-label': 'Made by', dataset: { action: 'pdf-route' }, onchange: () => { ctx.pdfRoute = sel.value; last.pdfRoute = sel.value; } },
-          U.el('option', { value: 'manuscribe', disabled: !routes.manuscribe, selected: X.pdfRoute(ctx) === 'manuscribe' }, 'by Manuscribe: one click, text copies letter for letter (Devanagari and Latin only)'),
-          U.el('option', { value: 'browser', selected: X.pdfRoute(ctx) === 'browser' }, 'by this browser’s print dialog: any script and font'));
-        extra = U.el('span', { class: 'xp-route' }, 'Made ', sel, routes.manuscribe ? null : U.el('span', { class: 'help' }, ' (the text is not all Devanagari and Latin, so this browser makes it)'));
+        const sel = U.el('select', { 'aria-label': 'How', dataset: { action: 'pdf-route' }, onchange: () => { ctx.pdfRoute = sel.value; last.pdfRoute = sel.value; } },
+          U.el('option', { value: 'direct', selected: X.pdfRoute(ctx) === 'direct' }, 'saved at once, as a file'),
+          U.el('option', { value: 'print', selected: X.pdfRoute(ctx) === 'print' }, 'through this browser’s print dialog'));
+        extra = U.el('span', { class: 'xp-route' }, ' ', sel);
       }
       const row = U.el('label', { class: 'xp-row', dataset: { format: f.id, kind: X.kindOf(f) } }, radio, U.el('span', null, U.el('strong', null, f.label), U.el('span', { class: 'help' }, ' ' + f.desc), extra));
       rows.push({ f, row, radio });

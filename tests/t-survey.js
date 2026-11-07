@@ -77,7 +77,7 @@ const COUNT = (sel) => {
   await page.evaluate(() => { document.querySelector('.modal input[name="xp-format"][value="pdf"]').click(); document.querySelector('.modal [data-action="export-go"]').click(); });
   for (let k = 0; k < 40 && !fs.readdirSync(dl).some((f) => f.endsWith('.pdf')); k++) await sleep(250);
   const pdf = fs.readdirSync(dl).find((f) => f.endsWith('.pdf'));
-  T.check('from witnesses to a PDF, following only the prompts, one decision and Export', !!pdf && fs.statSync(path.join(dl, pdf)).size > 50000, pdf);
+  T.check('from witnesses to a PDF, following only the prompts, one decision and Export', !!pdf && fs.statSync(path.join(dl, pdf)).size > 10000 && fs.readFileSync(path.join(dl, pdf)).slice(0, 5).toString() === '%PDF-', pdf);
   // help
   await page.evaluate(() => document.querySelector('[data-action="help"]').click());
   await sleep(300);

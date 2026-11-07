@@ -52,7 +52,7 @@ const { launch, sleep, checks, WORK, exportVia } = require('./h');
     };
     const layered = await ME.LayersView.baseTexts(ed, 'main');
     await same('reader', ctxWork, () => Publish.reader(ed, list, built, layered));
-    await same('print-page', ctxWork, async () => ME.PrintHTML.html(ed, list, built, { fonts: await ME.PrintHTML.fonts(ed, built) }));
+    await same('print-page', ctxWork, async () => ME.PrintHTML.html(ed, list, built, { fonts: await ME.PrintHTML.fonts(ed, built, list) }));
     await same('tei', ctxWork, () => A.tei(ed, built, work));
     await same('text', ctxWork, () => A.text(ed, built));
     await same('indices', ctxWork, () => ME.LayersView.indicesText(ed, built));
@@ -130,7 +130,7 @@ const { launch, sleep, checks, WORK, exportVia } = require('./h');
   await page.evaluate(() => document.querySelector('.ed-bar [data-action="export"]').click());
   await sleep(400);
   const opened = new Promise((res) => browser.once('targetcreated', (t) => res(t)));
-  await page.evaluate(() => { document.querySelector('.modal input[name="xp-kind"][value="pdf"]').click(); document.querySelector('.modal input[name="xp-format"][value="pdf"]').click(); const r = document.querySelector('.modal [data-action="pdf-route"]'); r.value = 'browser'; r.dispatchEvent(new Event('change')); document.querySelector('.modal [data-action="export-go"]').click(); });
+  await page.evaluate(() => { document.querySelector('.modal input[name="xp-kind"][value="pdf"]').click(); document.querySelector('.modal input[name="xp-format"][value="pdf"]').click(); const r = document.querySelector('.modal [data-action="pdf-route"]'); r.value = 'print'; r.dispatchEvent(new Event('change')); document.querySelector('.modal [data-action="export-go"]').click(); });
   const target = await Promise.race([opened, sleep(8000).then(() => null)]);
   let tab = null;
   if (target) { tab = await target.page(); for (let k = 0; k < 60 && !(await tab.evaluate(() => !!window.__paginated).catch(() => false)); k++) await sleep(200); }

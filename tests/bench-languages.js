@@ -52,7 +52,7 @@ const ms = (t) => (t >= 10000 ? (t / 1000).toFixed(1) + ' s' : Math.round(t) + '
       const built = works[0].built;
       const entries = built.reduce((a, b) => a + b.entries.length, 0);
       const problems = built.reduce((a, b) => a + ME.Apparatus.validate(ed, b.table, b).filter((p) => p.level === 'error').length, 0);
-      const [fonts] = await T(() => ME.PrintHTML.fonts(ed, built));
+      const [fonts] = await T(() => ME.PrintHTML.fonts(ed, built, list));
       const [print, tPrint] = await T(() => ME.PrintHTML.html(ed, list, built, { fonts }));
       const [reader, tReader] = await T(() => ME.Publish.reader(ed, list, built, null));
       const [tei, tTei] = await T(() => ME.Apparatus.tei(ed, built, works[0].work));

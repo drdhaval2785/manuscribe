@@ -24,7 +24,8 @@ async function launch(name, opts) {
   page.on('console', (m) => { if (m.type() === 'error') page.errors.push(m.text()); });
   page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + e.message));
   page.on('dialog', (d) => d.accept());
-  await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); } catch (e) { /* none */ } }, level);
+  // fonts are fetched from the internet only by the tests that ask (opts.fonts), so that the others run offline
+  await page.evaluateOnNewDocument((level, fonts) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); if (!localStorage.getItem('manuscribe.fonts')) localStorage.setItem('manuscribe.fonts', fonts ? 'on' : 'off'); } catch (e) { /* none */ } }, level, !!(opts && opts.fonts));
   await page.goto('file://' + ROOT + '/app/index.html');
   await sleep(700);
   return { browser, page };
