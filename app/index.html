@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>Manuscribe — Manuscript Transcription</title>
 <script src="js/foliostyle.js"></script>
 <link rel="icon" href="img/logo.png" type="image/png">
@@ -58,6 +58,7 @@
         <select id="sel-folio" title="Go to folio side"></select>
         <button id="btn-next" class="nbtn" title="Next folio side">›</button>
         <span id="folio-count" class="folio-count"></span>
+        <button id="btn-tags" class="nbtn tags-btn" aria-expanded="false" title="The tags: choose one for the text selected">Tags</button>
         <button id="btn-copy-folio" class="nbtn copy-folio" title="Copy this folio’s XML: the text as it stands inside &lt;p&gt;, with its &lt;pb/&gt;, &lt;lb/&gt; and tags">⧉ XML</button>
       </div>
       <div id="toolbar"></div>
@@ -178,6 +179,7 @@
 <script src="js/exchangeview.js"></script>
 <script src="js/exportview.js"></script>
 <script src="js/steps.js"></script>
+<script src="js/narrow.js"></script>
 <script src="js/safety.js"></script>
 <script src="js/app.js"></script>
 </body>

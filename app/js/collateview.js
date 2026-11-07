@@ -157,7 +157,7 @@
         ...(full ? [num(s ? s.labels : ''), num(has ? s.ties : ''), num(s && s.corrections ? s.corrections : ''), num(s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : '')] : []));
     });
     const heads = (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ', 'Decided', 'To review'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
-    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table ed-boxed' },
+    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table ed-boxed' + (full ? ' has-sample' : '') },
       U.el('thead', null, U.el('tr', null, heads.map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
       U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
     const anyTable = [...summaries.values()].some((s) => workIds.includes(s.work));

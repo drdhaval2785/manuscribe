@@ -36,7 +36,7 @@ button { font-family: inherit; }
 .save-status.error { background: #a61e1e; color: #fff; opacity: 1; }
 
 /* ---------------- layout ---------------- */
-#main { display: flex; height: calc(100vh - 46px); }
+#main { display: flex; height: calc(100vh - 46px); height: calc(var(--app-h, 100dvh) - 46px); }
 #workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 #pdf-pane { position: relative; flex: none; height: 46%; min-height: 60px; background: #1d1814; overflow: hidden; }
 #editor-pane {
@@ -55,7 +55,7 @@ body.sidebar-open #sidebar { display: flex; }
 .pdf-stage.panning { cursor: grabbing; }
 .pdf-stage canvas { display: block; }
 .pdf-overlay { position: absolute; inset: 0; pointer-events: none; }
-.calibrating .pdf-overlay { pointer-events: auto; cursor: crosshair; }
+.calibrating .pdf-overlay { pointer-events: auto; cursor: crosshair; touch-action: none; }
 .calibrating .pdf-stage { cursor: crosshair; }
 .pdf-guide { position: absolute; pointer-events: none; transition: top .18s ease, left .18s ease, width .18s ease, height .18s ease; border-radius: 3px; }
 .pdf-guide.guide-band {
@@ -798,3 +798,60 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .safety-say { margin: 0; flex: 1 1 280px; font-size: 13px; color: var(--muted); }
 .safety-say b { color: var(--ink); }
 .safety-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------------- fingers, and phones (narrow.js) ---------------- */
+#midbar-grip { touch-action: none; }
+.tags-btn { display: none; }
+/* a finger: buttons big enough to touch */
+@media (pointer: coarse) {
+  .tbtn { min-height: 40px; min-width: 40px; }
+  .nbtn, .folio-nav select { min-height: 40px; min-width: 40px; }
+  .pbtn { min-height: 40px; min-width: 40px; }
+  .sbtn { min-height: 36px; min-width: 36px; }
+  #statusbar { height: auto; min-height: 40px; }
+  .badge { min-height: 32px; padding: 0 12px; }
+  .tb-btn { height: 34px; padding: 0 6px; font-size: 13px; line-height: 32px; }
+  #midbar-grip { top: -12px; height: 24px; }
+  #midbar-grip::after { top: 9px; width: 56px; margin-left: -28px; }
+}
+/* a phone or a tablet held upright: the tags open from the bottom of the screen */
+@media (max-width: 900px) {
+  #midbar { flex-wrap: nowrap; gap: 6px; padding: 4px 6px; }
+  .tags-btn { display: inline-block; width: auto; padding: 0 14px; font: 600 14px var(--ui); color: var(--accent); }
+  #toolbar { display: none; }
+  body.tags-open #toolbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; max-height: 55%; overflow: auto; gap: 8px 4px;
+    background: var(--panel); border-top: 1px solid var(--line-2); box-shadow: 0 -12px 30px rgba(0, 0, 0, .25);
+    padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
+  }
+  body.tags-open #toolbar .tb-group { border-left: 0; flex-wrap: wrap; gap: 6px; padding: 0; }
+  body.tags-open #toolbar .tb-btn { height: 42px; padding: 0 12px; font-size: 15px; line-height: 40px; border: 1px solid var(--line); background: #fff; }
+}
+/* a phone: the line view (narrow.js), and a header of icons */
+@media (max-width: 700px) {
+  .copy-folio, .folio-count { display: none; }
+  #topbar { gap: 4px; padding: 0 6px; }
+  .brand { margin-right: 0; }
+  .proj-title { padding-left: 6px; font-size: 13px; }
+  #btn-projects, #btn-edition { font-size: 0; padding: 0; width: 40px; }
+  #btn-projects::before { content: '☰'; font-size: 18px; }
+  #btn-edition::before { content: '‹'; font-size: 22px; }
+  .save-status { font-size: 0; padding: 0 2px; }
+  .save-status::before { font-size: 14px; }
+  .save-status.dirty::before { content: '●'; color: #ffd27a; }
+  #btn-export { padding: 5px 8px; }
+  .calib-hint { font-size: 12.5px; padding: 6px 10px; }
+  .calib-bar { height: auto; min-height: 48px; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; }
+  .calib-label { flex-basis: 100%; order: 3; font-size: 12.5px; }
+  #pdf-view.calibrating .pdf-scroller { top: 112px; }
+  #statusbar .ed-zoom-ctl .sbtn.zoom { min-width: 44px; }
+}
+
+/* wide tables on a narrow screen: they scroll sideways in their box, the column that names the row staying in view */
+@media (max-width: 700px) {
+  .ed-scroll .ed-table th:first-child, .ed-scroll .ed-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--panel); box-shadow: 1px 0 0 var(--line-2); }
+  .ed-scroll .ed-table.has-sample th:first-child, .ed-scroll .ed-table.has-sample td:first-child { width: 56px; min-width: 56px; max-width: 56px; }
+  .ed-scroll .ed-table.has-sample th:nth-child(2), .ed-scroll .ed-table.has-sample td:nth-child(2) { position: sticky; left: 56px; z-index: 1; background: var(--panel); box-shadow: 1px 0 0 var(--line-2); }
+  .ed-scroll .ed-table.ed-boxed thead th:first-child, .ed-scroll .ed-table.has-sample thead th:nth-child(2) { background: #f4eee3; }
+  .ed-scroll { -webkit-overflow-scrolling: touch; }
+}

@@ -131,6 +131,22 @@ and offers **Download .xml** and **Download .html**.
 | **Status bar** | Where you are, the open tags at the cursor, the typing scheme, **A− / A+** for the size of the letters (50–200%), and **− / +** for the size of the whole folio |
 | **Side panel** | **Tag** (the tag at the cursor, to edit or remove it), **Folio** (label, layout, lines, calibration, progress), **Cited works**, **Manuscript** (details, numbering, PDF, imports, tag summary, backups) |
 
+### On a phone or a tablet
+
+- **A phone** (up to 700 px wide) shows a *line view*: the typing area and the scan are enlarged together until
+  the letters can be read, and both follow the line you type (on a calibrated folio the scan follows it
+  sideways too). The sizes you choose there are kept for that device, so the project keeps the sizes of
+  the computer you mostly type on. Tap the letter size (**100%** under **− / +**) to come back to readable
+  letters. The tags are behind one **Tags** button, which opens them from the bottom of the screen; one
+  chosen is applied to the selected text and the panel closes.
+- **A tablet held upright** (up to 900 px) keeps the whole folio, with the same **Tags** button.
+- **With a finger:** buttons are big enough to touch; the bar between the scan and the typing area can be
+  dragged; while calibrating, one finger draws a box and two fingers pinch to zoom.
+- Wide tables of an edition scroll sideways in their box, with the column that names the row kept in view.
+
+On a phone, reading the edition and deciding readings work well; transcribing a whole manuscript is
+better on a tablet or a computer.
+
 ## Layouts
 
 | Layout | The folio has | Exported as |
@@ -1062,6 +1078,7 @@ app/js/
   site.js               where Manuscribe is published: the one place to change if it moves
   install.js            offline, updates, the Install button, files opened with the installed app
   safety.js             work kept safe outside the browser: back up everything, a backup folder, the reminder
+  narrow.js             phones: the line view, the Tags panel, the height that can be seen above the keyboard
   util.js               DOM and string helpers
   tei.js                the tag set; stored TEI to editable HTML and back
   translit.js           the typing schemes

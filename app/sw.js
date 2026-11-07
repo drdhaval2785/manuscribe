@@ -6,7 +6,7 @@
    The list below is written by tools/precache.mjs, with a version made from the files' contents: a change to any
    file changes it, and the browser sees a new version. tests/t-offline.js checks that it is up to date. */
 // precache:start (written by tools/precache.mjs)
-const VERSION = "0.9.0-e02f0f3058";
+const VERSION = "0.9.0-d4dd893e22";
 const FILES = [
   './',
   "css/app.css",
@@ -45,6 +45,7 @@ const FILES = [
   "js/layersview.js",
   "js/metre.js",
   "js/model.js",
+  "js/narrow.js",
   "js/normalize.js",
   "js/normview.js",
   "js/pdfview.js",

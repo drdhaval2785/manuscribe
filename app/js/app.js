@@ -34,7 +34,7 @@
       onPageSize: onPageSize,
       onPaper: (rgb) => Editor.applyPaper(rgb),
       onFileDrop: (f) => App.replacePdf(f),
-      onZoom: (z) => { $('pdf-zoom').textContent = Math.round(z * 100) + '%'; if (App.project) { App.project.ui.pdfZoom = z; App.changed(true); } },
+      onZoom: (z) => { $('pdf-zoom').textContent = Math.round(z * 100) + '%'; if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ pdf: z }); return; } if (App.project) { App.project.ui.pdfZoom = z; App.changed(true); } },
     });
     Editor.init($('editor-pane'), {
       onChange: () => App.changed(),
@@ -572,6 +572,7 @@
     const g = Model.geometry(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size));
     App.pdfShown = PdfView.doc ? PdfView.show(e, g.leaf).catch((err) => console.warn(err)) : Promise.resolve();
     Editor.render(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size));
+    if (ME.Narrow) ME.Narrow.fit();
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
     // once a folio side is calibrated, Calibrate is in the Folio tab
     $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc;
@@ -615,6 +616,7 @@
       const line = pos && Editor.lineEl(pos.box, pos.i);
       const off = line && document.activeElement === line ? Editor.caretOffset(line) : null;
       Editor.render(App.project, e, size);
+      if (ME.Narrow) ME.Narrow.fit();
       if (pos && off !== null) Editor.focusLine(pos.box, pos.i, off);
     }
   }
@@ -765,6 +767,7 @@
     // once a folio side is calibrated, Calibrate is in the Folio tab
     $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc;
     App.refreshSidebar();
+    if (ME.Narrow) ME.Narrow.fit();
     if (pos && g.lines[pos.box] && Editor.lineEl(pos.box, Math.min(pos.i, g.lines[pos.box] - 1))) {
       Editor.focusLine(pos.box, Math.min(pos.i, g.lines[pos.box] - 1), pos.offset === undefined ? 'end' : pos.offset);
     }
@@ -1368,9 +1371,19 @@
     $('btn-pdf-mode').textContent = PdfView.mode === 'leaf' ? 'Leaf' : 'Page';
     PdfView.setFilters(ui.filters || {});
     Editor.zoom = ui.editorZoom || 1;
+    // a phone: the device's own sizes (narrow.js), not the project's
+    const N = ME.Narrow;
+    if (N && N.on()) {
+      $('pdf-pane').style.height = Math.round(N.split() * 100) + '%';
+      const st = N.state();
+      if (st.pdf) PdfView.zoom = st.pdf;
+      if (st.ed) Editor.zoom = st.ed;
+      $('pdf-zoom').textContent = Math.round(PdfView.zoom * 100) + '%';
+    }
     $('ed-zoom').textContent = Math.round(Editor.zoom * 100) + '%';
     $('font-size').textContent = Math.round((p.settings.textScale || 1) * 100) + '%';
   }
+  App.applyUi = () => { if (App.project) applyUiState(); };
 
   function wireChrome() {
     $('btn-new').onclick = () => App.newProject();
@@ -1428,10 +1441,16 @@
     $('f-reset').onclick = () => { $('f-b').value = 100; $('f-c').value = 100; $('f-inv').checked = false; $('f-gray').checked = false; onFilter(); };
 
     // editor zoom
-    const setEd = (z) => { Editor.setZoom(z); App.project.ui.editorZoom = Editor.zoom; $('ed-zoom').textContent = Math.round(Editor.zoom * 100) + '%'; App.changed(true); };
+    const setEd = (z) => {
+      Editor.setZoom(z);
+      $('ed-zoom').textContent = Math.round(Editor.zoom * 100) + '%';
+      if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ ed: Editor.zoom }); return; }
+      App.project.ui.editorZoom = Editor.zoom; App.changed(true);
+    };
     $('btn-ed-in').onclick = () => setEd(Editor.zoom * 1.15);
     $('btn-ed-out').onclick = () => setEd(Editor.zoom / 1.15);
-    $('ed-zoom').onclick = () => setEd(1);
+    // back to 100%; on a phone, back to letters that can be read
+    $('ed-zoom').onclick = () => { if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ ed: null }); Editor.setZoom(1); ME.Narrow.fit(); } else setEd(1); };
 
     // size of the letters in the typing area (the lines and blocks keep their places)
     const setFont = (f) => {
@@ -1454,7 +1473,7 @@
       const move = (ev) => {
         const frac = U.clamp((ev.clientY - ws.top) / ws.height, 0.1, 0.85);
         $('pdf-pane').style.height = frac * 100 + '%';
-        App.project.ui.split = frac;
+        if (ME.Narrow && ME.Narrow.on()) ME.Narrow.save({ split: frac }); else App.project.ui.split = frac;
       };
       const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); App.changed(true); };
       window.addEventListener('pointermove', move);

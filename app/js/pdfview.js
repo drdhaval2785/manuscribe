@@ -174,7 +174,9 @@
     return out;
   }
 
-  PdfView.render = async function () {
+  /* A render begun when the PDF is closed (another transcription opened) is cancelled by pdf.js: that is no error. */
+  PdfView.render = () => renderNow().catch((e) => { if (e && /Cancel/i.test(e.name || '')) return; throw e; });
+  async function renderNow() {
     const entry = PdfView.entry;
     if (!PdfView.doc || !entry) return;
     if (!entry.pdfPage) {
@@ -369,6 +371,9 @@
         calibBar.hidden = true;
         Object.values(shapes).forEach((s) => s.remove());
         overlay.removeEventListener('pointerdown', onDown);
+        window.removeEventListener('pointermove', onTouchMove);
+        window.removeEventListener('pointerup', onTouchEnd);
+        window.removeEventListener('pointercancel', onTouchEnd);
         window.removeEventListener('keydown', onKey, true);
         PdfView.mode = prevMode;
         PdfView.render();
@@ -407,7 +412,27 @@
       };
 
       let drag = null;
+      // two fingers: a pinch zooms, and draws nothing
+      const touches = new Map();
+      let pinch = null;
+      const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+      const mid = () => { const [a, b] = [...touches.values()]; return { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 }; };
+      const onTouchMove = (ev) => {
+        if (!touches.has(ev.pointerId)) return;
+        touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (pinch && touches.size === 2) { const d = spread(); if (Math.abs(d / pinch.d - 1) > 0.08) { PdfView.calibZoom(pinch.z * (d / pinch.d), mid()); } }
+      };
+      const onTouchEnd = (ev) => { touches.delete(ev.pointerId); if (touches.size < 2) pinch = null; };
       function onDown(e) {
+        if (e.pointerType === 'touch') {
+          touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (touches.size === 2) {
+            // the rectangle begun by the first finger is let go
+            if (drag) { drawShape(drag.st, rects[drag.st.key]); drag.cancelled = true; }
+            pinch = { d: spread(), z: PdfView.calibScale };
+            return;
+          }
+        }
         if (e.button !== 0 || i >= steps.length) return;
         e.preventDefault();
         const box = stage.getBoundingClientRect();
@@ -415,6 +440,7 @@
         const p0 = [(e.clientX - box.left) / box.width, (e.clientY - box.top) / box.height];
         drag = { p0, st };
         const move = (ev) => {
+          if (drag.cancelled || (ev.pointerType === 'touch' && ev.pointerId !== e.pointerId)) return;
           const p = [U.clamp((ev.clientX - box.left) / box.width, 0, 1), U.clamp((ev.clientY - box.top) / box.height, 0, 1)];
           drag.r = [Math.min(p0[0], p[0]), Math.min(p0[1], p[1]), Math.abs(p[0] - p0[0]), Math.abs(p[1] - p0[1])];
           drawShape(st, drag.r);
@@ -422,6 +448,7 @@
         const up = () => {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', up);
+          if (drag.cancelled) { drag = null; return; }
           if (drag.r && drag.r[2] > 0.01 && drag.r[3] > 0.005) {
             rects[st.key] = drag.r;
             // blocks wait so that the number of lines can be checked against the scan
@@ -442,6 +469,9 @@
       }
       window.addEventListener('keydown', onKey, true);
       overlay.addEventListener('pointerdown', onDown);
+      window.addEventListener('pointermove', onTouchMove);
+      window.addEventListener('pointerup', onTouchEnd);
+      window.addEventListener('pointercancel', onTouchEnd);
       PdfView.cb.onCalibZoom = (z) => { const b = calibBar.querySelector('.calib-fit'); if (b) b.textContent = Math.round(z * 100) + '%'; };
       PdfView.mode = 'page';
       PdfView.render().then(showStep);
