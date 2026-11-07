@@ -1,0 +1,39 @@
+# A release for each version tagged (git tag v0.9.1 && git push origin v0.9.1): the downloadable copy,
+# Manuscribe.zip, made by tools/package.mjs, attached to a GitHub release of that name. The address
+# .../releases/latest/download/Manuscribe.zip (app/js/site.js) then gives the newest one.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: The tag is the version of the app, and the offline list is up to date
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have="$(sed -n "s/^ME.VERSION = '\([^']*\)'.*/\1/p" app/js/util.js)"
+          if [ "$want" != "$have" ]; then
+            echo "The tag is $GITHUB_REF_NAME, but app/js/util.js says $have: set ME.VERSION, run node tools/precache.mjs, commit, and tag again."
+            exit 1
+          fi
+          node tools/precache.mjs --check
+
+      - name: Make Manuscribe.zip
+        run: node tools/package.mjs dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/Manuscribe.zip --title "Manuscribe ${GITHUB_REF_NAME#v}" --generate-notes

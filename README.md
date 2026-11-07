@@ -1036,6 +1036,8 @@ tags on a `window.ME` namespace, because ES modules do not load from `file://`.
 Manuscribe.html         launcher to double-click (redirects to app/index.html)
 index.html              the front page of the website (GitHub Pages); its links come from app/js/site.js
 LICENSE                 GNU General Public License, version 3
+tools/package.mjs       makes the downloadable copy, Manuscribe.zip (for each release)
+.github/workflows/      release.yml: a release with Manuscribe.zip for each version tagged
 app/index.html          the application
 app/css/app.css         the look of the application
 app/img/                the logo, and the icons of the installed app
@@ -1096,6 +1098,13 @@ app/vendor/             pdf.js 3.11.174; saktumiva-aligner.js, generated from Sa
 **After changing any file in `app/`, run `node tools/precache.mjs`.** It writes the list of files that
 `app/sw.js` keeps offline, with a version made from their contents, so that browsers see the change
 and offer to reload into it; `tests/t-offline.js` fails while the list is out of date.
+
+**Making a release.** Set `ME.VERSION` in `app/js/util.js`, run `node tools/precache.mjs`, commit,
+then tag and push the tag: `git tag v0.9.1 && git push origin v0.9.1`. The Release workflow
+(`.github/workflows/release.yml`) checks that the tag and the version agree, makes `Manuscribe.zip`
+with `tools/package.mjs`, and attaches it to a GitHub release. The download link on the front page
+and in the README always gives the newest one, and copies already downloaded say that it is out.
+The website itself is updated by any push to `main` (GitHub Pages), and open apps offer a Reload.
 
 **Where Manuscribe is published** is in `app/js/site.js`: the website, the repository, and the address
 of the newest download. To move to a domain of its own, change it there (and set the domain in the

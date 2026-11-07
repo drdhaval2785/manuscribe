@@ -31,5 +31,6 @@ desktop.ini
 .idea/
 .vscode/
 
-# Tools
+# Tools, and the downloadable copy made by tools/package.mjs
 node_modules/
+dist/

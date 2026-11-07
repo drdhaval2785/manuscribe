@@ -112,7 +112,7 @@
       const r = await fetch(ME.SITE.home + 'app/version.json', { cache: 'no-store' });
       if (!r.ok) return null;
       const v = (await r.json()).version;
-      if (v && newer(v, ME.VERSION)) bar('update-bar', 'Manuscribe ' + v + ' is out (this copy is ' + ME.VERSION + '). Download it, unzip it, and open Manuscribe.html: your work stays in this browser.', { label: 'Download', href: ME.SITE.download });
+      if (v && newer(v, ME.VERSION)) bar('update-bar', 'Manuscribe ' + v + ' is out (this copy is ' + ME.VERSION + '). Download it and unzip it in place of this copy: your work stays in this browser.', { label: 'Download', href: ME.SITE.download });
       return v;
     } catch (e) { return null; }
   };
