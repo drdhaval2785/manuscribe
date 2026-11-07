@@ -123,10 +123,13 @@
               // set as text, in the font the browser used, where the browser put it
               const f = v.font;
               const gl = v.shaper.shape(word);
-              const natural = gl.reduce((a, g) => a + g.ax, 0) * size / v.shaper.upem;
               const asc = f.ascent, desc = -f.descent; // per 1000
               const base = top + height * (asc / (asc + desc));
-              page.glyphs(gl, x, base, size, word, colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: natural > 0 ? Math.min(1.5, Math.max(0.6, width / natural)) : 1 });
+              /* At its own width: the font is the one the browser used, so the word is as wide as on the page. The
+                 width a browser reports for a word can be less (Safari's, at the end of a line), and fitting the word
+                 to it squeezed it; the place of each word, with the space justification gives, is the browser's. */
+              void width;
+              page.glyphs(gl, x, base, size, word, colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1 });
               count.text++;
               return;
             }
