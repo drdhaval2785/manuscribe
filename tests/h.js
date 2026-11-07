@@ -46,7 +46,8 @@ async function launch(name, opts) {
   page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
   page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + e.message));
   page.on('dialog', (d) => d.accept());
-  await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); } catch (e) { /* none */ } }, level);
+  // and no look at the website for a newer version (install.js): the tests stay off the internet
+  await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); localStorage.setItem('manuscribe.lastCheck', String(Date.now())); } catch (e) { /* none */ } }, level);
   await fontsFor(page, opts && opts.fonts === 'none' ? 'none' : !!(opts && opts.fonts));
   await page.goto('file://' + ROOT + '/app/index.html');
   await sleep(700);
@@ -106,4 +107,4 @@ function sampleProjects() {
   return res;
 }
 
-module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE };
+module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME };

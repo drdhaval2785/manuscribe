@@ -784,3 +784,11 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .ct-help dt { font-weight: 600; }
 .ct-help dd { margin: 0; color: #4a3f30; }
 .ct-help .ct-eg { color: #7a6c58; font-style: italic; }
+
+/* ---------------- installing, and new versions ---------------- */
+.install-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: -4px 0 18px; }
+.install-row .install-how { margin: 0; flex: 1 1 260px; }
+.app-bar { position: fixed; left: 50%; top: 54px; transform: translateX(-50%); z-index: 60; display: flex; gap: 10px; align-items: center;
+  max-width: min(720px, calc(100vw - 24px)); background: #fffaf0; color: var(--ink); border: 1px solid var(--line-2); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22); padding: 8px 10px 8px 14px; font-size: 13.5px; }
+.app-bar span { flex: 1; }

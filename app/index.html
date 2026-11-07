@@ -6,6 +6,9 @@
 <title>Manuscribe — Manuscript Transcription</title>
 <script src="js/foliostyle.js"></script>
 <link rel="icon" href="img/logo.png" type="image/png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta name="theme-color" content="#2b2420">
+<meta name="apple-mobile-web-app-title" content="Manuscribe">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body class="no-project">
@@ -112,6 +115,7 @@
       <button id="btn-new-edition" class="btn primary big" data-action="new-edition">＋ New edition</button>
       <button id="btn-open" class="btn big" data-action="open" title="A project file (.json), an edition package (.zip) or a transcription in XML">Open…</button>
     </div>
+    <div id="install-row" class="install-row" hidden></div>
     <h2>Your editions</h2>
     <div id="edition-list" class="project-list"></div>
     <h2>Your transcriptions</h2>
@@ -122,6 +126,8 @@
 
 <script src="vendor/pdf.min.js"></script>
 <script src="js/util.js"></script>
+<script src="js/site.js"></script>
+<script src="js/install.js"></script>
 <script src="js/tei.js"></script>
 <script src="js/translit.js"></script>
 <script src="js/store.js"></script>

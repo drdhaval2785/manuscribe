@@ -1029,8 +1029,13 @@ index.html              the same redirect, for a web server such as GitHub Pages
 LICENSE                 GNU General Public License, version 3
 app/index.html          the application
 app/css/app.css         the look of the application
-app/img/logo.png        the logo
+app/img/                the logo, and the icons of the installed app
+app/manifest.webmanifest  the app as one to install: name, icons, its own window
+app/sw.js               offline: keeps every file of the app in the browser (list written by tools/precache.mjs)
+app/version.json        the version, read by downloaded copies to learn of a newer one (written by tools/precache.mjs)
 app/js/
+  site.js               where Manuscribe is published: the one place to change if it moves
+  install.js            offline, updates, the Install button, files opened with the installed app
   util.js               DOM and string helpers
   tei.js                the tag set; stored TEI to editable HTML and back
   translit.js           the typing schemes
@@ -1078,6 +1083,15 @@ app/js/
   app.js                the application and its tabs
 app/vendor/             pdf.js 3.11.174; saktumiva-aligner.js, generated from Saktumiva 2.0 by tools/bundle-aligner.mjs
 ```
+
+**After changing any file in `app/`, run `node tools/precache.mjs`.** It writes the list of files that
+`app/sw.js` keeps offline, with a version made from their contents, so that browsers see the change
+and offer to reload into it; `tests/t-offline.js` fails while the list is out of date.
+
+**Where Manuscribe is published** is in `app/js/site.js`: the website, the repository, and the address
+of the newest download. To move to a domain of its own, change it there (and set the domain in the
+repository's GitHub Pages settings). Browsers keep each person's work under the address they opened
+Manuscribe from, so keep the old address up for a while, for people to make a backup there.
 
 **How text is stored.** Each line of a folio is a string of TEI in
 `project.pages[label].boxes[box][i]`, and each line on screen is its own contenteditable element.
