@@ -11,7 +11,7 @@
 
   // Every work's tables, built, in the order of their citation IDs. -> [{work, built}]
   R.works = async function (ed, list) {
-    const recs = await Store.listCollations(ed.id);
+    const recs = Collate.inWitnesses(ed, list, await Store.listCollations(ed.id));
     const reg = Edition.register(ed, list);
     const out = [];
     for (const w of ed.works) {

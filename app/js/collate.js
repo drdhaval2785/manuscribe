@@ -320,6 +320,54 @@
 
   const countVariants = (table) => Collate.variantColumns(table, Collate.grid(table)).reduce((a, b) => a + b, 0);
 
+  async function inputsOf(states) {
+    const inputs = {};
+    for (const st of states) inputs[st.label] = await hashText(JSON.stringify([st.dip, st.tokens.map((t) => t.from), st.tokens.map((t) => t.n)]));
+    return inputs;
+  }
+
+  /* Saved tables of blocks that no witness has any more: their text has been deleted from the transcriptions. A
+     witness that could not be read may still have a block, so a table it is in is left alone. -> [records] */
+  Collate.orphans = function (ed, list, recs) {
+    if (!list || !list.length) return [];
+    const layered = ME.LayerIds && ME.LayerIds.layered(ed);
+    const scans = list.filter((x) => x.p).map(({ w, p }) => ME.Edition.scanWitness(w, p, layered));
+    const unread = new Set(list.filter((x) => !x.p).map((x) => x.w.siglum));
+    return recs.filter((r) => !Object.values(r.table.states).some((s) => unread.has(s.siglum)) && !scans.some((scan) => scan[r.work] && scan[r.work].units.has(r.unit)));
+  };
+  // These records, without those. Whatever shows or exports an edition goes through here.
+  Collate.inWitnesses = function (ed, list, recs) {
+    const gone = new Set(Collate.orphans(ed, list, recs));
+    return gone.size ? recs.filter((r) => !gone.has(r)) : recs;
+  };
+  // Forgets them, in every work: a layer whose lines have all gone is not among the works to collate. -> [block ids]
+  Collate.removeOrphans = async function (ed, list) {
+    const m = await Collate.summaries(ed.id), out = [];
+    for (const r of Collate.orphans(ed, list, await Store.listCollations(ed.id))) { await Store.deleteCollation(r.key); m.delete(r.key); out.push(r.unit); }
+    return out;
+  };
+
+  /* Blocks whose text is no longer what was collated, or that have not been collated at all. Only reads, and only
+     looks closely if a witness has been saved since. -> {changed: [ids], missing: [ids]} */
+  Collate.changedBlocks = async function (ed, list, workIds) {
+    const out = { changed: [], missing: [] }, kind = tokenKind(ed);
+    const m = await Collate.summaries(ed.id);
+    for (const workId of workIds) {
+      const sums = [...m.values()].filter((s) => s.work === workId);
+      if (sums.length && sums.every((s) => Collate.isCurrent(ed, list, s) === true)) continue;
+      const res = await Tokens.forWorkSliced(ed, list, workId, { kind });
+      for (const u of res.units) {
+        const states = u.states.filter(alignable);
+        if (!states.length) continue;
+        const key = keyOf(ed.id, workId, u.id);
+        if (!m.has(key)) { out.missing.push(u.id); continue; }
+        const rec = await Store.getCollation(key);
+        if (JSON.stringify(sortKeys(rec.table.inputs || {})) !== JSON.stringify(sortKeys(await inputsOf(states)))) out.changed.push(u.id);
+      }
+    }
+    return out;
+  };
+
   /* Collates a work. A block whose text and settings have not changed keeps its table.
      opts: {force, only (one block's id), signal, onUnit(i, total, id), onProgress(fraction in this block)}
      -> {done: [ids], kept: [ids], removed: [ids], skipped: [{id, why}], outside, unreadable} */
@@ -348,8 +396,7 @@
       const states = u.states.filter(alignable);
       const dropped = u.states.filter((s) => !alignable(s));
       if (!states.length) { out.skipped.push({ id: u.id, why: 'nothing left to compare' }); continue; }
-      const inputs = {};
-      for (const st of states) inputs[st.label] = await hashText(JSON.stringify([st.dip, st.tokens.map((t) => t.from), st.tokens.map((t) => t.n)]));
+      const inputs = await inputsOf(states);
       const absent = u.absent.map((s) => ({ siglum: s, state: (cover[u.id] && cover[u.id][s]) || 'missing' }));
       const old = m.has(key) ? await Store.getCollation(key) : null;
       const same = old && !o.force && !old.table.imported && old.paramsKey === paramsKey && JSON.stringify(sortKeys(old.table.inputs)) === JSON.stringify(sortKeys(inputs));
@@ -851,8 +898,9 @@
   };
 
   // For an edition package: tables go out as plain files, and come back the same.
-  Collate.forPackage = async function (edId) {
-    return (await Store.listCollations(edId)).map((rec) => rec.table);
+  Collate.forPackage = async function (edId, ed, list) {
+    const recs = await Store.listCollations(edId);
+    return (ed ? Collate.inWitnesses(ed, list, recs) : recs).map((rec) => rec.table);
   };
   Collate.fromPackage = async function (edId, tables) {
     known.delete(edId);

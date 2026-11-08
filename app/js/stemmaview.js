@@ -136,7 +136,7 @@
   /* ---------- the workbench ---------- */
 
   async function builtFor(ed, list, workId) {
-    const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId);
+    const recs = Collate.inWitnesses(ed, list, await Store.listCollations(ed.id)).filter((r) => r.work === workId);
     const reg = Edition.register(ed, list)[workId];
     const ids = reg ? reg.order : [];
     recs.sort((a, b) => ids.indexOf(a.unit) - ids.indexOf(b.unit));

@@ -396,7 +396,7 @@
     const samples = new Set((ed.samples && ed.samples[workId]) || []);
     const box = U.el('div');
     (async () => {
-      const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId && (!samples.size || samples.has(r.unit)));
+      const recs = Collate.inWitnesses(ed, list, await Store.listCollations(ed.id)).filter((r) => r.work === workId && (!samples.size || samples.has(r.unit)));
       box.append(U.el('p', { class: 'help' }, 'Places where two witnesses agree, out of the places where both can be read, in the corrected text' + (samples.size ? ', in the ' + samples.size + ' sample passage(s) ticked under Collate' : '') + '. A lacuna or a witness without the block counts neither way; an omission counts as a difference.'), agreementTable(recs.map((r) => r.table)));
     })();
     return box;
@@ -437,6 +437,7 @@
         for (const k of ['done', 'kept', 'removed', 'skipped', 'outside']) res[k].push(...r[k]);
         res.reviewed += r.reviewed || 0;
       }
+      res.removed.push(...(await Collate.removeOrphans(ed, fresh)).filter((u) => !res.removed.includes(u)));
       const secs = ((performance.now() - started) / 1000).toFixed(1);
       const bits = [res.done.length + ' block(s) aligned', res.kept.length + ' unchanged'];
       if (res.removed.length) bits.push(res.removed.length + ' no longer in any witness, removed');
@@ -453,14 +454,14 @@
   };
 
   // the screen may have been open while a witness was edited in another tab
-  async function loadFresh(list) {
+  const loadFresh = CollateView.loadFresh = async function (list) {
     const out = [];
     for (const x of list) {
       const p = await Store.getProject(x.w.projectId);
       out.push({ w: x.w, p: p ? ME.Model.upgrade(p) : null });
     }
     return out;
-  }
+  };
 
   function pickFile(accept) {
     return new Promise((resolve) => {
@@ -711,7 +712,7 @@
       await UI.modal({ title: 'Edited text with all its layers', body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }] });
       return;
     }
-    const recs = (await Store.listCollations(ed.id)).filter((r) => r.work === workId);
+    const recs = Collate.inWitnesses(ed, list, await Store.listCollations(ed.id)).filter((r) => r.work === workId);
     const order = Edition.register(ed, list)[workId];
     const ids = order ? order.order : [];
     recs.sort((a, b) => ids.indexOf(a.unit) - ids.indexOf(b.unit));

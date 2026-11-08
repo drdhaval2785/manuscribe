@@ -225,7 +225,7 @@ To open it, use Import edition package on Manuscribe's start screen.
       const named = Object.assign({}, p, { meta: Object.assign({}, p.meta, { siglum: w.siglum }) });
       files.push({ name: 'output/tei/' + dir + '.xml', data: Export.build(named, {}).xml });
     }
-    for (const table of await ME.Collate.forPackage(ed.id)) {
+    for (const table of await ME.Collate.forPackage(ed.id, ed, list)) {
       files.push({ name: 'collation/' + safeName(table.work) + '/' + safeName(table.unit) + '.json', data: canonical(table) });
     }
     const manifest = await Edition.manifest(ed, files);

@@ -27,7 +27,8 @@
       return { built: [Object.assign({ table: t }, ME.Apparatus.entries(ed, t))], work: ed.works.find((k) => k.id === t.work), tables: [t] };
     }
     const workId = ctx.workId || (ctx.tables && ctx.tables[0] && ctx.tables[0].work);
-    const works = await ME.Release.works(ed, ctx.list || []);
+    // the witnesses as they are now: they may have been edited since this screen was opened
+    const works = await ME.Release.works(ed, ctx.list ? await ME.CollateView.loadFresh(ctx.list) : []);
     // every layer of a layered edition, as one text in reading order
     if (ME.CollateView && workId === ME.CollateView.ALL) {
       const layers = works.filter((x) => ME.LayerIds.codeOf(x.work.id));
@@ -209,7 +210,19 @@
       go.disabled = false;
       go.textContent = was;
     } }, 'Export');
-    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, kindRow, kindHelp, list, bookRow, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
+    // what is exported is what was collated: say so if the transcriptions have moved on since
+    const staleNote = U.el('div', { class: 'nv-warn', hidden: true, dataset: { action: 'export-stale' } });
+    if (ctx.kind === 'edition' && ctx.list && ctx.list.length) (async () => {
+      const fresh = await ME.CollateView.loadFresh(ctx.list), ALL = ME.CollateView.ALL;
+      const ids = ctx.workId === ALL ? ctx.ed.works.filter((k) => ME.LayerIds.codeOf(k.id)).map((k) => k.id) : [ctx.workId || (ctx.tables && ctx.tables[0] && ctx.tables[0].work)].filter(Boolean);
+      const { changed, missing } = await ME.Collate.changedBlocks(ctx.ed, fresh, ids);
+      const bits = [];
+      const names = (a) => a.slice(0, 8).join(', ') + (a.length > 8 ? '…' : '');
+      if (changed.length) bits.push(changed.length + ' block(s) have changed since they were collated (' + names(changed) + '), and will be exported as they were collated');
+      if (missing.length) bits.push(missing.length + ' block(s) have not been collated (' + names(missing) + '), and will be left out');
+      if (bits.length) { staleNote.textContent = bits.join('; ') + '. Press Collate first to bring them up to date.'; staleNote.hidden = false; }
+    })().catch(() => {});
+    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, staleNote, kindRow, kindHelp, list, bookRow, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
   };
 
   ME.ExportView = X;
