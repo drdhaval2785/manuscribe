@@ -64,7 +64,13 @@ async function launch(name, opts) {
   fs.rmSync(dir, { recursive: true, force: true });
   const other = ENGINE.OTHER;
   const { browser, page } = other ? await ENGINE.launchOther(dir, { width: 1500, height: 1000 })
-    : await (async () => { const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000, args: CHROME_ARGS }); return { browser: b, page: await b.newPage() }; })();
+    : await (async () => {
+      // a browser's first start on a fresh computer can be slow (Edge on Linux): longer to start, and once more
+      const go = () => puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000, timeout: 90000, args: CHROME_ARGS });
+      let b;
+      try { b = await go(); } catch (e) { if (!/Timed out|WS endpoint/i.test(e.message)) throw e; console.log('  (the browser was slow to start; trying once more)'); b = await go(); }
+      return { browser: b, page: await b.newPage() };
+    })();
   page.errors = [];
   // a font the tests do not give (see fontsFor) is not an error of the page
   page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
