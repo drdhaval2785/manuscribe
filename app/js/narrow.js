@@ -6,7 +6,8 @@
    900 px). The sizes chosen here are this device's
    (kept in this browser), not the project's, which keeps those of the computer it is mostly typed on.
 
-   Also, everywhere: the app's height is the height that can be seen, so that on a phone or tablet the keyboard does
+   Also, everywhere: the app's height is the height that can be seen (visualViewport; the viewport's
+   interactive-widget would do it in Chrome, but Safari reports it as an error), so that on a phone or tablet the keyboard does
    not cover the line being typed. */
 (function (ME) {
   const Narrow = {};

@@ -1,4 +1,4 @@
-# The tests on Windows, macOS and Linux, in Chrome, Edge, Firefox and WebKit (Safari's engine): on each push to main,
+# The tests on Windows, macOS and Linux, in Chrome, Edge and Firefox, and on macOS in WebKit (Safari's engine): on each push to main,
 # on each pull request, and when started by hand (Actions → Tests → Run workflow). The owner's own package is not
 # here, so the tests that need it are skipped; so is the long survey of all scripts (tests/run.js --all runs it).
 name: Tests
@@ -19,6 +19,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         engine: [chrome, edge, firefox, webkit]
+        # Safari's engine where Safari is: Playwright's WebKit for Windows and Linux is a port no one browses with
+        exclude:
+          - { os: ubuntu-latest, engine: webkit }
+          - { os: windows-latest, engine: webkit }
     defaults:
       run:
         working-directory: tests

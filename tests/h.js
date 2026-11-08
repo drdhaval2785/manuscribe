@@ -75,8 +75,12 @@ async function launch(name, opts) {
   await fontsFor(page, opts && opts.fonts === 'none' ? 'none' : !!(opts && opts.fonts));
   // the tests give the fonts themselves: whether this computer is online at the moment does not matter
   await page.evaluateOnNewDocument(() => { try { Object.defineProperty(Navigator.prototype, 'onLine', { get: () => true, configurable: true }); } catch (e) { /* as it is */ } });
+  // on GitHub's computers, slower than one's own: the speed checks allow for it (MANUSCRIBE_CI)
+  if (process.env.CI) await page.evaluateOnNewDocument(() => { window.MANUSCRIBE_CI = true; });
   await page.goto(other ? await appUrl() : fileUrl(path.join(ROOT, 'app', 'index.html')));
   await sleep(700);
+  // the storage open before anything is asked of it (a slow computer takes longer than the wait above)
+  await page.evaluate(() => Promise.race([window.ME && ME.Store && ME.Store.ready, new Promise((r) => setTimeout(r, 30000))])).catch(() => null);
   // every engine the tests run in has all Manuscribe needs
   const lack = await page.evaluate(() => (window.ME && ME.Install ? ME.Install.missing() : ['the app did not start'])).catch((e) => [e.message]);
   if (lack.length) page.errors.push('this browser lacks: ' + lack.join('; '));

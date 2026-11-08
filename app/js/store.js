@@ -15,10 +15,18 @@
   function req(r) {
     return new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   }
-  function tx(store, mode = 'readonly') { return db.transaction(store, mode).objectStore(store); }
+  function tx(store, mode = 'readonly') {
+    if (!db) throw new Error('the storage is not open yet');
+    return db.transaction(store, mode).objectStore(store);
+  }
+  // resolved once the storage is open (or has fallen back to localStorage)
+  let opened;
+  const whenOpen = new Promise((r) => { opened = r; });
 
   const Store = {
     get fallback() { return fallback; },
+    /* resolved when the storage can be used */
+    ready: whenOpen,
 
     async open() {
       try {
@@ -55,6 +63,7 @@
         console.warn('IndexedDB unavailable, using localStorage', e);
         fallback = true;
       }
+      opened(true);
     },
 
     async listProjects() {

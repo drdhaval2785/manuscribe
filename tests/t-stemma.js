@@ -48,7 +48,8 @@ const { launch, checks } = require('./h');
     for (let i = 1; i < 50; i++) { const from = rws[Math.floor(r2() * i)]; rws.push(from.map((v) => (r2() < 0.02 ? v + 1 + Math.floor(r2() * 3) : v))); }
     for (let k = 0; k < 20000; k++) { const vals = rws.map((rw) => rw[k]); const ids = [...new Set(vals)]; if (ids.length > 1) big.chars.push({ ref: 'k' + k, states: ids.map(String), cells: vals.map((v) => (r2() < 0.05 ? -1 : ids.indexOf(v))) }); }
     // Chrome's engine is Node's; Firefox's and Safari's are slower at this: ten times, there
-    const F = /Firefox\//.test(navigator.userAgent) || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome\//.test(navigator.userAgent)) ? 10 : 5;
+    // (and on GitHub's computers, four times slower again than one's own)
+    const F = (/Firefox\//.test(navigator.userAgent) || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome\//.test(navigator.userAgent)) ? 10 : 5) * (window.MANUSCRIBE_CI ? 4 : 1);
     const time = (f) => { const a = performance.now(); const x = f(); return [performance.now() - a, x]; };
     const [td, D] = time(() => S.distances(big));
     const [tn, tr] = time(() => S.nj(D));

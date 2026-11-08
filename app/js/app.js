@@ -647,6 +647,8 @@
   /* ---------- editor hooks ---------- */
 
   function onLineFocus(pos) {
+    // (an event of a folio closed meanwhile, as when going back to the start screen)
+    if (!App.project) return;
     const e = entry();
     const rect = Model.lineRect(App.project, e, pos.box, pos.i);
     PdfView.setGuide(rect, App.project.settings.guide);
@@ -654,6 +656,7 @@
   }
 
   function onCaret(pos, stack) {
+    if (!App.project) return;
     updateStatus(pos, stack);
     const line = Editor.activeLine();
     if (line) PdfView.followX(Editor.caretFraction(line));
