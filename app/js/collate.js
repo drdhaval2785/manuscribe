@@ -13,6 +13,22 @@
   const ENGINE = { tool: 'saktumiva-multialign', version: '132a83e', config: 'arr_simple', after: 'close-gaps@1' };
   // Saktumiva's own defaults
   const SCORING = { match: 1, mismatch: -1, gap_open: -2, gap_extend: -0.25, gap_skip_initial: true, scalegap: false, recursive: false, realigndepth: 0, distancefunc: 'ngrams', ngramsize: 3 };
+  /* The methods an editor can line witnesses up with. Saktumiva's is vendor/saktumiva-aligner.js, the others
+     js/engines.js; each gives the same table. perToken2 is the time a block takes, over witnesses × length², in
+     seconds, as measured in a Worker. */
+  Collate.ENGINES = {
+    saktumiva: { id: 'saktumiva', name: 'Saktumiva', tool: ENGINE.tool, version: ENGINE.version, perToken2: 0 },
+    poa: { id: 'poa', name: 'Careful, all witnesses together', tool: 'manuscribe-poa', version: '1', perToken2: 1e-8 },
+    base: { id: 'base', name: 'Against a base text', tool: 'manuscribe-base', version: '1', perToken2: 1e-8 },
+  };
+  Collate.DEFAULT_ENGINE = 'saktumiva';
+  // How this block is to be lined up: as the edition says, unless the editor chose otherwise for the block.
+  Collate.choiceOf = function (ed, work, unit) {
+    const c = ed.collate || {};
+    const own = c.blocks && c.blocks[work + '\u0000' + unit];
+    const pick = own || c;
+    return { engine: Collate.ENGINES[pick.engine] ? pick.engine : Collate.DEFAULT_ENGINE, base: pick.base || null, own: !!own };
+  };
   Collate.DEFAULT_TOKENS = 'letter'; // on real text words did far worse, as Li warns, and akṣaras a little worse
   /* What to line up by, for an edition's languages: by letters in South Asian scripts (where, as Li warns, words did
      far worse) and in scripts written without spaces (Japanese, Chinese, Thai…); by words in languages that space
@@ -127,8 +143,8 @@
     if (workerUrl) return workerUrl;
     const handler = function (closeGaps, gapMark) {
       onmessage = (e) => {
-        const { states, scoring, config, plain } = e.data;
-        try {
+        const { states, scoring, config, plain, engine, settings } = e.data;
+        const saktumiva = () => {
           const ma = new self.CollateEngine.MultiAligner(config, scoring);
           const res = ma.align(states.map((s) => ({ siglum: s.label, text: s.n })));
           const cols = {};
@@ -137,24 +153,28 @@
             for (let c = 0; c < row.length; c++) if (row[c] !== '') at.push(c);
             cols[label] = at;
           });
-          const tokens = {};
-          for (const st of states) tokens[st.label] = st.n;
-          const closed = plain ? { cols, ncols: res.alignment[0].length } : closeGaps(res.sigla, tokens, cols, res.alignment[0].length, gapMark);
           // the tree's node ids are random: numbered instead, the same input gives the same file
           const ids = new Map();
           const tree = String(res.tree).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (u) => { if (!ids.has(u)) ids.set(u, 'n' + (ids.size + 1)); return ids.get(u); });
-          postMessage({ done: true, order: res.sigla, cols: closed.cols, ncols: closed.ncols, tree });
+          return { order: res.sigla, cols, ncols: res.alignment[0].length, tree };
+        };
+        try {
+          const res = engine && engine !== 'saktumiva' ? self.AlignEngines[engine].align(states, settings, { onProgress: (p) => postMessage({ progress: p }) }) : saktumiva();
+          const tokens = {};
+          for (const st of states) tokens[st.label] = st.n;
+          const closed = plain ? res : closeGaps(res.order, tokens, res.cols, res.ncols, gapMark);
+          postMessage({ done: true, order: res.order, cols: closed.cols, ncols: closed.ncols, tree: res.tree });
         } catch (err) {
           postMessage({ done: true, error: String((err && err.message) || err) });
         }
       };
     };
-    const src = '(' + ME.collateEngineSource.toString() + ')(self);\n(' + handler.toString() + ')(' + closeGaps.toString() + ', ' + JSON.stringify(Norm.GAP) + ');';
+    const src = '(' + ME.collateEngineSource.toString() + ')(self);\n(' + ME.alignEngineSource.toString() + ')(self);\n(' + handler.toString() + ')(' + closeGaps.toString() + ', ' + JSON.stringify(Norm.GAP) + ');';
     workerUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
     return workerUrl;
   }
 
-  /* align(states, {onProgress, signal}) -> {order, cols: {label: [column of each token]}, ncols, tree}.
+  /* align(states, {engine, settings, onProgress, signal}) -> {order, cols: {label: [column of each token]}, ncols, tree}.
      states: [{label, n: [token, ...]}], none of them empty. */
   Collate.align = function (states, opts) {
     const o = opts || {};
@@ -179,16 +199,17 @@
         }
         end(resolve, { order: d.order, cols: d.cols, ncols: d.ncols, tree: d.tree });
       };
-      w.postMessage({ states: states.map((s) => ({ label: s.label, n: s.n })), scoring: o.scoring || SCORING, config: o.config || ENGINE.config, plain: !!o.plain });
+      w.postMessage({ states: states.map((s) => ({ label: s.label, n: s.n })), scoring: o.scoring || SCORING, config: o.config || ENGINE.config, plain: !!o.plain, engine: o.engine || Collate.DEFAULT_ENGINE, settings: o.settings || null });
     });
   };
   Collate.Cancelled = class extends Error { constructor() { super('cancelled'); this.cancelled = true; } };
 
-  // Roughly how long a block takes, from measuring this aligner in a Worker on an M2 Pro: it grows with the
-  // square of the witnesses and of the length.
-  Collate.estimateSeconds = (rows) => {
+  // Roughly how long a block takes, measured in a Worker on an M2 Pro: Saktumiva's grows with the square of the
+  // witnesses and of the length, the others with the witnesses and the square of the length.
+  Collate.estimateSeconds = (rows, engine) => {
     const longest = rows.reduce((a, r) => Math.max(a, r.n.length), 0);
-    return 4.5e-9 * rows.length * rows.length * longest * longest;
+    const e = Collate.ENGINES[engine];
+    return e && e.perToken2 ? e.perToken2 * rows.length * longest * longest : 4.5e-9 * rows.length * rows.length * longest * longest;
   };
 
   /* ---------- tables ---------- */
@@ -222,10 +243,16 @@
     };
   };
 
-  const paramsOf = (ed, kind) => {
+  // what is recorded of the method: for Saktumiva, as it has always been, or every block would go out of date
+  const alignerOf = (ed, how) => {
+    if (how.engine === 'saktumiva') return Object.assign({ scoring: SCORING }, ENGINE);
+    const e = Collate.ENGINES[how.engine];
+    return Object.assign({ tool: e.tool, version: e.version, after: ENGINE.after }, how.engine === 'base' ? { base: how.base || Collate.trustOrder(ed)[0] } : null);
+  };
+  const paramsOf = (ed, kind, work, unit) => {
     const s = Norm.settings(ed.norm);
     return {
-      aligner: Object.assign({ scoring: SCORING }, ENGINE), tokens: kind, profile: s.profile.id + '@' + s.profile.version,
+      aligner: alignerOf(ed, Collate.choiceOf(ed, work, unit)), tokens: kind, profile: s.profile.id + '@' + s.profile.version,
       rules: Array.from(s.on).sort(), ignoredTags: s.ignoreTags.slice().sort(),
     };
   };
@@ -265,7 +292,7 @@
 
   // Is this table still of the witnesses as they stand? Without reading them: a null means "cannot tell".
   Collate.isCurrent = function (ed, list, summary) {
-    if (summary.paramsKey !== stableJson(paramsOf(ed, tokenKind(ed)))) return false;
+    if (summary.paramsKey !== stableJson(paramsOf(ed, tokenKind(ed), summary.work, summary.unit))) return false;
     for (const { w, p } of list) if (p && summary.seen[w.siglum] !== (p.modified || 0)) return null;
     return true;
   };
@@ -279,8 +306,6 @@
     const o = opts || {};
     const kind = tokenKind(ed);
     const res = await Tokens.forWorkSliced(ed, list, workId, { kind });
-    const params = paramsOf(ed, kind);
-    const paramsKey = stableJson(params);
     const out = { done: [], kept: [], removed: [], skipped: [], outside: res.outside, unreadable: res.unreadable };
     const m = await Collate.summaries(ed.id);
     const here = list.filter((x) => x.p);
@@ -291,6 +316,9 @@
     const live = new Set();
     for (let i = 0; i < units.length; i++) {
       const u = units[i];
+      const params = paramsOf(ed, kind, workId, u.id);
+      const paramsKey = stableJson(params);
+      const how = Collate.choiceOf(ed, workId, u.id);
       if (o.signal && o.signal.aborted) throw new Collate.Cancelled();
       if (o.onUnit) o.onUnit(i, units.length, u.id);
       const key = keyOf(ed.id, workId, u.id);
@@ -321,16 +349,19 @@
         continue;
       }
       const tokenRows = states.map((st) => ({ label: st.label, n: st.tokens.map((t) => t.n) }));
-      if (o.onEstimate) o.onEstimate(Collate.estimateSeconds(tokenRows));
+      if (o.onEstimate) o.onEstimate(Collate.estimateSeconds(tokenRows, how.engine));
       const shared = { unit: u.id, work: workId, params, inputs, absent, states: {}, empty: dropped.map((s) => s.label), tokens: tokenRows.reduce((a, r) => a + r.n.length, 0) };
       for (const st of states) shared.states[st.label] = stateRecord(st);
+      // the new methods take the witnesses in the order of trust; Saktumiva, in the order of its guide tree
+      const method = { engine: how.engine, settings: how.engine === 'base' ? { base: baseLabel(ed, states, how.base) } : null };
+      const rows = how.engine === 'saktumiva' ? tokenRows : byTrust(ed, states, tokenRows);
       let table;
       if (old && ME.CollateEdit.hasLocks(old.table)) {
         // what the editor has corrected stays; only the rest is aligned again
-        table = await ME.CollateEdit.recollate(old.table, shared, (rows, extra) => Collate.align(rows, Object.assign({ signal: o.signal }, extra)));
+        table = await ME.CollateEdit.recollate(old.table, shared, (r, extra) => Collate.align(r, Object.assign({ signal: o.signal }, method, extra)));
         out.reviewed = (out.reviewed || 0) + table.history[table.history.length - 1].sentToReview;
       } else {
-        const aligned = await Collate.align(tokenRows, { signal: o.signal, onProgress: o.onProgress });
+        const aligned = await Collate.align(rows, Object.assign({ signal: o.signal, onProgress: o.onProgress }, method));
         table = Object.assign(shared, { order: aligned.order, ncols: aligned.ncols, tree: aligned.tree });
         for (const st of states) table.states[st.label].cols = aligned.cols[st.label];
         ME.CollateEdit.ensure(table);
@@ -345,6 +376,21 @@
     }
     return out;
   };
+
+  // A block's witnesses, the more trusted first, the states of one witness together.
+  function byTrust(ed, states, rows) {
+    const trust = Collate.trustOrder(ed), at = (s) => { const i = trust.indexOf(s.siglum); return i < 0 ? trust.length : i; };
+    const place = new Map(states.map((s, i) => [s.label, at(s) * 1000 + i]));
+    return rows.slice().sort((a, b) => place.get(a.label) - place.get(b.label));
+  }
+  // The state a block is lined up against: the one the editor named, or else the most trusted witness the block has.
+  function baseLabel(ed, states, chosen) {
+    for (const s of [].concat(chosen || [], Collate.trustOrder(ed))) {
+      const st = states.find((x) => x.siglum === s && x.layer === 'base') || states.find((x) => x.siglum === s);
+      if (st) return st.label;
+    }
+    return states[0].label;
+  }
 
   function sortKeys(o) {
     const c = {};

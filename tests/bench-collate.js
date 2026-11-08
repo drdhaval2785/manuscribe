@@ -45,7 +45,7 @@ function generate(N, L, seed, rate) {
   while (wits.length < N) wits.push(copy(wits[Math.floor(rnd() * wits.length)]));
   wits.shift();
   wits.push(copy(arche));
-  return wits.slice(0, N).map((w, i) => ({ siglum: 'W' + (i + 1), words: w }));
+  return wits.slice(0, N).map((w, i) => ({ siglum: 'W' + (i + 1), words: w.map((x) => ({ t: x.t, key: 'c' + x.c, scope: null })) }));
 }
 
 // a witness as tokens: its words, or its letters (each letter remembers its word)
@@ -65,12 +65,15 @@ function score(wits, toks, cols) {
     cols[a].forEach((c, i) => { if (!byCol.has(c)) byCol.set(c, []); byCol.get(c).push(toks[a].word[i]); });
     const pred = new Set();
     cols[b].forEach((c, j) => { const wa = byCol.get(c); if (wa) for (const x of wa) pred.add(x + ':' + toks[b].word[j]); });
-    // and those that belong together
+    // and those that belong together (the same key); a pair within one place whose readings differ in length counts
+    // neither way (the same scope, another key)
     const truthA = new Map();
-    wits[a].words.forEach((w, i) => truthA.set(w.c, i));
+    wits[a].words.forEach((w, i) => { if (w.key) truthA.set(w.key, i); });
     let truth = 0;
-    wits[b].words.forEach((w, j) => { const i = truthA.get(w.c); if (i !== undefined) { truth++; if (pred.has(i + ':' + j)) tp++; } });
-    tt += truth; pp += pred.size;
+    wits[b].words.forEach((w, j) => { const i = truthA.get(w.key); if (i !== undefined) { truth++; if (pred.has(i + ':' + j)) tp++; } });
+    let counted = 0;
+    for (const p of pred) { const [i, j] = p.split(':').map(Number); const x = wits[a].words[i], y = wits[b].words[j]; if (x.key === y.key || !(x.scope && x.scope === y.scope)) counted++; }
+    tt += truth; pp += counted;
   }
   const P = pp ? tp / pp : 0, R = tt ? tp / tt : 0;
   return { precision: P, recall: R, f1: P + R ? (2 * P * R) / (P + R) : 0 };
@@ -119,6 +122,23 @@ function manuscribe(seqs) {
 ENGINES['manuscribe'] = { name: 'Manuscribe today: Saktumiva, then its pass that closes gaps inside words', run: (s) => manuscribe(s) };
 ENGINES['saktumiva'] = { name: 'Progressive alignment, guide tree (Saktumiva 2.0, as Manuscribe runs it)', run: (s) => saktumiva(s, 0) };
 ENGINES['saktumiva-refine'] = { name: 'The same, with iterative refinement (Saktumiva, realign depth 20)', run: (s) => saktumiva(s, 20) };
+
+/* The engines of app/js/engines.js, as the app runs them */
+let App = null;
+function appEngine(id, seqs, close) {
+  if (!App) { global.window = global.window || { ME: {} }; global.ME = global.window.ME; (0, eval)(fs.readFileSync(path.join(__dirname, '..', 'app', 'js', 'engines.js'), 'utf8')); const g = {}; global.window.ME.alignEngineSource(g); App = g.AlignEngines; }
+  const states = seqs.map((n, i) => ({ label: 'W' + i, n }));
+  const r = App[id].align(states, null, {});
+  if (!close) return states.map((s) => r.cols[s.label]);
+  if (!closeGaps) manuscribe([['a'], ['a']]);
+  const tokens = {}; states.forEach((s) => { tokens[s.label] = s.n; });
+  const closed = closeGaps(r.order, tokens, r.cols, r.ncols, '‡');
+  return states.map((s) => closed.cols[s.label]);
+}
+ENGINES['app-poa'] = { name: 'Careful, all witnesses together (as the app runs it, closing gaps)', run: (s) => appEngine('poa', s, true) };
+ENGINES['app-poa-raw'] = { name: 'The same, without the pass that closes gaps', run: (s) => appEngine('poa', s, false) };
+ENGINES['app-base'] = { name: 'Against a base text (as the app runs it, closing gaps; the first witness the base)', run: (s) => appEngine('base', s, true) };
+ENGINES['app-base-raw'] = { name: 'The same, without the pass that closes gaps', run: (s) => appEngine('base', s, false) };
 
 // Partial-order alignment (Lee, Grasso and Sharlow 2002): each witness aligned to the graph of those before it
 function poa(seqs, BAND) {
@@ -274,12 +294,46 @@ if (CX) ENGINES['collatex'] = {
   },
 };
 
+// ---------- gold: real witnesses aligned by scholars (tests/gold-sets.js) ----------
+async function goldRuns(only) {
+  const sets = [await require('./gold-sets').john3()];
+  for (const set of sets) {
+    console.log('\n' + set.name + ' (' + set.licence + ')');
+    for (const kind of ['word', 'letter']) {
+      for (const id of only) {
+        const E = ENGINES[id];
+        if (!E || (E.words && kind !== 'word')) continue;
+        if (id === 'saktumiva-refine') continue;
+        let ms = 0, tp = 0, ok = true, err = null;
+        const sums = { p: 0, r: 0, n: 0 };
+        // every block, and the scores weighted by its pairs of witnesses
+        let P = 0, R = 0, W = 0;
+        for (const b of set.blocks) {
+          const toks = b.witnesses.map((w) => tokens(w, kind));
+          const t0 = process.hrtime.bigint();
+          let cols;
+          try { cols = E.run(toks.map((x) => x.t), kind); } catch (e) { err = e.message; ok = false; break; }
+          ms += Number(process.hrtime.bigint() - t0) / 1e6;
+          const sc = score(b.witnesses, toks, cols);
+          const w = (b.witnesses.length * (b.witnesses.length - 1)) / 2;
+          P += sc.precision * w; R += sc.recall * w; W += w;
+        }
+        const p = W ? P / W : 0, r = W ? R / W : 0, f1 = p + r ? (2 * p * r) / (p + r) : 0;
+        const row = { set: set.name, engine: id, kind, blocks: set.blocks.length, ms: Math.round(ms), precision: +fmt(p), recall: +fmt(r), f1: +fmt(f1), error: err };
+        rows.push(row);
+        console.log([id.padEnd(17), kind.padEnd(6), (set.blocks.length + ' blocks').padEnd(10), (row.ms + ' ms').padStart(10), ok ? 'P ' + row.precision + '  R ' + row.recall + '  F1 ' + row.f1 : 'failed: ' + err].join('  '));
+      }
+    }
+  }
+}
+
 // ---------- the runs ----------
 const SETS = {
   quick: [[5, 60], [20, 60], [5, 400], [20, 400]],
   full: [[5, 60], [20, 60], [50, 60], [5, 400], [20, 400], [50, 400], [10, 2000]],
 };
-const which = SETS[process.argv[2] || 'quick'] || SETS.quick;
+const gold = process.argv[2] === 'gold';
+const which = gold ? [] : SETS[process.argv[2] || 'quick'] || SETS.quick;
 const only = process.argv[3] ? process.argv[3].split(',') : Object.keys(ENGINES);
 const LIMIT_TOKENS = 3e6; // a run whose table would be too large is skipped
 const rows = [];
@@ -308,6 +362,9 @@ for (const rate of [1, 3]) {
     }
   }
 }
-const out = path.join(os.tmpdir(), 'manuscribe-bench-collate.json');
+(async () => {
+if (gold) await goldRuns(only);
+const out = path.join(os.tmpdir(), 'manuscribe-bench-collate' + (gold ? '-gold' : '') + '.json');
 fs.writeFileSync(out, JSON.stringify({ when: new Date().toISOString(), node: process.version, cpu: os.cpus()[0].model, engines: Object.fromEntries(Object.entries(ENGINES).map(([k, v]) => [k, v.name])), rows }, null, 1));
 console.log('Results: ' + out);
+})().catch((e) => { console.log('Failed: ' + e.stack); process.exitCode = 1; });
