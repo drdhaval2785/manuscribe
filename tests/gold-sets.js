@@ -75,10 +75,62 @@ async function john3() {
   return { name: '3 John (Greek): the ECM collation, 137 manuscripts', lang: 'grc', licence: 'collation MIT (open-cbgm, from the ECM); text CC BY 4.0 (SBL Greek New Testament)', source: 'https://github.com/jjmccollum/open-cbgm', blocks };
 }
 
-module.exports = { john3, CACHE };
+/* Frankenstein, English: the Frankenstein Variorum's collation of five versions, 1816 to 1831 (CC BY-SA 3.0). Its
+   spine lists every place, each with the groups of witnesses that read alike and their tokens, and the unvaried text
+   too. It was made with CollateX and then corrected by its editors, so it leans a little towards that method.
+   Words are compared lower case, without punctuation or the transcribers' tags. A place's blocks of about 300 words,
+   a sample spread through the novel. */
+const plainEnglish = (t) => t.replace(/<[^>]*>/g, ' ').replace(/[^\p{L}\p{N}'’-]+/gu, ' ').replace(/^['’-]+|['’-]+$/g, '').toLowerCase();
+async function frankenstein(most) {
+  const WITS = ['fMS', 'f1818', 'fThomas', 'f1823', 'f1831'];
+  const apps = [];
+  for (let i = 1; i <= 33; i++) {
+    const name = 'spine_C' + String(i).padStart(2, '0') + '.xml';
+    const xml = await fetchText('https://raw.githubusercontent.com/FrankensteinVariorum/fv-data/master/2023-standoff_Spine/' + name, 'fv-' + name);
+    const unit = 'C' + String(i).padStart(2, '0');
+    for (const m of xml.matchAll(/<app\b[^>]*xml:id="([^"]+)"[^>]*>([\s\S]*?)<\/app>/g)) {
+      const groups = [...m[2].matchAll(/<rdgGrp\b([^>]*)>([\s\S]*?)<\/rdgGrp>/g)].map((g) => {
+        const n = /\bn="([^"]*)"/.exec(g[1]);
+        const list = n ? [...unescape(n[1]).matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)].map((x) => (x[1] !== undefined ? x[1] : x[2]).replace(/\\(.)/g, '$1')) : [];
+        const words = list.flatMap((t) => plainEnglish(t).split(/\s+/)).filter(Boolean);
+        return { id: (/xml:id="([^"]+)"/.exec(g[1]) || [])[1], words, wits: [...g[2].matchAll(/wit="#([^"]+)"/g)].map((x) => x[1]) };
+      });
+      apps.push({ unit, id: m[1], groups });
+    }
+  }
+  // blocks of about 300 words, ending at the end of a place
+  const blocks = [];
+  let cur = [], size = 0;
+  const flush = () => {
+    if (!cur.length) return;
+    const witnesses = WITS.map((siglum) => {
+      const words = [];
+      for (const a of cur) {
+        const g = a.groups.find((x) => x.wits.includes(siglum));
+        if (!g) continue;
+        const lens = new Set(a.groups.filter((x) => x.words.length).map((x) => x.words.length));
+        g.words.forEach((t, k) => words.push({ t, key: lens.size === 1 ? a.id + ':' + k : a.id + ':' + g.id + ':' + k, scope: lens.size === 1 ? null : a.id }));
+      }
+      return { siglum, words };
+    }).filter((w) => w.words.length);
+    if (witnesses.length >= 2) blocks.push({ id: cur[0].id + '…' + cur[cur.length - 1].id, witnesses });
+    cur = []; size = 0;
+  };
+  for (const a of apps) {
+    cur.push(a);
+    size += Math.max(0, ...a.groups.map((g) => g.words.length));
+    if (size >= 300) flush();
+  }
+  flush();
+  const n = most || 60, step = Math.max(1, blocks.length / n), picked = [];
+  for (let i = 0; i < blocks.length && picked.length < n; i += step) picked.push(blocks[Math.floor(i)]);
+  return { name: 'Frankenstein (English): the Variorum, five versions 1816–1831, ' + picked.length + ' of ' + blocks.length + ' blocks', lang: 'en', licence: 'CC BY-SA 3.0, the Frankenstein Variorum', source: 'https://github.com/FrankensteinVariorum/fv-data', blocks: picked };
+}
+
+module.exports = { john3, frankenstein, CACHE };
 
 if (require.main === module) (async () => {
-  const s = await john3();
-  console.log(s.name + ': ' + s.blocks.length + ' verses');
-  for (const b of s.blocks) console.log('  ' + b.id + ': ' + b.witnesses.length + ' witnesses, ' + Math.min(...b.witnesses.map((w) => w.words.length)) + '–' + Math.max(...b.witnesses.map((w) => w.words.length)) + ' words; e.g. ' + b.witnesses[0].siglum + ': ' + b.witnesses[0].words.map((x) => x.t).join(' ').slice(0, 70));
+  const s = process.argv[2] === 'frankenstein' ? await frankenstein() : await john3();
+  console.log(s.name + ': ' + s.blocks.length + ' blocks');
+  for (const b of s.blocks.slice(0, 20)) console.log('  ' + b.id + ': ' + b.witnesses.length + ' witnesses, ' + Math.min(...b.witnesses.map((w) => w.words.length)) + '–' + Math.max(...b.witnesses.map((w) => w.words.length)) + ' words; e.g. ' + b.witnesses[0].siglum + ': ' + b.witnesses[0].words.map((x) => x.t).join(' ').slice(0, 70));
 })().catch((e) => { console.log('Failed: ' + e.message); process.exitCode = 1; });

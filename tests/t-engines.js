@@ -136,6 +136,64 @@ const { LANGS, make, buildInPage } = require('./languages');
     ok('Line up again: that block alone, by the method chosen', did && closed && now.table.params.aligner.tool === 'manuscribe-poa' && JSON.stringify(still.table.states) === JSON.stringify(stay.table.states) && still.table.params.aligner.tool === 'saktumiva-multialign', now.table.params.aligner);
     ok('and it is up to date, the others too', (await current()).every((x) => x === true), await current());
     ok('the statement says some blocks went another way', /some blocks by another method/.test(Collate.methodSentence(ed)), Collate.methodSentence(ed));
+
+    // two alignments of a block: the places where they differ, taken from either
+    const X = { cols: { A: [0, 1, 2, 3, 4], B: [0, 1, 3, 4] }, ncols: 5 }, Y = { cols: { A: [0, 1, 2, 3, 4], B: [0, 2, 3, 4] }, ncols: 5 };
+    let segs = Collate.differences(['A', 'B'], X, Y);
+    ok('two alignments are cut where both have used the same tokens', segs.length === 4 && segs.filter((x) => !x.same).length === 1 && segs[1].a0 === 1 && segs[1].a1 === 3, segs);
+    const pickedNone = Collate.spliced(['A', 'B'], X, Y, segs, new Set()), pickedAll = Collate.spliced(['A', 'B'], X, Y, segs, new Set(segs.map((_, i) => i)));
+    ok('taking nothing gives the first, taking all the second', JSON.stringify(pickedNone) === JSON.stringify(X) && JSON.stringify(pickedAll) === JSON.stringify(Y), [pickedNone, pickedAll]);
+    let spliceBad = null;
+    for (let run = 0; run < 30 && !spliceBad; run++) {
+      const text = Array.from({ length: 5 + rnd(40) }, () => 'abc'[rnd(3)]);
+      const rs = Array.from({ length: 2 + rnd(5) }, (_, i) => ({ label: 'W' + i, n: witness(text) }));
+      const labels = rs.map((x) => x.label);
+      const p = await Collate.align(rs, { engine: 'poa' }), q = await Collate.align(rs, { engine: 'base' });
+      const ds = Collate.differences(labels, p, q), pick = new Set(ds.map((_, i) => i).filter(() => rnd(2)));
+      const m = Collate.spliced(labels, p, q, ds, pick);
+      for (const r of rs) { const c = m.cols[r.label]; if (c.length !== r.n.length || c.some((x, k) => (k && x <= c[k - 1]) || x >= m.ncols)) spliceBad = [run, r.label, c]; }
+      for (const r of rs) { if (ds.some((d) => d.same && d.a1 - d.a0 !== d.b1 - d.b0)) spliceBad = [run, 'same']; }
+    }
+    ok('a mixture of two alignments keeps every token, in order, on 30 hard blocks', !spliceBad, spliceBad);
+
+    // the dialog: nothing changes until something is taken
+    await Collate.run(ed, fresh, 'main', {});
+    const cmpSum = (await sums())[3];
+    const cmpRec = await ME.Store.getCollation(cmpSum.key);
+    const cmpBefore = JSON.stringify(cmpRec.table.states);
+    // made to differ at the start of the block, for the dialog to have something to offer
+    const orig = Collate.alignBlock;
+    Collate.alignBlock = async (e, t, how) => {
+      const r = await orig(e, t, how), first = t.order[0];
+      r.cols = Object.fromEntries(Object.entries(r.cols).map(([k, v]) => [k, k === first ? v.map((c) => c + 1) : v.map((c, i) => (i ? c + 1 : c))]));
+      r.ncols += 1;
+      return r;
+    };
+    let compareClosed = false;
+    let cmp = ME.CollateView.compareMethods(ed, list, 'main', cmpRec, () => { compareClosed = true; });
+    await wait(() => document.querySelector('.cm-place input'));
+    const nPlaces = document.querySelectorAll('.cm-place').length;
+    ok('the places that differ are shown, each with both alignments', nPlaces >= 1 && document.querySelectorAll('.cm-place table').length === nPlaces * 2, nPlaces);
+    [...document.querySelectorAll('.modal-foot .btn')].find((x) => x.textContent === 'Close').click();
+    await cmp;
+    ok('closing it changes nothing', JSON.stringify((await ME.Store.getCollation(cmpSum.key)).table.states) === cmpBefore && !compareClosed);
+    cmp = ME.CollateView.compareMethods(ed, list, 'main', cmpRec, () => { compareClosed = true; });
+    await wait(() => document.querySelector('.cm-place input'));
+    document.querySelector('.cm-place input').click();
+    [...document.querySelectorAll('.modal-foot .btn')].find((x) => x.textContent === 'Take the places ticked').click();
+    await cmp;
+    const took = await ME.Store.getCollation(cmpSum.key);
+    ok('a place ticked is taken, the block otherwise as it was', compareClosed && JSON.stringify(took.table.states) !== cmpBefore && took.table.takenFrom.places === 1 && !E.problems(took.table).length, E.problems(took.table));
+    ok('every token still in order after taking', took.table.order.every((l) => took.table.states[l].cols.every((c, k, a) => !k || c > a[k - 1])));
+    Collate.alignBlock = orig;
+    // a block with corrections offers the whole alignment only
+    const lockedSum = (await sums())[4], lockedRec = await ME.Store.getCollation(lockedSum.key);
+    E.perform(lockedRec.table, { op: 'lock', from: lockedRec.table.colIds[1], to: lockedRec.table.colIds[3] });
+    cmp = ME.CollateView.compareMethods(ed, list, 'main', lockedRec, () => {});
+    await wait(() => document.querySelector('.cm-result p'));
+    ok('a block with corrections offers no places one by one', ![...document.querySelectorAll('.modal-foot .btn')].some((x) => x.textContent === 'Take the places ticked'));
+    [...document.querySelectorAll('.modal-foot .btn')].find((x) => x.textContent === 'Close').click();
+    await cmp;
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);

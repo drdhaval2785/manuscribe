@@ -513,6 +513,8 @@ and keeps what is done.
   the more trusted first (partial-order alignment). **Against a base text** lines each up on its own against the
   witness you name. Changing the method marks the blocks to collate again; what you have corrected or locked stays.
   Under **Full**, **Line up again…** in a block's own view gives one difficult passage its own method.
+  **Compare methods…** beside it shows another method's alignment of the block next to the table as it stands, place by
+  place. Nothing changes until you take all of it or, in a block with no corrections, the places you tick.
 
 - **Align by:** letters for the languages of South Asia: on a real commentary passage, alignment by letters and by
   akṣaras was far better than by words, as Li advises. For a language that spaces its words (Latin, Greek, Arabic,

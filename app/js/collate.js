@@ -414,6 +414,72 @@
     return states[0].label;
   }
 
+  /* ---------- two alignments of one block ---------- */
+
+  // A block's tokens lined up by a method, without touching the block. how: {engine, base}
+  Collate.alignBlock = function (ed, table, how, signal) {
+    const states = table.order.map((label) => ({ label, siglum: table.states[label].siglum, layer: table.states[label].layer }));
+    const rows = table.order.map((label) => ({ label, n: table.states[label].n }));
+    return Collate.align(how.engine === 'saktumiva' ? rows : byTrust(ed, states, rows), { signal, engine: how.engine, settings: how.engine === 'base' ? { base: baseLabel(ed, states, how.base) } : null });
+  };
+
+  const below = (arr, v) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < v) lo = m + 1; else hi = m; } return lo; };
+  const totals = (labels, x) => { const t = new Int32Array(x.ncols + 1); for (const l of labels) for (const c of x.cols[l]) t[c + 1]++; for (let c = 0; c < x.ncols; c++) t[c + 1] += t[c]; return t; };
+
+  /* Two alignments ({cols, ncols}) of the same tokens, cut into the stretches between the places where both have
+     used just the same tokens of every witness: each stretch can be taken from either.
+     -> [{a0, a1, b0, b1, same}], columns a0 to a1 - 1 of the first, b0 to b1 - 1 of the second */
+  Collate.differences = function (labels, a, b) {
+    const ta = totals(labels, a), tb = totals(labels, b), out = [];
+    const close = (a0, a1, b0, b1) => {
+      let same = a1 - a0 === b1 - b0;
+      for (const l of labels) {
+        if (!same) break;
+        const A = a.cols[l], B = b.cols[l];
+        for (let x = below(A, a0), y = below(B, b0); x < A.length && A[x] < a1; x++, y++) if (A[x] - a0 !== B[y] - b0) { same = false; break; }
+      }
+      out.push({ a0, a1, b0, b1, same });
+    };
+    let sa = 0, sb = 0, i = 1, j = 1;
+    while (i <= a.ncols && j <= b.ncols) {
+      if (ta[i] < tb[j]) i++;
+      else if (ta[i] > tb[j]) j++;
+      else {
+        if (labels.every((l) => below(a.cols[l], i) === below(b.cols[l], j))) { close(sa, i, sb, j); sa = i; sb = j; }
+        i++; j++;
+      }
+    }
+    return out;
+  };
+
+  // The first alignment, with the stretches numbered in `take` from the second. -> {cols, ncols}
+  Collate.spliced = function (labels, a, b, segments, take) {
+    const cols = {};
+    for (const l of labels) cols[l] = [];
+    let at = 0;
+    segments.forEach((s, i) => {
+      const from = take.has(i) ? b : a, c0 = take.has(i) ? s.b0 : s.a0, c1 = take.has(i) ? s.b1 : s.a1;
+      for (const l of labels) { const A = from.cols[l]; for (let x = below(A, c0); x < A.length && A[x] < c1; x++) cols[l].push(A[x] - c0 + at); }
+      at += c1 - c0;
+    });
+    return { cols, ncols: at };
+  };
+
+  // Has the editor done anything to this block that belongs to its columns?
+  Collate.untouched = (t) => !(t.ops || []).length && !(t.locks || []).length && !(t.decisions || []).length && !Object.keys(t.picks || {}).length;
+
+  // Some places of an uncorrected block, from another alignment. The block keeps its method.
+  Collate.takePlaces = async function (ed, rec, aligned, note) {
+    const t = rec.table;
+    if (!Collate.untouched(t)) throw new Error('this block has corrections');
+    for (const l of t.order) t.states[l].cols = aligned.cols[l];
+    t.ncols = aligned.ncols;
+    delete t.colIds; delete t.nextCol; delete t.cuts; delete t.cells; delete t.links;
+    t.takenFrom = note;
+    ME.CollateEdit.ensure(t);
+    await Collate.saveTable(ed, rec);
+  };
+
   function sortKeys(o) {
     const c = {};
     for (const k of Object.keys(o).sort()) c[k] = o[k];

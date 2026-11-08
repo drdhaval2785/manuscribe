@@ -237,6 +237,12 @@
     const body = U.el('div', null, U.el('p', { class: 'help' }, 'Only block ' + table.unit + ' is lined up again. What you have corrected or locked in it stays.' + (table.imported ? ' The alignment you imported is replaced.' : '')),
       methodChooser(ed, how, () => {}, { asEdition: asEd, noTimes: true }));
     if (!(await UI.modal({ title: 'Line up this block again', body, buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Line up again', value: true, kind: 'primary' }] }))) return false;
+    return lineUpBlock(ed, list, workId, table, how, close);
+  };
+
+  // That block alone, by that method from now on, with a way to cancel. -> done?
+  async function lineUpBlock(ed, list, workId, table, how, close) {
+    const key = workId + '\u0000' + table.unit;
     const blocks = Object.assign({}, ed.collate && ed.collate.blocks);
     if (how.engine) blocks[key] = { engine: how.engine, base: how.engine === 'base' ? how.base : null }; else delete blocks[key];
     ed.collate = Object.assign({}, ed.collate, { blocks });
@@ -256,6 +262,69 @@
     if (failed) return false;
     if (close) close();
     return true;
+  }
+
+  /* Another method's alignment of this block beside the table as it stands. Nothing changes until the editor takes
+     something: all of it, or, in a block with no corrections, the places ticked. */
+  CollateView.compareMethods = async function (ed, list, workId, rec, close) {
+    const table = rec.table;
+    const current = Collate.choiceOf(ed, workId, table.unit).engine;
+    const how = { engine: current === 'poa' ? 'saktumiva' : 'poa', base: null };
+    const free = Collate.untouched(table);
+    const here = () => ({ cols: Object.fromEntries(table.order.map((l) => [l, table.states[l].cols])), ncols: table.ncols });
+    const result = U.el('div', { class: 'cm-result' });
+    const take = new Set();
+    let other = null, segs = null, run = null;
+    const cell = (l, k) => (k < 0 ? '' : Collate.token(table.states[l], k).t);
+    const grid = (alignment, c0, c1, name) => {
+      const rows = table.order.map((l) => {
+        const A = alignment.cols[l], row = new Array(c1 - c0).fill(-1);
+        A.forEach((c, k) => { if (c >= c0 && c < c1) row[c - c0] = k; });
+        return { l, row };
+      }).filter((r) => r.row.some((k) => k >= 0));
+      return U.el('table', { class: 'cm-grid' }, U.el('caption', null, name), U.el('tbody', null, rows.map((r) => U.el('tr', null, U.el('th', null, r.l), r.row.map((k) => U.el('td', null, cell(r.l, k)))))));
+    };
+    const draw = () => {
+      result.innerHTML = '';
+      const places = segs.map((s, i) => ({ s, i })).filter((x) => !x.s.same);
+      const name = Collate.ENGINES[how.engine].name;
+      result.append(U.el('p', { class: 'help' }, places.length ? places.length + ' place(s) differ, of ' + segs.length + '.' : 'The two line this block up in just the same way.',
+        places.length && !free ? ' Places can be taken one by one only in a block with no corrections; you can take the whole of it.' : ''));
+      const MOST = 300;
+      for (const { s, i } of places.slice(0, MOST)) {
+        const box = free ? U.el('input', { type: 'checkbox', 'aria-label': 'Take this place from ' + name, onchange: () => { if (box.checked) take.add(i); else take.delete(i); } }) : null;
+        result.append(U.el('div', { class: 'cm-place' }, grid(here(), s.a0, s.a1, 'As it stands'), grid(other, s.b0, s.b1, name), box ? U.el('label', null, box, ' Take this') : null));
+      }
+      if (places.length > MOST) result.append(U.el('p', { class: 'help' }, (places.length - MOST) + ' more places are not shown.'));
+    };
+    const compare = async () => {
+      if (run) run.abort();
+      const ctl = run = new AbortController();
+      other = null; segs = null; take.clear();
+      result.textContent = 'Lining up…';
+      try {
+        const res = await Collate.alignBlock(ed, table, how, ctl.signal);
+        if (ctl !== run) return;
+        other = res;
+        segs = Collate.differences(table.order, here(), other);
+        draw();
+      } catch (e) { if (!e.cancelled) result.textContent = 'Could not line it up: ' + e.message; }
+    };
+    const need = () => { if (!other) { U.toast('Wait until the comparison is done'); return false; } return true; };
+    const body = U.el('div', null, U.el('p', { class: 'help' }, 'Compare the table of block ' + table.unit + ' as it stands with:'), methodChooser(ed, how, compare, { noTimes: true }), result);
+    compare();
+    const buttons = [{ label: 'Close', value: null, kind: 'ghost' }];
+    if (free) buttons.push({ label: 'Take the places ticked', value: 'some', validate: () => { if (!need()) return false; if (!take.size) { U.toast('Tick the places to take'); return false; } return true; } });
+    buttons.push({ label: 'Take all of it', value: 'all', kind: 'primary', validate: need });
+    const choice = await UI.modal({ title: 'Compare with another method', body, wide: true, className: 'cv-modal', buttons });
+    if (run) run.abort();
+    if (choice === 'all') return lineUpBlock(ed, list, workId, table, how, close);
+    if (choice === 'some') {
+      await Collate.takePlaces(ed, rec, Collate.spliced(table.order, here(), other, segs, take), { engine: how.engine, places: take.size });
+      if (close) close();
+      return true;
+    }
+    return false;
   };
 
   // How witnesses are compared: normalisation, tokens and the trust order, in one dialog.
@@ -869,7 +938,8 @@
     const state = { show: 'n', sel: null, linkA: null };
 
     let saving = null;
-    const saveNow = async () => { if (saving) { clearTimeout(saving); saving = null; } await Collate.saveTable(ed, rec); };
+    let replaced = false; // the block has been lined up afresh: what is in this view must not be saved over it
+    const saveNow = async () => { if (saving) { clearTimeout(saving); saving = null; } if (!replaced) await Collate.saveTable(ed, rec); };
     const saveSoon = () => { if (saving) clearTimeout(saving); saving = setTimeout(() => { saving = null; Collate.saveTable(ed, rec); }, 600); };
 
     const status = U.el('span', { class: 'help cv-count' });
@@ -1059,10 +1129,15 @@
     const nextBlock = U.el('button', { class: 'btn small', title: 'The next block (])', disabled: at < 0 || at >= blockIds.length - 1, dataset: { action: 'block-next' }, onclick: () => goBlock(1) }, 'Block ›');
     goBlock.has = (d) => !!blockIds[at + d];
     CollateView.goBlock = goBlock;
+    const reopen = () => { replaced = true; CollateView.goNext = table.unit; const b = body.closest('.modal') && body.closest('.modal').querySelector('.modal-foot .btn'); if (b) b.click(); };
     const againBtn = !ME.Features.on('alignMore') ? null : U.el('button', { class: 'btn small', title: 'Line up this block again, by another method if you wish. What you have corrected stays.', dataset: { action: 'line-up-again' }, onclick: async () => {
       await saveNow();
-      CollateView.lineUpAgain(ed, list, workId, table, () => { CollateView.goNext = table.unit; const b = body.closest('.modal') && body.closest('.modal').querySelector('.modal-foot .btn'); if (b) b.click(); });
+      CollateView.lineUpAgain(ed, list, workId, table, reopen);
     } }, 'Line up again…');
+    const compareBtn = !ME.Features.on('alignMore') ? null : U.el('button', { class: 'btn small', title: 'Compare this block with another method’s alignment. Nothing changes until you take something.', dataset: { action: 'compare-methods' }, onclick: async () => {
+      await saveNow();
+      CollateView.compareMethods(ed, list, workId, rec, reopen);
+    } }, 'Compare methods…');
     const checkBtn = U.el('button', { class: 'btn small', title: 'You have read this whole block against the witnesses. It locks the block, and measures how close the aligner came to your version.', onclick: () => ui.checked() }, 'Mark as read');
     ui.buttons = () => {
       undoBtn.disabled = !table.ops.length;
@@ -1492,7 +1567,7 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + (params.aligner.base ? ' against ' + params.aligner.base : '') + ', by ') + params.tokens + ', profile ' + params.profile + '. ' + (params.aligner.tool === Collate.ENGINES.saktumiva.tool ? 'Rows follow the aligner’s guide tree, so similar witnesses sit together.' : 'Rows are in the order of trust.'))]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, againBtn, checkBtn,
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, againBtn, compareBtn, checkBtn,
         U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));

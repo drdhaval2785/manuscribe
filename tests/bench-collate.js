@@ -296,7 +296,8 @@ if (CX) ENGINES['collatex'] = {
 
 // ---------- gold: real witnesses aligned by scholars (tests/gold-sets.js) ----------
 async function goldRuns(only) {
-  const sets = [await require('./gold-sets').john3()];
+  const G = require('./gold-sets');
+  const sets = [await G.john3(), await G.frankenstein()];
   for (const set of sets) {
     console.log('\n' + set.name + ' (' + set.licence + ')');
     for (const kind of ['word', 'letter']) {
