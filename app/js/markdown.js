@@ -3,10 +3,8 @@
 
    An edition: what the print edition has (PrintHTML.data), in Markdown: the title, the citation, the conspectus as a
    table and the editorial principles; then the edited text, a paragraph for each block (a commentary set off with
-   ">" and its [abbr]), each note of the apparatus at its lemma, with its testimonia, singular readings, spelling and
-   decisions; then the versions. The notes are a superscript number linked to the note, and back, in inline HTML,
-   which every Markdown viewer shows; or, with opts.notes = 'footnotes', Markdown footnotes ([^…]), which many viewers
-   do not read but Pandoc needs to carry notes into another format. For a book (opts.bare): the text and its notes only.
+   ">" and its [abbr]), each note of the apparatus a footnote at its lemma ([^…]), with its testimonia, singular
+   readings, spelling and decisions; then the versions. For a book (opts.bare): the text and its footnotes only.
 
    A transcription: each folio side with its lines, numbered, block by block, letters as written; a deletion struck
    (~~…~~), an addition and supplied text in ⟨…⟩, a gap as […]. */
@@ -70,11 +68,7 @@
       for (const p of D.principles) out.push(esc(p), '');
       out.push('## Text', '');
     }
-    const native = !!(opts && opts.notes === 'footnotes');
     const notes = [];
-    let count = 0;
-    // a note, numbered as its marker is met in the text, linked to it and back
-    const numbered = (text, linked) => { const m = ++count; notes.push((linked ? '<a id="n' + m + '"></a><sup><a href="#r' + m + '">' + m + '</a></sup> ' : '<sup>' + m + '</sup> ') + text, ''); return '<sup><a id="r' + m + '" href="#n' + m + '">' + m + '</a></sup>'; };
     for (const b of D.blocks) {
       const id = (k) => b.id.replace(/[^\w.-]+/g, '_') + '-' + k;
       const texts = new Map();
@@ -84,21 +78,16 @@
         for (const [s, label] of Object.entries(SERIES)) if (n.by[s]) parts.push('*' + label + ':* ' + fromHtml(n.by[s]));
         if (parts.length) texts.set(String(n.k), parts.join(' — '));
       }
-      const used = new Set();
-      const para = fromHtml(b.html, (k) => {
-        if (!texts.has(String(k))) return '';
-        used.add(String(k));
-        return native ? '[^' + id(k) + ']' : numbered(texts.get(String(k)), true);
-      });
+      // a note with nothing to say has no footnote, and so no marker, which would show as text
+      const para = fromHtml(b.html, (k) => (texts.has(String(k)) ? '[^' + id(k) + ']' : ''));
       out.push((b.depth ? '> '.repeat(b.depth) : '') + para, '');
-      if (native) { for (const [k, text] of texts) if (used.has(k)) notes.push('[^' + id(k) + ']: ' + text); }
-      else for (const [k, text] of texts) if (!used.has(k)) numbered(text, false);
+      for (const [k, text] of texts) notes.push('[^' + id(k) + ']: ' + text);
     }
     if (D.stars && D.stars.length) {
       out.push('## Additional passages', '');
       for (const s of D.stars) out.push('**' + esc(s.id) + '** (' + esc(s.wits) + '): ' + esc(s.text), '');
     }
-    if (notes.length) out.push(...(native ? [] : bare ? ['---', ''] : ['## Apparatus', '']), ...notes, '');
+    if (notes.length) out.push(...notes, '');
     if (!bare && D.versions) out.push('---', '', '*' + esc(D.versions) + '*', '');
     return out.join('\n');
   };
