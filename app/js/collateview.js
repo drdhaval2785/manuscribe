@@ -179,12 +179,83 @@
     return U.el('div', null,
       U.el('p', { class: 'help' }, anyTable
         ? 'Open a block to read its text word by word: choose a reading where the witnesses differ, or click any word to emend it. Collate again after changing a transcription; a block whose text has not changed keeps its table and your decisions.'
-        : 'Lines up the witnesses, block by block, by their citation IDs, with Charles Li’s aligner from Saktumiva. It only reads your transcriptions.'),
+        : 'Lines up the witnesses, block by block, by their citation IDs. It only reads your transcriptions.'),
       comparison,
       U.el('div', { class: 'nv-head' }, workPick, go,
         U.el('button', { class: 'btn small', disabled: !anyTable, title: 'The edited text of the whole work, its apparatus, checks, search and indices', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
         tools),
       progress, table);
+  };
+
+  const howLong = (s) => (s < 2 ? 'a moment' : s < 90 ? 'about ' + Math.round(s) + ' s' : 'about ' + Math.round(s / 60) + ' min');
+
+  /* The method, a base where it needs one, what it does, and how long each would take for what has been collated.
+     how: {engine, base}; '' for the engine is "as the edition", offered with opts.asEdition (its name). */
+  function methodChooser(ed, how, onChange, opts) {
+    const o = opts || {};
+    const box = U.el('div', { class: 'cv-method' });
+    const list = Object.values(Collate.ENGINES);
+    const options = new Map();
+    const pick = U.el('select', { 'aria-label': 'How to line up the witnesses', onchange: () => { how.engine = pick.value; onChange(how); paint(); } },
+      o.asEdition ? U.el('option', { value: '', selected: !how.engine }, 'As the edition: ' + o.asEdition) : null,
+      list.map((e) => { const opt = U.el('option', { value: e.id, selected: e.id === how.engine }, e.name); options.set(e.id, opt); return opt; }));
+    const extra = U.el('span');
+    const help = U.el('p', { class: 'help' });
+    const note = U.el('p', { class: 'help' });
+    const paint = () => {
+      extra.innerHTML = '';
+      if (how.engine === 'base') {
+        const sigla = ed.witnesses.map((w) => w.siglum);
+        const base = U.el('select', { 'aria-label': 'The base text', onchange: () => { how.base = base.value || null; onChange(how); } },
+          U.el('option', { value: '', selected: !how.base }, 'The most trusted witness (' + Collate.trustOrder(ed)[0] + ')'),
+          sigla.map((s) => U.el('option', { value: s, selected: s === how.base }, s)));
+        extra.append(' against ', base);
+      }
+      help.textContent = (Collate.ENGINES[how.engine] || { help: 'This block goes as the rest of the edition does.' }).help;
+    };
+    paint();
+    box.append(U.el('div', { class: 'nv-head' }, pick, extra), help, note);
+    (async () => {
+      const times = {};
+      for (const e of list) times[e.id] = await Collate.estimateAll(ed, e.id);
+      if (o.noTimes || times[list[0].id] === null) return;
+      for (const e of list) options.get(e.id).textContent = e.name + ' (' + howLong(times[e.id]) + ')';
+      const now = times[how.engine];
+      const quick = list.filter((e) => e.id !== how.engine).sort((a, b) => times[a.id] - times[b.id])[0];
+      if (now >= 60 && times[quick.id] * 3 < now) note.textContent = 'This would take ' + howLong(now) + ' for all the blocks; ' + quick.name + ' would take ' + howLong(times[quick.id]) + '.';
+    })();
+    return box;
+  }
+
+  /* One difficult passage its own way: that block alone is lined up again. What the editor has corrected stays.
+     close: closes the block's own view, to open it again as it now is. */
+  CollateView.lineUpAgain = async function (ed, list, workId, table, close) {
+    const key = workId + '\u0000' + table.unit;
+    const own = ed.collate && ed.collate.blocks && ed.collate.blocks[key];
+    const how = { engine: own ? own.engine : '', base: own ? own.base || null : null };
+    const asEd = Collate.ENGINES[Collate.choiceOf(ed, '', '').engine].name;
+    const body = U.el('div', null, U.el('p', { class: 'help' }, 'Only block ' + table.unit + ' is lined up again. What you have corrected or locked in it stays.' + (table.imported ? ' The alignment you imported is replaced.' : '')),
+      methodChooser(ed, how, () => {}, { asEdition: asEd, noTimes: true }));
+    if (!(await UI.modal({ title: 'Line up this block again', body, buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Line up again', value: true, kind: 'primary' }] }))) return false;
+    const blocks = Object.assign({}, ed.collate && ed.collate.blocks);
+    if (how.engine) blocks[key] = { engine: how.engine, base: how.engine === 'base' ? how.base : null }; else delete blocks[key];
+    ed.collate = Object.assign({}, ed.collate, { blocks });
+    await Edition.save(ed);
+    ME.App.flush();
+    const ctl = new AbortController();
+    const prog = U.el('p', null, 'Lining up block ' + table.unit + '…');
+    let running = true;
+    const waiting = UI.modal({ title: 'Lining up', body: prog, buttons: [{ label: 'Cancel', value: true }] }).then(() => { if (running) ctl.abort(); });
+    let failed = null;
+    try { await Collate.run(ed, await loadFresh(list), workId, { only: table.unit, force: true, signal: ctl.signal }); } catch (e) { failed = e; }
+    running = false;
+    const dlg = prog.closest('.modal');
+    if (dlg) dlg.querySelector('.modal-foot .btn').click();
+    await waiting;
+    if (failed && !failed.cancelled) { U.toast('Could not line it up: ' + failed.message, 'error'); return false; }
+    if (failed) return false;
+    if (close) close();
+    return true;
   };
 
   // How witnesses are compared: normalisation, tokens and the trust order, in one dialog.
@@ -198,6 +269,8 @@
       body.append(
         U.el('h3', null, 'What counts as the same reading'), ME.NormView.section(ed, list, draw),
         U.el('h3', null, 'Lined up by'), U.el('div', { class: 'nv-head' }, tok),
+        U.el('h3', null, 'How to line up the witnesses'),
+        methodChooser(ed, Collate.choiceOf(ed, '', ''), async (how) => { ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base }); await Edition.save(ed); draw(); }),
         U.el('h3', null, 'Ties between readings'),
         U.el('p', { class: 'help' }, 'Where readings tie, the reading of the more trusted witness is proposed: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ' ',
           U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) draw(); } }, 'Change…')));
@@ -986,6 +1059,10 @@
     const nextBlock = U.el('button', { class: 'btn small', title: 'The next block (])', disabled: at < 0 || at >= blockIds.length - 1, dataset: { action: 'block-next' }, onclick: () => goBlock(1) }, 'Block ›');
     goBlock.has = (d) => !!blockIds[at + d];
     CollateView.goBlock = goBlock;
+    const againBtn = !ME.Features.on('alignMore') ? null : U.el('button', { class: 'btn small', title: 'Line up this block again, by another method if you wish. What you have corrected stays.', dataset: { action: 'line-up-again' }, onclick: async () => {
+      await saveNow();
+      CollateView.lineUpAgain(ed, list, workId, table, () => { CollateView.goNext = table.unit; const b = body.closest('.modal') && body.closest('.modal').querySelector('.modal-foot .btn'); if (b) b.click(); });
+    } }, 'Line up again…');
     const checkBtn = U.el('button', { class: 'btn small', title: 'You have read this whole block against the witnesses. It locks the block, and measures how close the aligner came to your version.', onclick: () => ui.checked() }, 'Mark as read');
     ui.buttons = () => {
       undoBtn.disabled = !table.ops.length;
@@ -1413,9 +1490,9 @@
       host, detailBox, scanBox, unitBox, placesBox,
       U.el('p', { class: 'nv-legend' },
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
-        (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + ', by ') + params.tokens + ', profile ' + params.profile + '. Rows follow the aligner’s guide tree, so similar witnesses sit together.')]);
+        (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + (params.aligner.base ? ' against ' + params.aligner.base : '') + ', by ') + params.tokens + ', profile ' + params.profile + '. ' + (params.aligner.tool === Collate.ENGINES.saktumiva.tool ? 'Rows follow the aligner’s guide tree, so similar witnesses sit together.' : 'Rows are in the order of trust.'))]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, checkBtn,
+      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, againBtn, checkBtn,
         U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));

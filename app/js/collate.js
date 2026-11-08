@@ -14,14 +14,25 @@
   // Saktumiva's own defaults
   const SCORING = { match: 1, mismatch: -1, gap_open: -2, gap_extend: -0.25, gap_skip_initial: true, scalegap: false, recursive: false, realigndepth: 0, distancefunc: 'ngrams', ngramsize: 3 };
   /* The methods an editor can line witnesses up with. Saktumiva's is vendor/saktumiva-aligner.js, the others
-     js/engines.js; each gives the same table. perToken2 is the time a block takes, over witnesses × length², in
-     seconds, as measured in a Worker. */
+     js/engines.js; each gives the same table. perToken2 is the seconds a block takes, over witnesses × length ×
+     the lesser of length and band (past which the method is banded), as measured in a Worker. */
   Collate.ENGINES = {
-    saktumiva: { id: 'saktumiva', name: 'Saktumiva', tool: ENGINE.tool, version: ENGINE.version, perToken2: 0 },
-    poa: { id: 'poa', name: 'Careful, all witnesses together', tool: 'manuscribe-poa', version: '1', perToken2: 1e-8 },
-    base: { id: 'base', name: 'Against a base text', tool: 'manuscribe-base', version: '1', perToken2: 1e-8 },
+    saktumiva: { id: 'saktumiva', name: 'Saktumiva', tool: ENGINE.tool, version: ENGINE.version, perToken2: 0,
+      help: 'Charles Li’s aligner, as Manuscribe has always used it: witnesses are joined in the order of a tree of their similarity. Slow with many witnesses.' },
+    poa: { id: 'poa', name: 'Careful, all witnesses together', tool: 'manuscribe-poa', version: '1', perToken2: 5e-9, band: 2000,
+      help: 'Each witness is lined up against all those before it, the more trusted first, so that a reading any of them has can be matched. Quick, even with many witnesses.' },
+    base: { id: 'base', name: 'Against a base text', tool: 'manuscribe-base', version: '1', perToken2: 1.2e-8, band: 14000,
+      help: 'Each witness on its own against one you name. What two other witnesses share is seen only through the base, so choose a base that is complete. Quick, and easy to explain in an edition.' },
   };
   Collate.DEFAULT_ENGINE = 'saktumiva';
+  // What the edition's method statement says.
+  Collate.methodSentence = function (ed) {
+    const c = ed.collate || {}, id = Collate.ENGINES[c.engine] ? c.engine : Collate.DEFAULT_ENGINE;
+    const own = c.blocks && Object.keys(c.blocks).length;
+    const said = id === 'poa' ? 'by partial-order alignment (Lee, Grasso and Sharlow 2002), each witness against all those before it'
+      : id === 'base' ? 'each against ' + (c.base || Collate.trustOrder(ed)[0]) + ' as a base text' : 'with the aligner of Saktumiva 2.0 by Charles Li';
+    return said + (own ? ' (some blocks by another method)' : '');
+  };
   // How this block is to be lined up: as the edition says, unless the editor chose otherwise for the block.
   Collate.choiceOf = function (ed, work, unit) {
     const c = ed.collate || {};
@@ -206,10 +217,20 @@
 
   // Roughly how long a block takes, measured in a Worker on an M2 Pro: Saktumiva's grows with the square of the
   // witnesses and of the length, the others with the witnesses and the square of the length.
-  Collate.estimateSeconds = (rows, engine) => {
-    const longest = rows.reduce((a, r) => Math.max(a, r.n.length), 0);
+  const estimate = (witnesses, longest, engine) => {
     const e = Collate.ENGINES[engine];
-    return e && e.perToken2 ? e.perToken2 * rows.length * longest * longest : 4.5e-9 * rows.length * rows.length * longest * longest;
+    return e && e.perToken2 ? e.perToken2 * witnesses * longest * Math.min(longest, e.band) : 4.5e-9 * witnesses * witnesses * longest * longest;
+  };
+  Collate.estimateSeconds = (rows, engine) => estimate(rows.length, rows.reduce((a, r) => Math.max(a, r.n.length), 0), engine);
+  // The same for all the edition's blocks that have been collated, from what is known of them. -> seconds, or null
+  Collate.estimateAll = async function (ed, engine) {
+    let secs = 0, blocks = 0;
+    for (const s of (await Collate.summaries(ed.id)).values()) {
+      if (s.imported || !s.labels || !s.tokens) continue;
+      secs += estimate(s.labels, Math.ceil(s.tokens / s.labels), engine);
+      blocks++;
+    }
+    return blocks ? secs : null;
   };
 
   /* ---------- tables ---------- */
@@ -300,7 +321,7 @@
   const countVariants = (table) => Collate.variantColumns(table, Collate.grid(table)).reduce((a, b) => a + b, 0);
 
   /* Collates a work. A block whose text and settings have not changed keeps its table.
-     opts: {force, signal, onUnit(i, total, id), onProgress(fraction in this block)}
+     opts: {force, only (one block's id), signal, onUnit(i, total, id), onProgress(fraction in this block)}
      -> {done: [ids], kept: [ids], removed: [ids], skipped: [{id, why}], outside, unreadable} */
   Collate.run = async function (ed, list, workId, opts) {
     const o = opts || {};
@@ -316,6 +337,7 @@
     const live = new Set();
     for (let i = 0; i < units.length; i++) {
       const u = units[i];
+      if (o.only && u.id !== o.only) { live.add(keyOf(ed.id, workId, u.id)); continue; }
       const params = paramsOf(ed, kind, workId, u.id);
       const paramsKey = stableJson(params);
       const how = Collate.choiceOf(ed, workId, u.id);
