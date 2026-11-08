@@ -706,6 +706,8 @@ To open it, use Import edition package on Manuscribe's start screen.
         F.on('share') || (ed.github && ed.github.repo) ? U.el('button', { class: 'btn small', title: 'Compare and merge another copy, GitHub, and the copies kept before merging', dataset: { action: 'share' }, onclick: () => ME.Steps.share(ed, redraw) }, 'Share…') : null,
         U.el('button', { class: 'btn small icon', title: 'Settings: how much is shown, language features', dataset: { action: 'settings' }, onclick: () => ME.App.showSettings() }, '⚙'),
         U.el('button', { class: 'btn small icon', title: 'How the edition goes, and its keys', dataset: { action: 'help' }, onclick: () => ME.Steps.help() }, '?')),
+      // the edition's version, and Manuscribe's (also on every page it prints)
+      U.el('p', { class: 'ed-version', dataset: { action: 'edition-version' } }, ME.Publish.versions(ed)),
       steps, status, remind,
       U.el('div', { class: 'ed-stepbody', dataset: { step } }, body)].filter(Boolean)); // append would write an empty value out as "null"
     for (const d of host.querySelectorAll('details')) { const k = foldKey(d); if (k && Object.prototype.hasOwnProperty.call(Edition.folds, k)) d.open = Edition.folds[k]; }

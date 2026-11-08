@@ -635,8 +635,18 @@ The checks of the apparatus are listed there too. Each problem names its place: 
 that place, highlighted, to be put right.
 
 Every output below is in **Export…**, by block or by work. The dialog asks first for the kind of file, **PDF**,
-**HTML**, **LaTeX**, **TEI**, **Text** (plain text, and data for other programs) or **Archive**, and then shows only
+**HTML**, **Markdown**, **LaTeX**, **TEI**, **Text** (plain text, and data for other programs) or **Archive**, and then shows only
 the options of that kind; it remembers your choice in each.
+
+**Versions.** Every page of the PDF, the print page and the LaTeX edition carries, in small type at its foot, the
+edition's version and Manuscribe's: *Draft of 8 November 2026 · Manuscribe 0.9.0*, or *Version 1.0, issued 8
+November 2026 · Manuscribe 0.9.0* once a version is issued (Publish › Issue). The citation on the front page, the
+reader, the plain text and the TEI (`editionStmt`, `appInfo`) carry them too, and so do a transcription's TEI and
+HTML page (Manuscribe's). On screen, Manuscribe's version is beside its name, and an edition's under its title.
+
+**For a book.** Tick **For a book** in Export (PDF, the print page, Markdown, LaTeX, plain text) for only the edited text and
+its apparatus, to print in a book of your own: no front page (title, citation, conspectus, principles), no running
+head, and no versions at the foot of the pages. The file is named `….book.pdf`, `….book.print.html` and so on.
 
 - **Reader, one HTML file:** the edited text, the conspectus siglorum and the editorial principles, in one file that
   opens from disk and needs no network. It opens on the critical text alone, to be read, the words with variant
@@ -679,7 +689,16 @@ the options of that kind; it remembers your choice in each.
   still be searched. Search and copy are exact in most scripts; where a script draws letters out of their order (a
   Devanagari vowel sign before its consonant), each word also carries its letters in reading order for readers that
   read them (ActualText, as Acrobat and Chrome do).
-- **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its font and a README. Series A holds the
+- **Markdown:** the edition as one `.md` file, for GitHub, Obsidian, Pandoc and other Markdown tools: the title,
+  the citation, the conspectus as a table and the principles, then the edited text, a paragraph for each block (a
+  commentary set off with `>` and its [abbr]), each note of the apparatus a footnote at its lemma (`[^p1-3]`), with
+  its testimonia, singular readings, spelling and decisions; the versions at the end. A transcription exports as
+  Markdown too: each folio side with its numbered lines, deletions ~~struck~~, additions and supplied text in ⟨…⟩.
+- **LaTeX for reledmac:** a ZIP with `edition.tex` for XeLaTeX and reledmac, its fonts and a README. The fonts are
+  those of the print edition: Tiro where the edition has Devanagari, otherwise Noto Serif, and for every other script
+  its Noto font, the text set in it run by run; an Arabic, Hebrew or Syriac edition is set right to left (`bidi`),
+  and Chinese, Japanese and Thai break between their letters. It is compiled in the tests, with XeTeX (Tectonic), in
+  Sanskrit, English, Greek, Arabic and Japanese, with no missing character. Series A holds the
   variants, B testimonia, C singular readings, D spelling variants if listed, and E the reasons for your decisions; uncertain places
   get a wavy line and corrupt ones daggers. Run `xelatex edition.tex` three times so that the line references settle,
   or upload the folder to Overleaf and choose XeLaTeX. Notes are only ever attached at the start of a whole akṣara, so
@@ -1106,6 +1125,7 @@ app/js/
   collateview.js        the Collation part of the edition screen, and the table
   apparatus.js          the edited text and apparatus: entries, conventions, checks, search, TEI
   publish.js            the reader file and the reledmac edition, with conspectus, principles and citation
+  markdown.js           Markdown: the edition with its apparatus as footnotes; a transcription by folio and line
   stemma.js             stemmatics: agreement, distance, trees, parsimony, copies, reconstruction, NEXUS and DOT
   stemmaview.js         the stemmatic workbench and its drawings
   metre.js              syllable weight, and which metre a verse is in

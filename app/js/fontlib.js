@@ -19,6 +19,8 @@
   // Manuscribe's own font, for Devanagari and Latin, with its licence
   const TIRO = 'tirodevanagarisanskrit/';
   const OWN = { TiroDevanagariSanskrit: TIRO + 'TiroDevanagariSanskrit-Regular.ttf', 'TiroDevanagariSanskrit-Italic': TIRO + 'TiroDevanagariSanskrit-Italic.ttf', 'TiroDevanagariSanskrit-OFL': TIRO + 'OFL.txt' };
+  // the same file from GitHub itself: https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}
+  FL.mirrorOf = (url) => url.replace(/^https:\/\/cdn\.jsdelivr\.net\/gh\/([^/]+)\/([^@/]+)@([^/]+)\//, 'https://raw.githubusercontent.com/$1/$2/$3/');
   FL.urlOf = (family) => (OWN[family] ? GOOGLE + OWN[family] : CJK[family] ? GOOGLE + CJK[family] : NOTO + family + '/' + (UNHINTED.has(family) ? 'unhinted' : 'hinted') + '/ttf/' + family + '-Regular.ttf');
 
   // ISO 15924 script -> its Noto family. Han, Hiragana, Katakana, Bopomofo and Hangul are chosen by the language.
@@ -92,7 +94,9 @@
     if (!FL.fetchAllowed() || typeof fetch !== 'function' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return null;
     try {
       if (onFetch) onFetch(family);
-      const r = await fetch(FL.urlOf(family));
+      let r = await fetch(FL.urlOf(family));
+      // jsDelivr serves no file over 20 MB (the Chinese and Korean fonts): the same file from GitHub itself
+      if (!r.ok) r = await fetch(FL.mirrorOf(FL.urlOf(family)));
       if (!r.ok) return null;
       const b = new Uint8Array(await r.arrayBuffer());
       if (ME.Store && ME.Store.putFont) await ME.Store.putFont({ id, name: family, format: 'ttf', bytes: b, licence: 'SIL Open Font License 1.1', source: FL.urlOf(family) }).catch(() => {});

@@ -22,7 +22,7 @@
     const o = opts || {};
     await ME.Shaper.load();
     const embedded = await ME.PrintHTML.fonts(ed, built, list);
-    const html = ME.PrintHTML.html(ed, list, built, { fonts: embedded });
+    const html = ME.PrintHTML.html(ed, list, built, { fonts: embedded, bare: !!o.bare });
     // the fonts Manuscribe can set text in: those of the page that are TrueType, in the page's order
     // (Tiro is among them where the edition has Devanagari); the first is the document's own font
     const tiro = embedded.some((f) => f.kind === 'tiro') ? await ME.Publish.font() : null;

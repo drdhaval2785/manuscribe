@@ -61,7 +61,7 @@ const ALTO = `<?xml version="1.0" encoding="UTF-8"?>
     ok('the error rate is measured on the corrected line', st.accepted === 1 && st.errors === 1 && Math.abs(st.cer - 1 / 11) < 1e-9, st);
     // in the TEI export
     const ex = Export.build(p, {});
-    ok('the TEI header names the program, its model, version and date', /<appInfo>\s*<application ident="Transkribus" version="2" when="2026-10-02">\s*<label>Devanagari M1<\/label>/.test(ex.xml), ex.xml.slice(ex.xml.indexOf('<encodingDesc'), ex.xml.indexOf('</encodingDesc>') + 15));
+    ok('the TEI header names the program, its model, version and date (and Manuscribe, which made the file)', /<appInfo>[\s\S]*<application ident="Transkribus" version="2" when="2026-10-02">\s*<label>Devanagari M1<\/label>/.test(ex.xml) && /<application ident="Manuscribe" version="[\d.]+">/.test(ex.xml), ex.xml.slice(ex.xml.indexOf('<encodingDesc'), ex.xml.indexOf('</encodingDesc>') + 15));
     ok('and the export warns of lines not yet read', ex.warnings.some((w) => /not yet accepted/.test(w.msg)));
 
     // AI output: model, version, date and prompt hash; and the memorisation test

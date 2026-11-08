@@ -192,7 +192,15 @@
       page.line(left(), base + mm(1.5) + 1, left() + bodyW, base + mm(1.5) + 1, 0.4);
     };
     let textLines = 0, pageLines = 0;
-    const newPage = (title) => { textLines += pageLines; pageLines = 0; page = doc.page(W, H); pageNo++; y = o.top; header(title); };
+    // at the foot of every page, the edition's version and Manuscribe's; for a book, nothing but the text
+    const bare = !!(options && options.bare);
+    const versions = bare ? null : L.words(ME.Publish.versions(ed), o.small * 0.85);
+    const footer = () => {
+      if (!versions) return;
+      const l = L.lines(versions, bodyW, false)[0];
+      draw(l.atoms, left() + (bodyW - l.natural) / 2, H - mm(8));
+    };
+    const newPage = (title) => { textLines += pageLines; pageLines = 0; page = doc.page(W, H); pageNo++; y = o.top; header(bare ? null : title); footer(); };
     // flowing paragraphs, for the front matter and the additional passages
     const para = (atoms, lead, opts) => {
       const tab = (opts && opts.tab) || 0;
@@ -208,7 +216,8 @@
     const gapY = (h) => { y += h; };
     const heading = (t) => { gapY(mm(6)); para(L.words(t, size * 1.1), size * 1.1 * 1.5, { ragged: true }); gapY(mm(2)); };
 
-    // ---- the front matter, as on the print page ----
+    // ---- the front matter, as on the print page (not for a book) ----
+    if (!bare) {
     newPage(null);
     gapY(mm(45));
     para(L.words(ed.title || 'Edition', size * 2), size * 2 * 1.3, { center: true, ragged: true });
@@ -229,6 +238,7 @@
     }
     heading('Editorial principles');
     for (const p of ME.Publish.declaration(ed, built)) { para(L.words(p, cs), cs * 1.5, { running: ed.title }); gapY(mm(2)); }
+    }
 
     // ---- the edition ----
     newPage(ed.title);

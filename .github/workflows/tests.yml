@@ -67,6 +67,11 @@ jobs:
         if: matrix.engine == 'firefox' || matrix.engine == 'webkit'
         run: npx playwright install --with-deps ${{ matrix.engine }}
 
+      # the LaTeX of Export, compiled (tests/t-latex.js): Tectonic, the XeTeX engine, in one job
+      - name: Get Tectonic (XeTeX)
+        if: matrix.engine == 'chrome' && runner.os == 'macOS'
+        run: brew install tectonic
+
       - name: The offline list is up to date
         working-directory: .
         run: node tools/precache.mjs --check

@@ -322,11 +322,13 @@
     const today = new Date().toISOString().slice(0, 10);
     // programs whose output was brought in as proposed text, each with its model, version, date and prompt hash
     const sources = project.sources || [];
-    const encoding = sources.length ? [node('encodingDesc', {}, [node('appInfo', {}, sources.map((s) => node('application', Object.assign({ ident: (s.software || s.model || 'program').replace(/[^\w.-]+/g, '_') }, { version: s.version || 'unknown' }, s.date ? { when: s.date.slice(0, 10) } : {}), [
+    // Manuscribe, which made the file, and with it any program whose text was brought in
+    const made = node('application', { ident: 'Manuscribe', version: ME.VERSION }, [node('label', {}, ['Manuscribe'])]);
+    const encoding = [node('encodingDesc', {}, [node('appInfo', {}, [made].concat(sources.map((s) => node('application', Object.assign({ ident: (s.software || s.model || 'program').replace(/[^\w.-]+/g, '_') }, { version: s.version || 'unknown' }, s.date ? { when: s.date.slice(0, 10) } : {}), [
       node('label', {}, [s.model || s.software || 'Unnamed program']),
       node('desc', {}, ['Text proposed by ' + (ME.HTR ? ME.HTR.KINDS[s.kind] || s.kind : s.kind) + (s.format ? ', from ' + s.format : '') + (s.promptHash ? '; prompt SHA-256 ' + s.promptHash : '') + '; lines accepted only after reading by the transcriber.']),
-    ])))])] : [];
-    return node('teiHeader', {}, [fileDesc, ...encoding, node('revisionDesc', {}, [node('change', { when: today }, ['Exported from Manuscribe.'])])]);
+    ]))))])];
+    return node('teiHeader', {}, [fileDesc, ...encoding, node('revisionDesc', {}, [node('change', { when: today }, ['Exported from Manuscribe ' + ME.VERSION + '.'])])]);
   }
 
   /* The xml:id of a cited work is its short label (e.g. NAND), made valid as an XML name and

@@ -138,6 +138,8 @@
   };
 
   window.addEventListener('DOMContentLoaded', () => {
+    // Manuscribe's version, wherever the page shows it
+    for (const el of document.querySelectorAll('.app-version')) { el.textContent = ME.VERSION; el.title = 'Manuscribe ' + ME.VERSION; }
     Install.checkBrowser();
     Install.offline();
     Install.draw();

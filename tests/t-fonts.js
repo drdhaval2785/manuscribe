@@ -1,7 +1,8 @@
 // A font for every script: each script finds its Noto font; a font cut down to the glyphs an edition uses still
 // draws them as before; and, where the internet can be reached, the fonts are fetched once, kept in the browser, and
-// carried by the print page and the PDF, so that a PDF in Arabic, Japanese, Tibetan or hieroglyphs is text, with
-// no pictures of words. Without the internet those last checks are skipped.
+// carried by the print page and the PDF, so that a PDF in Arabic, Japanese, Chinese, Korean, Tibetan or
+// hieroglyphs is text, with no pictures of words (the Chinese and Korean fonts, over 20 MB, come from GitHub when
+// jsDelivr will not serve them). Without the internet those last checks are skipped.
 const { launch, sleep, checks } = require('./h');
 const { LANGS, make, buildInPage } = require('./languages');
 
@@ -106,7 +107,7 @@ const { LANGS, make, buildInPage } = require('./languages');
   }
   T.check('a font is fetched once and kept in the browser', await page.evaluate(async () => { const k = await ME.Store.getFont('noto:NotoSansOgham'); return !!(k && k.bytes && k.bytes.byteLength > 1000); }));
   const egyp = { name: 'Egyptian hieroglyphs', tag: 'egy-Egyp', words: ['𓀀𓁐', '𓂀𓃀', '𓄿𓅓', '𓆑𓇋', '𓈖𓉐', '𓊃𓋴', '𓌳𓍿', '𓎛𓏏', '𓐍𓀭', '𓁷𓂋', '𓃭𓄡', '𓅱𓆓'], stop: '.', comma: ',', join: ' ', perLine: 40, code: 'egy' };
-  for (const [code, L] of [['ar', LANGS.ar], ['ja', LANGS.ja], ['bo', LANGS.bo], ['egy', egyp], ['grc', LANGS.grc]]) {
+  for (const [code, L] of [['ar', LANGS.ar], ['ja', LANGS.ja], ['zh', LANGS.zh], ['ko', LANGS.ko], ['bo', LANGS.bo], ['egy', egyp], ['grc', LANGS.grc]]) {
     // Greek with fifteen witnesses: notes enough that a font arriving after the layout pushed the text into them
     await buildInPage(page, L, code === 'grc' ? make(code, 15, 2, 26) : LANGS[code] ? make(code, 3, 1, 20, 5) : require('./languages').makeFrom(L, 3, 1, 20, 5), code === 'grc' ? 26 : 20);
     const r = await page.evaluate(async () => {

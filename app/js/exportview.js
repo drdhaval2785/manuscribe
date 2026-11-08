@@ -12,10 +12,10 @@
   X.GROUPS = { print: 'Print', read: 'Read on screen', exchange: 'Exchange with other programs', archive: 'Keep and archive' };
   /* What the dialog asks first: the kind of file. Each format is of one kind; the options of a kind are shown only
      when it is chosen. */
-  X.KINDS = { pdf: 'PDF', html: 'HTML', latex: 'LaTeX', tei: 'TEI', text: 'Text', archive: 'Archive' };
-  const KIND_OF = { pdf: 'pdf', 'pdf-any': 'pdf', 'pdf-direct': 'pdf', reader: 'html', 'print-page': 'html', latex: 'latex', tei: 'tei', saktumiva: 'tei', 'tei-corpus': 'tei', 'tei-xml': 'tei', package: 'archive', release: 'archive', backup: 'archive' };
+  X.KINDS = { pdf: 'PDF', html: 'HTML', markdown: 'Markdown', latex: 'LaTeX', tei: 'TEI', text: 'Text', archive: 'Archive' };
+  const KIND_OF = { markdown: 'markdown', 'markdown-tr': 'markdown', pdf: 'pdf', 'pdf-any': 'pdf', 'pdf-direct': 'pdf', reader: 'html', 'print-page': 'html', latex: 'latex', tei: 'tei', saktumiva: 'tei', 'tei-corpus': 'tei', 'tei-xml': 'tei', package: 'archive', release: 'archive', backup: 'archive' };
   X.kindOf = (f) => KIND_OF[f.id] || 'text';
-  const KIND_HELP = { pdf: 'Pages to print or to send.', html: 'A page to read on screen, or to print later; it opens with no network.', latex: 'For XeLaTeX and reledmac.', tei: 'XML for other editions and programs.', text: 'Plain text, and data for other programs.', archive: 'Everything, to keep, to move or to publish in an archive.' };
+  const KIND_HELP = { markdown: 'Text with headings, tables and footnotes, for GitHub, Obsidian, Pandoc and other Markdown tools.', pdf: 'Pages to print or to send.', html: 'A page to read on screen, or to print later; it opens with no network.', latex: 'For XeLaTeX and reledmac.', tei: 'XML for other editions and programs.', text: 'Plain text, and data for other programs.', archive: 'Everything, to keep, to move or to publish in an archive.' };
 
   /* ---------- what an edition export works on ---------- */
 
@@ -39,7 +39,12 @@
     if (!w) throw new Error('Collate first: there is nothing to export yet');
     return { built: w.built, work: w.work, tables: w.recs.map((r) => r.table) };
   }
-  const base = (ctx) => fileSafe(ctx.ed.title || 'edition');
+  // a copy for a book is named so
+  const base = (ctx) => fileSafe(ctx.ed.title || 'edition') + (ctx.bare ? '.book' : '');
+  /* The formats that are printed, which may be made for a book: only the text and its apparatus, without the front
+     page, the running head and the versions at the foot of the pages. */
+  X.BOOK = new Set(['pdf', 'pdf-capture', 'pdf-any', 'pdf-direct', 'print-page', 'markdown', 'latex', 'text']);
+  const bare = (ctx) => ({ bare: !!ctx.bare });
   const file = (name, data, type) => ({ name, data, type: type || 'application/octet-stream' });
 
   /* Each format: {id, group, label, desc, on: (ctx) -> shown?, scopes: which, make(ctx) -> file | null (it opened a screen)} */
@@ -54,30 +59,32 @@
       opensWindow: (ctx) => X.pdfRoute(ctx) === 'print',
       make: (ctx) => X.format(X.pdfRoute(ctx) === 'print' ? 'pdf-any' : 'pdf-capture').make(ctx) },
     { id: 'pdf-capture', hidden: true, for: 'edition', group: 'print', label: 'PDF, captured from the page',
-      make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Capture.pdf(ctx.ed, ctx.list, s.built); if (r.words.pictures) U.toast(r.words.pictures + ' word(s) in a script Manuscribe has no font for were put in as the browser drew them, with their text searchable. A font file under Paper and fonts for printing makes them text.', 'info', 7000); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
+      make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Capture.pdf(ctx.ed, ctx.list, s.built, bare(ctx)); if (r.words.pictures) U.toast(r.words.pictures + ' word(s) in a script Manuscribe has no font for were put in as the browser drew them, with their text searchable. A font file under Paper and fonts for printing makes them text.', 'info', 7000); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     // the two routes, for the code that asks for one of them
     { id: 'pdf-any', hidden: true, for: 'edition', group: 'print', label: 'PDF, in any script', desc: 'The edition laid out as pages by this browser, in any script and font; then choose Save as PDF in the print dialog.',
       opensWindow: true,
       make: async (ctx) => {
         const s = await scoped(ctx);
-        try { await ME.PrintHTML.open(ctx.ed, ctx.list, s.built, ctx.win); return null; } catch (e) {
+        try { await ME.PrintHTML.open(ctx.ed, ctx.list, s.built, ctx.win, bare(ctx)); return null; } catch (e) {
           // the browser would not open a tab: the page is saved instead, to open and print
           U.toast('The browser did not open a new tab, so the print page is saved instead: open it, and print it or save it as PDF.', 'warn', 9000);
-          return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }), 'text/html');
+          return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, Object.assign({ autoPrint: true, fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }, bare(ctx))), 'text/html');
         }
       } },
     { id: 'pdf-direct', hidden: true, for: 'edition', group: 'print', label: 'PDF file, Devanagari and Latin', desc: 'A PDF made directly in Manuscribe’s own font, with nothing to print.', on: (ctx) => F().on('pdfDeva') && ME.Typeset.fits(ctx.list),
-      make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Typeset.pdf(ctx.ed, ctx.list, s.built); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
+      make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Typeset.pdf(ctx.ed, ctx.list, s.built, bare(ctx)); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     { id: 'latex', for: 'edition', group: 'print', label: 'LaTeX for reledmac', desc: 'A folder for XeLaTeX with its font: the finest print, on your computer or on Overleaf.',
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ctx.ed, ctx.list, s.built)), 'application/zip'); } },
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ctx.ed, ctx.list, s.built, bare(ctx))), 'application/zip'); } },
     { id: 'reader', for: 'edition', group: 'read', label: 'Reader, one HTML file', desc: 'The edited text and its apparatus, linked, with each witness’s text; opens with no network.',
       make: async (ctx) => { const s = await scoped(ctx); const layered = ME.LayersView ? await ME.LayersView.baseTexts(ctx.ed, s.work.id) : null; return file(base(ctx) + '.reader.html', await ME.Publish.reader(ctx.ed, ctx.list, s.built, layered), 'text/html'); } },
     { id: 'print-page', for: 'edition', group: 'read', label: 'Print page, one HTML file', desc: 'The print edition as a page, to open and print later on any computer.',
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, { fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }), 'text/html'); } },
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, Object.assign({ fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }, bare(ctx))), 'text/html'); } },
+    { id: 'markdown', for: 'edition', group: 'read', label: 'Markdown', desc: 'The edition in Markdown, for GitHub, Obsidian, Pandoc and other Markdown tools: the front matter, the edited text, and its apparatus as footnotes at the lemmas.',
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.md', ME.Markdown.edition(ctx.ed, ctx.list, s.built, bare(ctx)), 'text/markdown'); } },
     { id: 'tei', for: 'edition', group: 'exchange', label: 'TEI apparatus', desc: 'TEI P5, parallel segmentation: for other editions, teiphy and open-cbgm.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.edition.xml', ME.Apparatus.tei(ctx.ed, s.built, s.work), 'application/xml'); } },
     { id: 'text', for: 'edition', group: 'exchange', label: 'Apparatus as text', desc: 'The edited text with its apparatus under it, plain text.',
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.apparatus.txt', ME.Apparatus.text(ctx.ed, s.built), 'text/plain'); } },
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.apparatus.txt', ME.Apparatus.text(ctx.ed, s.built, bare(ctx)), 'text/plain'); } },
     { id: 'indices', for: 'edition', group: 'exchange', label: 'Indices, as text', desc: 'Every word of the edited text, and every pāda where there is verse.', on: () => F().on('indices'),
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.indices.txt', ME.LayersView.indicesText(ctx.ed, s.built), 'text/plain'); } },
     { id: 'dts', for: 'edition', group: 'exchange', label: 'DTS files', desc: 'Static files in the shape of the Distributed Text Services API 1.0.', on: () => F().on('dts'),
@@ -107,6 +114,8 @@
     // a transcription
     { id: 'tei-xml', for: 'project', group: 'exchange', label: 'TEI XML, or an HTML page', desc: 'The transcription as TEI for Saktumiva and other programs, or as a page to read: the whole manuscript or one folio side.',
       make: async (ctx) => { ME.App.flush(); ME.Export.open(ctx.project, ctx.entry); return null; } },
+    { id: 'markdown-tr', for: 'project', group: 'read', label: 'Markdown', desc: 'The transcription in Markdown: each folio side with its numbered lines, deletions struck and additions marked.',
+      make: async (ctx) => { ME.App.flush(); const m = ctx.project.meta || {}; return file(fileSafe(m.siglum || m.title || 'transcription') + '.md', ME.Markdown.transcription(ctx.project), 'text/markdown'); } },
     { id: 'backup', for: 'project', group: 'archive', label: 'Backup file', desc: 'The whole project in one file, to keep or to move to another computer (Ctrl+S).',
       make: async () => { await ME.App.saveToFile(); return null; } },
   ];
@@ -159,12 +168,16 @@
       list.append(row);
     }
     const scopeRow = scope ? U.el('label', { class: 'xp-scope' }, 'How much: ', scope) : null;
+    // for a book: only the text and its apparatus
+    const book = ctx.kind === 'edition' ? U.el('input', { type: 'checkbox', checked: !!last.bare, dataset: { action: 'export-book' }, onchange: () => { last.bare = book.checked; } }) : null;
+    const bookRow = book ? U.el('label', { class: 'xp-book', title: 'For printing in a book of your own: the edited text and its apparatus, nothing else' }, book, ' ', U.el('strong', null, 'For a book'), U.el('span', { class: 'help' }, ' only the text and its apparatus: no front page (title, citation, conspectus, principles), no running head, and no version of the edition or of Manuscribe on the pages')) : null;
     const sync = () => {
       const k = X.kindOf(pick);
       for (const [kk, r] of Object.entries(kindRadios)) r.checked = kk === k;
       for (const x of rows) { x.row.hidden = X.kindOf(x.f) !== k; x.radio.checked = x.f === pick; }
       kindHelp.textContent = KIND_HELP[k] || '';
       if (scopeRow) scopeRow.hidden = !!pick.whole || pick.scope === 'block';
+      if (bookRow) bookRow.hidden = !X.BOOK.has(pick.id);
     };
     sync();
     const go = U.el('button', { class: 'btn primary', dataset: { action: 'export-go' }, onclick: async () => {
@@ -177,7 +190,7 @@
         last[ctx.kind + ':' + X.kindOf(pick)] = pick.id;
         if (pick.id === 'pdf') last.pdfRoute = X.pdfRoute(ctx);
         try { localStorage.setItem(KEY, JSON.stringify(last)); } catch (e) { /* not kept */ }
-        c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null });
+        c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null, bare: !!(book && book.checked && X.BOOK.has(pick.id)) });
         /* A format that opens a tab opens it now, in the click itself, before anything is waited for: Safari, and
            other browsers with a strict pop-up blocker, allow a new tab only then. It is filled when ready. */
         if (typeof pick.opensWindow === 'function' ? pick.opensWindow(c) : pick.opensWindow) {
@@ -196,7 +209,7 @@
       go.disabled = false;
       go.textContent = was;
     } }, 'Export');
-    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, kindRow, kindHelp, list, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
+    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, kindRow, kindHelp, list, bookRow, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
   };
 
   ME.ExportView = X;

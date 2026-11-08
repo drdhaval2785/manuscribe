@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // a file's address, on every system (C:\\… on Windows too)
 const fileUrl = (p) => require('url').pathToFileURL(p).href;
 
-/* Fonts come from jsDelivr, as in the app, and the tests keep a copy of each one (WORK/fonts), so that after the
+/* Fonts come from jsDelivr (or GitHub, for a file jsDelivr will not serve), as in the app, and the tests keep a copy of each one (WORK/fonts), so that after the
    first run they need no internet. Manuscribe's own Tiro is always to be had; the Noto fonts of other scripts only
    for the tests that ask (noto), and the others see them as not to be had; with noto 'none', no font at all, as on
    a computer that has never been online. */
@@ -39,13 +39,15 @@ async function fontFile(url, noto) {
 const CORS = { 'access-control-allow-origin': '*' };
 async function fontsFor(page, noto) {
   if (page._pw) {
-    await page.route('https://cdn.jsdelivr.net/**', async (route) => { const r = await fontFile(route.request().url(), noto); await route.fulfill({ status: r.status, headers: CORS, contentType: 'application/octet-stream', body: r.body }); });
+    const give = async (route) => { const r = await fontFile(route.request().url(), noto); await route.fulfill({ status: r.status, headers: CORS, contentType: 'application/octet-stream', body: r.body }); };
+    await page.route('https://cdn.jsdelivr.net/**', give);
+    await page.route('https://raw.githubusercontent.com/**', give);
     return;
   }
   await page.setRequestInterception(true);
   page.on('request', async (req) => {
     const url = req.url();
-    if (!/^https:\/\/cdn\.jsdelivr\.net\//.test(url)) { req.continue(); return; }
+    if (!/^https:\/\/(cdn\.jsdelivr\.net|raw\.githubusercontent\.com)\//.test(url)) { req.continue(); return; }
     const r = await fontFile(url, noto);
     req.respond({ status: r.status, headers: CORS, contentType: 'application/octet-stream', body: r.body });
   });
@@ -73,7 +75,7 @@ async function launch(name, opts) {
     })();
   page.errors = [];
   // a font the tests do not give (see fontsFor) is not an error of the page
-  page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net|raw\.githubusercontent\.com/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
   page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + e.message));
   page.on('dialog', (d) => d.accept());
   // and no look at the website for a newer version (install.js): the tests stay off the internet

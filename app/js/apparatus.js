@@ -395,9 +395,11 @@
     const norm = ME.Norm.describe(ed.norm);
     return '<?xml version="1.0" encoding="UTF-8"?>\n<TEI xmlns="http://www.tei-c.org/ns/1.0">\n<teiHeader>\n<fileDesc>\n<titleStmt><title>' + x(ed.title || 'Edition') + (work && !(ME.CollateView && work.id === ME.CollateView.ALL) ? ': ' + x(work.title) : '') + '</title>' + layerTitles +
       '<respStmt xml:id="editor"><resp>edited by</resp><name>The editor</name></respStmt></titleStmt>\n' +
+      // the edition's version, and the program that made the file
+      (ME.Publish ? '<editionStmt><edition n="' + a(ed.version || 'draft') + '">' + x(ME.Publish.versionOf(ed)) + '</edition></editionStmt>\n' : '') +
       '<publicationStmt><p>' + x(ME.Publish ? ME.Publish.citation(ed) : 'Made with Manuscribe.') + '</p><date when="' + new Date().toISOString().slice(0, 10) + '"/></publicationStmt>\n' +
       '<sourceDesc><listWit>' + listWit.join('') + '</listWit></sourceDesc>\n</fileDesc>\n' +
-      '<encodingDesc>' + linking + '<variantEncoding method="parallel-segmentation" location="internal"/>' +
+      '<encodingDesc><appInfo><application ident="Manuscribe" version="' + a(ME.VERSION) + '"><label>Manuscribe</label></application></appInfo>' + linking + '<variantEncoding method="parallel-segmentation" location="internal"/>' +
       '<editorialDecl><normalization><p>Readings were compared after normalisation by the ' + x(norm.name) + ' profile (' + x(norm.profile) + ' version ' + x(norm.version) + '), whose rules are: ' + x(norm.rules.map((r) => r.name).join('; ')) + '.</p></normalization>' +
       '<correction><p>Where the witnesses differ, the reading of most witnesses is proposed, and a tie goes to the more trusted witness, in this order: ' + x(Collate.trustOrder(ed).join(', ')) + '. The editor\'s decisions take precedence.</p></correction></editorialDecl>' + taxonomy + '</encodingDesc>\n' +
       '</teiHeader>\n' + standOff + '<text><body>\n<div type="edition">\n' + blocks.join('\n') + '\n</div>\n</body></text>\n</TEI>\n';
@@ -445,8 +447,9 @@
   };
 
   /* The apparatus as plain text, block by block, and the starred passages after it. */
-  App_.text = function (ed, built) {
-    const out = [ME.Publish ? ME.Publish.citation(ed) + '\n' : ''];
+  /* opts.bare: for a book, the text and its apparatus only, without the citation and its versions */
+  App_.text = function (ed, built, opts) {
+    const out = [ME.Publish && !(opts && opts.bare) ? ME.Publish.citation(ed) + '\n' : ''];
     const stars = [];
     for (const b of built) {
       out.push(b.table.unit + '\n' + b.text.trim() + '\n');

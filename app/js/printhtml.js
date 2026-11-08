@@ -27,7 +27,9 @@
   const langOf = (list) => { const l = list.map((x) => x.p && x.p.meta && x.p.meta.textLang).find(Boolean); return l || 'und'; };
 
   /* What the page needs: front matter, and each block's text with its anchors, and its notes by series. */
-  P.data = function (ed, list, built) {
+  /* opts.bare: for a book, only the text and its apparatus: no front matter, no running head, no versions */
+  P.data = function (ed, list, built, opts) {
+    const bare = !!(opts && opts.bare);
     const A = ME.Apparatus;
     const byMarkers = A.settings(ed).keys !== 'lines';
     const blocks = built.map((b) => {
@@ -69,6 +71,8 @@
     const s = P.settings(ed);
     return {
       title: ed.title || 'Edition', editor: ed.editor || '', citation: ME.Publish.citation(ed), lang: langOf(list),
+      // at the foot of every page: the edition's version and Manuscribe's
+      bare, versions: bare ? '' : ME.Publish.versions(ed),
       conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, scriptName(r.script)].filter(Boolean).join('; ') })),
       principles: ME.Publish.declaration(ed, built), byMarkers, blocks,
       unspaced: ME.Norm.unspacedText(built.map((b) => b.text).join(' ').slice(0, 20000)),
@@ -100,8 +104,10 @@
       const p = el('section', 'page');
       pageNo++;
       p.id = 'page-' + pageNo;
-      p.innerHTML = (running ? '<header class="rh"><span class="rt"></span><span class="pn">' + pageNo + '</span></header>' : '') + '<div class="body"></div><div class="foot"></div>';
-      if (running) p.querySelector('.rt').textContent = D.title;
+      const head = running && !D.bare;
+      p.innerHTML = (head ? '<header class="rh"><span class="rt"></span><span class="pn">' + pageNo + '</span></header>' : '') + '<div class="body"></div><div class="foot"></div>' + (D.versions ? '<div class="versions"></div>' : '');
+      if (head) p.querySelector('.rt').textContent = D.title;
+      if (D.versions) p.querySelector('.versions').textContent = D.versions;
       book.appendChild(p);
       return { el: p, body: p.querySelector('.body'), foot: p.querySelector('.foot'), notes: [], running, no: pageNo };
     }
@@ -144,7 +150,8 @@
         if (sup) sup.innerHTML = '<a href="#fn-' + pg.no + '-' + (j + 1) + '">' + (j + 1) + '</a>';
       });
     }
-    // ---- front matter ----
+    // ---- front matter (not for a book) ----
+    if (!D.bare) {
     pg = newPage(false);
     const front = (node) => { pg.body.appendChild(node); if (!fits(pg) && pg.body.childElementCount > 1) { pg.body.removeChild(node); pg = newPage(false); pg.body.appendChild(node); } };
     { const x = el('h1', 'title'); x.textContent = D.title; front(x); }
@@ -160,6 +167,7 @@
     }
     front(el('h2', null, 'Editorial principles'));
     for (const text of D.principles) { const x = el('p', 'pr'); x.textContent = text; front(x); }
+    }
     // ---- the edition ----
     pg = newPage(true);
     const measure = el('div', 'body measure');
@@ -314,6 +322,8 @@ body { font-family: var(--font); color: #1d1a16; }
 .page { position: relative; width: var(--pw); height: var(--ph); background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.18); padding: 20mm 18mm 18mm 20mm; overflow: hidden; break-after: page; page-break-after: always; }
 .rh { position: absolute; top: 10mm; left: 20mm; right: 18mm; display: flex; justify-content: space-between; font-size: calc(var(--size) * 0.72); border-bottom: 0.4pt solid #555; padding-bottom: 1.5mm; }
 .body { font-size: var(--size); line-height: 1.55; }
+/* the edition's version and Manuscribe's, under the notes of every page */
+.versions { position: absolute; left: 20mm; right: 18mm; bottom: 8mm; text-align: center; font-size: calc(var(--size) * 0.6); color: #8a7c66; }
 .measure { position: absolute; visibility: hidden; left: 0; top: 0; }
 .txt { margin: 0 0 0.4em; text-align: justify; hyphens: auto; }
 .txt.cont { text-align-last: justify; }
@@ -352,7 +362,7 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
 
   /* The whole page, as a string: open it in a browser, or print it. fonts: [{name, data: base64, format}] */
   P.html = function (ed, list, built, opts) {
-    const d = P.data(ed, list, built);
+    const d = P.data(ed, list, built, opts);
     d.autoPrint = !!(opts && opts.autoPrint);
     const s = P.settings(ed);
     const faces = ((opts && opts.fonts) || []).map((f) => "@font-face { font-family: '" + f.name.replace(/'/g, '') + "'; src: url(data:font/" + (f.format || 'ttf') + ';base64,' + f.data + "); }").join('\n');
@@ -404,8 +414,8 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
 
   // Opens the edition, laid out, in a new window, and asks the browser to print it.
   // win: a tab opened already, in the click that asked for it (as Safari requires); else one is opened now
-  P.open = async function (ed, list, built, win) {
-    const html = P.html(ed, list, built, { autoPrint: true, fonts: await P.fonts(ed, built) });
+  P.open = async function (ed, list, built, win, opts) {
+    const html = P.html(ed, list, built, { autoPrint: true, fonts: await P.fonts(ed, built), bare: !!(opts && opts.bare) });
     const w = win && !win.closed ? win : window.open('', '_blank');
     if (!w) throw new Error('the browser blocked the new window: allow pop-ups for this page, or save the page and open it');
     w.document.open(); w.document.write(html); w.document.close();

@@ -32,6 +32,7 @@
   }
 
   const VIEW_CSS = `
+.made { text-align: center; font: 12px system-ui, sans-serif; color: #8a7c66; padding: 18px 0 28px; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { background: var(--bg); }
@@ -107,21 +108,22 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
       return project.pages[e.label] && Model.pageHasContent(project.pages[e.label]);
     });
     if (!entries.length) return { html: '', folios: 0, font: true };
-    // Tiro, only where the folios have Devanagari
-    const font = ME.FontLib.needsTiro(leaves.join(' ')) ? await loadFont() : null;
     const m = project.meta;
     const title = (m.title || 'Untitled') + (m.siglum ? ' · ' + m.siglum : '');
     const leaves = entries.map((e, k) => '<section class="leaf" id="f' + k + '"><h2>Folio ' + U.escHtml(e.label) + '</h2>' + folioMarkup(project, e, pageSizes[e.pdfPage] || (project.pdf && project.pdf.size)) + '</section>');
     const options = entries.map((e, k) => '<option value="f' + k + '">' + U.escHtml(e.label) + '</option>').join('');
+    // Tiro, only where the folios have Devanagari
+    const font = ME.FontLib.needsTiro(leaves.join(' ')) ? await loadFont() : null;
     const html = '<!doctype html>\n<html lang="sa">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
       + '<title>' + U.escHtml(title) + '</title>\n'
-      + '<meta name="generator" content="Manuscribe">\n'
+      + '<meta name="generator" content="Manuscribe ' + U.escHtml(ME.VERSION) + '">\n'
       + (font ? '<!-- The font embedded below is Tiro Devanagari Sanskrit.\n' + font.licence.replace(/--+/g, '-') + '\n-->\n'
         + "<style>@font-face { font-family: 'Tiro Devanagari Sanskrit'; src: url('data:font/ttf;base64," + font.base64 + "') format('truetype'); }</style>\n" : '')
       + '<style>' + ME.FOLIO_CSS + VIEW_CSS + '</style>\n</head>\n<body>\n'
       + '<header class="view-bar"><span class="view-title">' + U.escHtml(title + (m.author ? ' — ' + m.author : '')) + '</span>'
       + '<select id="jump" title="Go to a folio side">' + options + '</select></header>\n'
       + '<main>\n' + leaves.join('\n') + '\n</main>\n'
+      + '<footer class="made">' + U.escHtml((m.title || 'Transcription') + (m.siglum ? ' (' + m.siglum + ')' : '') + ' · exported ' + new Date().toISOString().slice(0, 10) + ' · Made with Manuscribe ' + ME.VERSION) + '</footer>\n'
       + '<script>\nwindow.ME = {};\n(' + inScript(ME.folioLayoutSource.toString()) + ')(window.ME);\n(' + inScript(viewer.toString()) + ')();\n</' + 'script>\n</body>\n</html>\n';
     return { html, folios: entries.length, font: !!font };
   };

@@ -79,7 +79,7 @@ const { launch, sleep, checks, WORK, exportVia } = require('./h');
     const block0 = ids({ kind: 'edition', ed, list, blockScope: true });
     const proj = ids({ kind: 'project' });
     ok('an edition offers print, read, exchange and archive formats, and the block formats only for a block', ['pdf-any', 'reader', 'tei', 'package', 'release'].every((f) => work0.includes(f)) && !work0.includes('csv') && block0.includes('csv'), { work0, block0 });
-    ok('a transcription offers TEI or HTML, and its backup', proj.join() === 'tei-xml,backup', proj);
+    ok('a transcription offers TEI or HTML, Markdown, and its backup', proj.join() === 'tei-xml,markdown-tr,backup', proj);
     ME.Features.setContext(['ar']);
     const ar = ids({ kind: 'edition', ed, list });
     ok('without the South Asian pack: no Devanagari PDF, no Saktumiva', !ar.includes('pdf-direct') && !ar.includes('saktumiva'), ar);

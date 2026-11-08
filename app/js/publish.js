@@ -9,13 +9,24 @@
   const longDate = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
   // How the edition asks to be cited, with the version. The version is the editor's, or a dated draft.
-  Publish.citation = function (ed, when) {
+  /* The edition's version, in words: "version 1.0, issued 8 November 2026", "draft of 8 November 2026"… -> string */
+  Publish.versionOf = function (ed, when) {
     const d = when || new Date();
     // an issued version names its date; anything changed after it is a draft again
     const issued = ed.issued && ed.issued.version === ed.version && !ed.issued.changed;
-    const version = issued ? 'version ' + ed.version + ', issued ' + longDate(new Date(ed.issued.date + 'T12:00:00'))
+    return issued ? 'version ' + ed.version + ', issued ' + longDate(new Date(ed.issued.date + 'T12:00:00'))
       : ed.issued ? 'draft after version ' + ed.issued.version + ', of ' + longDate(d)
         : ed.version ? 'version ' + ed.version + ' (not yet issued), draft of ' + longDate(d) : 'draft of ' + longDate(d);
+  };
+  /* The line at the foot of every printed page: the edition's version and Manuscribe's. -> string */
+  Publish.versions = (ed, when) => {
+    const v = Publish.versionOf(ed, when);
+    return v.charAt(0).toUpperCase() + v.slice(1) + ' · Manuscribe ' + ME.VERSION;
+  };
+  Publish.citation = function (ed, when) {
+    const d = when || new Date();
+    const issued = ed.issued && ed.issued.version === ed.version && !ed.issued.changed;
+    const version = Publish.versionOf(ed, d);
     return (ed.title || 'Untitled edition') + (ed.editor ? ', edited by ' + ed.editor : '') + '. ' + ed.witnesses.length + ' witnesses; ' + version + '.' + (ed.doi && issued ? ' ' + (/^10\./.test(ed.doi) ? 'https://doi.org/' + ed.doi : ed.doi) + '.' : '') + ' Made with Manuscribe ' + ME.VERSION + ' (https://github.com/drdhaval2785/manuscribe).';
   };
 
@@ -54,7 +65,9 @@
   const texEntry = (html) => tex(html.replace(/<sup>([^<]*)<\/sup>/g, '\u0001$1\u0002')).replace(/\u0001([^\u0002]*)\u0002/g, '\\textsuperscript{$1}');
 
   /* -> string. Series A variants; B testimonia; C singular readings; D spelling variants; E the editor's reasons. */
-  Publish.tex = function (ed, list, built) {
+  /* opts.bare: for a book, only the text and its apparatus: no front matter, no versions at the foot of the pages */
+  Publish.tex = function (ed, list, built, opts) {
+    const bare = !!(opts && opts.bare);
     const s = A.settings(ed);
     const rows = Publish.conspectus(ed, list);
     const blocks = built.map((b) => {
@@ -96,13 +109,18 @@
       return '\\pstart\n\\noindent\\textbf{' + tex(b.table.unit) + '}\\quad ' + body.trim() + '\n\\pend';
     });
     const stars = built.flatMap((b) => b.stars);
-    return '% ' + Publish.citation(ed) + '\n'
+    const doc = '% ' + Publish.citation(ed) + '\n'
       + '% Compile with XeLaTeX, three times so that the line references settle: xelatex edition.tex\n'
       + '\\documentclass[11pt,a4paper]{article}\n'
       + '\\usepackage{fontspec}\n'
       + '\\XeTeXinputnormalization=1\n'
-      + '\\setmainfont{TiroDevanagariSanskrit-Regular.ttf}[Path=fonts/, Script=Devanagari, AutoFakeSlant=0.15, AutoFakeBold=1.5]\n'
+      + fontPreamble(opts && opts.fonts)
+      // long words (Tamil, Malayalam, Greek…) and lemmas that may not be broken: a little more room than TeX gives by
+      // itself, rather than a line off the page
+      + '\\emergencystretch=3em\\tolerance=1000\n'
       + '\\usepackage[normalem]{ulem}\n'
+      // the edition's version and Manuscribe's at the foot of every page, under the page number
+      + (bare ? '' : '\\makeatletter\\def\\@oddfoot{\\hfil\\thepage\\hfil\\llap{\\raisebox{-2.2ex}[0pt][0pt]{\\makebox[\\textwidth][c]{\\scriptsize ' + tex(Publish.versions(ed)) + '}}}}\\let\\@evenfoot\\@oddfoot\\makeatother\n')
       + '\\usepackage{reledmac}\n'
       + '\\Xarrangement[A]{paragraph}\\Xarrangement[B]{paragraph}\\Xarrangement[C]{paragraph}\\Xarrangement[D]{paragraph}\\Xarrangement[E]{paragraph}\n'
       + '\\Xnumberonlyfirstinline[A]\\Xnumberonlyfirstinline[B]\\Xnumberonlyfirstinline[C]\\Xnumberonlyfirstinline[D]\n'
@@ -110,25 +128,118 @@
       + '\\firstlinenum{5}\\linenumincrement{5}\n'
       + '\\Xbhooknote[B]{\\textit{Testimonia:} }\\Xbhooknote[C]{\\textit{Singular readings:} }\\Xbhooknote[D]{\\textit{Spelling:} }\\Xbhooknote[E]{\\textit{Decisions:} }\n'
       + '\\begin{document}\n'
-      + '\\begin{center}{\\Large ' + tex(ed.title || 'Edition') + '}\\\\[4pt]\\small ' + tex(Publish.citation(ed)) + '\\end{center}\n\n'
+      + (bare ? '' : '\\begin{center}{\\Large ' + tex(ed.title || 'Edition') + '}\\\\[4pt]\\small ' + tex(Publish.citation(ed)) + '\\end{center}\n\n'
       + '\\section*{Conspectus siglorum}\n\\begin{tabular}{lllll}\n\\textbf{Siglum} & \\textbf{Manuscript} & \\textbf{Date} & \\textbf{Script} & \\textbf{Folio sides}\\\\\n'
       + rows.map((r) => tex(r.siglum) + (r.group ? ' (' + tex(r.group) + ')' : '') + ' & ' + tex([r.place, r.shelfmark || r.title].filter(Boolean).join(', ') || '—') + ' & ' + tex(r.date || '—') + ' & ' + tex(r.script || '—') + ' & ' + r.folios + '\\\\').join('\n')
       + '\n\\end{tabular}\n\n'
       + '\\section*{Editorial principles}\n' + Publish.declaration(ed, built).map(tex).join('\n\n') + '\n\n'
-      + '\\section*{Text}\n\\beginnumbering\n' + blocks.join('\n\n') + '\n\\endnumbering\n'
+      + '\\section*{Text}\n')
+      + '\\beginnumbering\n' + blocks.join('\n\n') + '\n\\endnumbering\n'
       + (stars.length ? '\n\\section*{Additional passages}\n' + stars.map((x) => '\\noindent\\textbf{' + tex(x.id) + '} (' + tex(x.wits.join(' ')) + '): ' + tex(x.text) + '\\par').join('\n') + '\n' : '')
       + '\\end{document}\n';
+    return withRuns(doc, opts && opts.fonts);
+  };
+
+  /* ---------- the fonts of the LaTeX: by script, as on the print page ---------- */
+  const RTL = new Set(['Arab', 'Hebr', 'Syrc', 'Thaa', 'Nkoo', 'Samr', 'Mand', 'Adlm', 'Rohg', 'Yezi', 'Mend', 'Phnx', 'Armi', 'Palm', 'Nbat', 'Hatr', 'Sarb', 'Narb', 'Avst', 'Prti', 'Phli', 'Phlp', 'Mani', 'Sogd', 'Sogo', 'Ougr', 'Elym', 'Chrs', 'Lydi', 'Mero', 'Merc', 'Khar', 'Cprt', 'Hung', 'Orkh']);
+  // the default, before there were plans: Tiro, for Devanagari and Latin
+  const TIRO_LINE = '\\setmainfont{TiroDevanagariSanskrit-Regular.ttf}[Path=fonts/, Script=Devanagari, AutoFakeSlant=0.15, AutoFakeBold=1.5]\n';
+  function fontPreamble(plan) {
+    if (!plan) return TIRO_LINE;
+    let s = plan.main ? (plan.main.family === 'Tiro' ? TIRO_LINE : '\\setmainfont{' + plan.main.file + '}[Path=fonts/]\n') : '';
+    for (const o of plan.others) s += '\\newfontfamily\\' + o.cmd + '{' + o.file + '}[Path=fonts/]\n';
+    // a script written without spaces breaks between its letters
+    // (and lines without spaces may stretch a little more than TeX allows by itself)
+    if (plan.breakLocale) s += '\\XeTeXlinebreaklocale "' + plan.breakLocale + '"\\XeTeXlinebreakskip=0pt plus 1pt\n';
+    return s;
+  }
+  /* Each run of another script in its font, and, where the edition is right to left or quotes a right-to-left
+     script, the direction of each run (bidi: \\setRTL for the edition, \\LR and \\RL for the runs). A run is the
+     script's words and what joins them (spaces, punctuation, digits), never a brace or a command. */
+  function withRuns(doc, plan) {
+    if (!plan || (!plan.others.length && !plan.rtl && !plan.breakLocale)) return doc;
+    const at = doc.indexOf('\\begin{document}');
+    let head = doc.slice(0, at), body = doc.slice(at);
+    const set = (chars) => chars.replace(/[\\\]\[^-]/g, '\\$&');
+    // words of the class, joined by spaces and the punctuation the run's font has
+    const run = (cls, join) => { const J = '[' + set(join || ' ') + ']+'; return new RegExp('(?:' + cls + ')(?:[\\p{M}\\u200c\\u200d]|' + cls + ')*(?:' + J + '(?:' + cls + ')(?:[\\p{M}\\u200c\\u200d]|' + cls + ')*)*', 'gu'); };
+    // only the text between LaTeX's own words: commands, \\begin{…}{…}, \\\\[4pt], escaped characters
+    const PROTECT = /\\(?:begin|end)\{[^}]*\}(?:\{[lcrp|]*\})?|\\\\\[[^\]]*\]|\\[A-Za-z@]+\*?|\\./g;
+    const onText = (str, re, fn) => { let out = '', at = 0; for (const m of str.matchAll(PROTECT)) { out += str.slice(at, m.index).replace(re, fn) + m[0]; at = m.index + m[0].length; } return out + str.slice(at).replace(re, fn); };
+    for (const o of plan.others) {
+      const dir = plan.rtl ? (o.rtl ? '' : '\\LR') : (o.rtl ? '\\RL' : '');
+      const cls = '\\p{Script=' + o.script + '}' + (o.extra ? '|[' + set(o.extra) + ']' : '');
+      body = onText(body, run(cls, o.join), (m) => (dir ? dir + '{' : '{') + '\\' + o.cmd + ' ' + m + '}');
+    }
+    // Tibetan: a line may end after any tsheg or shad, also where a note's lemma begins just after it
+    // Thai, Lao, Khmer, Burmese: no spaces between words, and breaking them takes a dictionary that a TeX may not have;
+    // the browser's own (Intl.Segmenter, as collation divides them) marks where a line may end
+    const DICT = /[\p{Script=Thai}\p{Script=Laoo}\p{Script=Khmr}\p{Script=Mymr}][\p{Script=Thai}\p{Script=Laoo}\p{Script=Khmr}\p{Script=Mymr}\p{M}]*/gu;
+    if (DICT.test(body) && typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const seg = new Intl.Segmenter(plan.breakLocale || undefined, { granularity: 'word' });
+      body = onText(body, DICT, (m) => [...seg.segment(m)].map((x) => x.segment).join('\\hskip0pt plus 1pt\\relax{}'));
+    }
+    // (a little space that stretches, so that lines without spaces can be justified)
+    if (/\p{Script=Tibetan}/u.test(body)) body = onText(body, /([\u0F0B\u0F0D-\u0F12])/g, '$1\\hskip0pt plus 1pt\\relax{}');
+    if (plan.rtl) {
+      // the edition right to left: Latin runs (sigla, om., the principles) left to right in it
+      if (!plan.others.some((o) => o.script === 'Latn')) body = onText(body, run('\\p{Script=Latn}|[0-9]', ' .,;:!?()\'-0123456789'), (m) => '\\LR{' + m + '}');
+      body = body.replace('\\begin{document}\n', '\\begin{document}\n\\setRTL\n');
+    }
+    // bidi, last of the packages, wherever anything is right to left
+    if (plan.rtl || plan.others.some((o) => o.rtl)) head += '\\usepackage{bidi}\n';
+    return head + body;
+  }
+
+  /* The fonts the LaTeX of an edition needs: Tiro where it has Devanagari, else Noto Serif (Latin, Greek,
+     Cyrillic), as the main font; for every other script, its Noto font (fetched once, kept), cut down to the glyphs
+     used where it is large. -> {main, others: [{cmd, family, file, script, rtl, bytes}], rtl, breakLocale, files} */
+  Publish.texFonts = async function (ed, list, built) {
+    const FL = ME.FontLib;
+    const langs = list.map((x) => x.p && x.p.meta && x.p.meta.textLang).filter(Boolean);
+    const words = ' Conspectus siglorum Siglum Manuscript Date Script Folio sides Editorial principles Text Additional passages Testimonia Singular readings Spelling Decisions 0123456789 ';
+    const text = ME.PrintHTML.textOf(ed, built) + words + Publish.conspectus(ed, list).map((r) => [r.siglum, r.place, r.shelfmark, r.title, r.date, r.script].join(' ')).join(' ');
+    let main = null;
+    if (FL.needsTiro(text)) { const t = await Publish.font(); if (t) main = { family: 'Tiro', file: 'TiroDevanagariSanskrit-Regular.ttf', bytes: t.bytes, licence: t.licence }; }
+    if (!main) { const b = await FL.get('NotoSerif'); if (b) main = { family: 'NotoSerif', file: 'NotoSerif-Regular.ttf', bytes: b }; }
+    await ME.Shaper.load();
+    const sh = main ? ME.Shaper.font(main.bytes) : null;
+    const lacking = [...new Set(Array.from(text))].filter((ch) => /[\p{L}\p{M}\p{N}\p{P}\p{S}]/u.test(ch) && !/[\u200B-\u200D\uFEFF]/.test(ch) && !(sh && sh.nominal(ch.codePointAt(0)))).join('');
+    const others = [];
+    for (const f of FL.familiesFor(lacking, langs)) {
+      if (main && f.family === main.family) continue;
+      let bytes = await FL.get(f.family);
+      if (!bytes) continue;
+      const s2 = ME.Shaper.font(bytes);
+      // the letters the main font lacks and this one has go in its runs too: kana with Han, the Arabic comma…
+      const extra = [...lacking].filter((ch) => s2.nominal(ch.codePointAt(0)) && !others.some((o) => o.extra.includes(ch))).join('');
+      // a large font (Chinese, Japanese, Korean) only with the glyphs the edition uses
+      if (bytes.length > 3e6) bytes = FL.subset(bytes, FL.glyphsOf(s2, text), 'web');
+      // what may join two words of a run: the spaces and punctuation this font has (a Hebrew font has no Latin comma)
+      const join = [...' \u00a0.,;:!?\u060C\u061B\u061F\u05BE()\u00AB\u00BB\u2013\u2014\'-0123456789\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669'].filter((ch) => s2.nominal(ch.codePointAt(0))).join('');
+      others.push({ cmd: 'mfont' + String.fromCharCode(65 + others.length), family: f.family, file: f.family + '.ttf', script: f.script, rtl: RTL.has(f.script), extra, join, bytes });
+    }
+    // the edition's own direction: right to left if most of its letters are
+    const rtlLetters = (text.match(/[\p{Script=Arab}\p{Script=Hebr}\p{Script=Syrc}\p{Script=Thaa}\p{Script=Nkoo}]/gu) || []).length;
+    const letters = (text.match(/\p{L}/gu) || []).length;
+    // a script written without spaces breaks between its letters; Tibetan after its tsheg (Unicode's line breaking)
+    const unspaced = ME.Norm.UNSPACED.test(text) || /\p{Script=Tibetan}/u.test(text);
+    const lang = (langs[0] || '').split('-')[0];
+    return {
+      main, others, rtl: rtlLetters > letters / 2,
+      breakLocale: unspaced ? ({ ja: 'ja', zh: 'zh', th: 'th', lo: 'lo', km: 'km', my: 'my', bo: 'bo', dz: 'dz' }[lang] || 'zh') : '',
+      files: [main].concat(others).filter(Boolean),
+    };
   };
 
   // The .tex, the font it names and what to do with them, ready to zip.
-  Publish.texFiles = async function (ed, list, built) {
-    const font = await Publish.font();
-    const files = [{ name: 'edition.tex', data: Publish.tex(ed, list, built) }];
-    if (font) {
-      files.push({ name: 'fonts/TiroDevanagariSanskrit-Regular.ttf', data: Uint8Array.from(atob(font.base64), (c) => c.charCodeAt(0)) });
-      files.push({ name: 'fonts/OFL.txt', data: font.licence });
-    }
-    files.push({ name: 'README.txt', data: Publish.citation(ed) + '\n\nTo make the PDF: run "xelatex edition.tex" three times, in this folder, with a TeX distribution that has reledmac (TeX Live or MacTeX), or upload the folder to Overleaf and set its compiler to XeLaTeX.\nThe font is Tiro Devanagari Sanskrit, under the SIL Open Font License (fonts/OFL.txt).\n' });
+  Publish.texFiles = async function (ed, list, built, opts) {
+    const plan = await Publish.texFonts(ed, list, built);
+    const files = [{ name: 'edition.tex', data: Publish.tex(ed, list, built, Object.assign({}, opts, { fonts: plan })) }];
+    for (const f of plan.files) files.push({ name: 'fonts/' + f.file, data: f.bytes });
+    // the fonts' licence: Tiro's own text, or the SIL Open Font License of the Noto fonts
+    if (plan.files.length) files.push({ name: 'fonts/OFL.txt', data: (plan.main && plan.main.licence) || ('The fonts in this folder (' + plan.files.map((f) => f.family).join(', ') + ') are licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org\n') });
+    files.push({ name: 'README.txt', data: Publish.citation(ed) + '\n\nTo make the PDF: run "xelatex edition.tex" three times, in this folder, with a TeX distribution that has reledmac (TeX Live or MacTeX); or run "tectonic edition.tex" (Tectonic fetches what it needs); or upload the folder to Overleaf and set its compiler to XeLaTeX.\nThe fonts in fonts/ (' + plan.files.map((f) => f.file).join(', ') + ') are under the SIL Open Font License (fonts/OFL.txt).\n' });
     return files;
   };
 
@@ -373,7 +484,7 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
     const stars = data.blocks.flatMap((b) => b.stars);
     const json = JSON.stringify(data).replace(/</g, '\\u003c');
     return '<!doctype html>\n<html lang="sa">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-      + '<title>' + esc(data.title) + '</title>\n<meta name="generator" content="Manuscribe">\n<meta name="citation" content="' + U.escAttr(data.citation) + '">\n'
+      + '<title>' + esc(data.title) + '</title>\n<meta name="generator" content="Manuscribe ' + esc(ME.VERSION) + '">\n<meta name="citation" content="' + U.escAttr(data.citation) + '">\n'
       + (font ? '<!-- The font embedded below is Tiro Devanagari Sanskrit.\n' + font.licence.replace(/--+/g, '-') + '\n-->\n<style>@font-face { font-family: \'Tiro Devanagari Sanskrit\'; src: url(\'data:font/ttf;base64,' + font.base64 + '\') format(\'truetype\'); }</style>\n' : '')
       + '<style>' + READER_CSS + '</style>\n</head>\n<body class="mark">\n'
       + '<header><h1>' + esc(data.title) + '</h1>'
