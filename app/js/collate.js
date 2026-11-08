@@ -465,6 +465,65 @@
     return { cols, ncols: at };
   };
 
+  /* How close one alignment is to another, taken as right: the pairs of tokens of two witnesses that share a column.
+     A token for lost text says nothing. -> {truth, found, both} */
+  Collate.pairScore = function (labels, tokens, truth, found) {
+    const cols = (x, l) => { const out = new Map(); x.cols[l].forEach((c, k) => { if (tokens[l][k] !== Norm.GAP) out.set(k, c); }); return out; };
+    let nt = 0, nf = 0, both = 0;
+    for (let i = 0; i < labels.length; i++) {
+      const tA = cols(truth, labels[i]), fA = cols(found, labels[i]);
+      for (let j = i + 1; j < labels.length; j++) {
+        const tB = new Map(), fB = new Map();
+        for (const [k, c] of cols(truth, labels[j])) tB.set(c, k);
+        for (const [k, c] of cols(found, labels[j])) fB.set(c, k);
+        for (const [k, c] of tA) {
+          const t = tB.get(c), f = fB.get(fA.get(k));
+          if (t !== undefined) nt++;
+          if (f !== undefined) nf++;
+          if (t !== undefined && t === f) both++;
+        }
+      }
+    }
+    return { truth: nt, found: nf, both };
+  };
+
+  // The blocks the editor has read through: what they now say is the standard the methods are measured by.
+  Collate.goldBlocks = async function (ed, work) {
+    return (await Store.listCollations(ed.id)).filter((r) => r.table.checked && (!work || r.work === work));
+  };
+
+  /* Every method on the blocks read through, against what the editor made of them. opts: {signal, onStep(i, n)}
+     -> {blocks, rows: [{engine, name, precision, recall, f1, secs, error}], best: engine id or null} */
+  Collate.scoreMethods = async function (ed, opts) {
+    const o = opts || {};
+    const recs = await Collate.goldBlocks(ed);
+    const ids = Object.keys(Collate.ENGINES), rows = [];
+    for (let e = 0; e < ids.length; e++) {
+      const id = ids[e];
+      const sum = { truth: 0, found: 0, both: 0 };
+      let secs = 0, error = null;
+      for (let b = 0; b < recs.length && !error; b++) {
+        if (o.signal && o.signal.aborted) throw new Collate.Cancelled();
+        if (o.onStep) o.onStep(e * recs.length + b, ids.length * recs.length);
+        const t = recs[b].table, labels = t.order, tokens = {}, truth = { cols: {}, ncols: t.ncols };
+        for (const l of labels) { tokens[l] = t.states[l].n; truth.cols[l] = t.states[l].cols; }
+        const t0 = performance.now();
+        try {
+          const found = await Collate.alignBlock(ed, t, { engine: id, base: null }, o.signal);
+          secs += (performance.now() - t0) / 1000;
+          const s = Collate.pairScore(labels, tokens, truth, found);
+          sum.truth += s.truth; sum.found += s.found; sum.both += s.both;
+        } catch (err) { if (err.cancelled) throw err; error = err.message; }
+      }
+      const precision = sum.found ? sum.both / sum.found : 0, recall = sum.truth ? sum.both / sum.truth : 0;
+      rows.push({ engine: id, name: Collate.ENGINES[id].name, precision, recall, f1: precision + recall ? (2 * precision * recall) / (precision + recall) : 0, secs, error });
+    }
+    const good = rows.filter((r) => !r.error).sort((a, b) => b.f1 - a.f1);
+    // within half a point the quicker is the better
+    const near = good.filter((r) => good[0].f1 - r.f1 <= 0.005).sort((a, b) => a.secs - b.secs);
+    return { blocks: recs.length, rows, best: recs.length && near.length ? near[0].engine : null };
+  };
+
   // Has the editor done anything to this block that belongs to its columns?
   Collate.untouched = (t) => !(t.ops || []).length && !(t.locks || []).length && !(t.decisions || []).length && !Object.keys(t.picks || {}).length;
 

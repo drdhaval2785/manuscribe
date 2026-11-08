@@ -873,3 +873,6 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 .cm-grid caption { text-align: left; font-size: 12px; color: var(--muted); padding-bottom: 2px; }
 .cm-grid th { text-align: right; padding: 1px 8px 1px 0; font-weight: 600; color: var(--muted); }
 .cm-grid td { padding: 1px 6px; border: 1px solid var(--line); min-width: 1.2em; text-align: center; }
+.cm-score { border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+.cm-score th, .cm-score td { padding: 3px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.cm-score tr.best td { font-weight: 700; }

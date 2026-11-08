@@ -515,6 +515,9 @@ and keeps what is done.
   Under **Full**, **Line up again…** in a block's own view gives one difficult passage its own method.
   **Compare methods…** beside it shows another method's alignment of the block next to the table as it stands, place by
   place. Nothing changes until you take all of it or, in a block with no corrections, the places you tick.
+- **Which method?** Mark as read a few blocks of different kinds, after correcting them; then **Score the methods on
+  them** (Collate › Change…) lines each of those blocks up by every method, compares the result with your corrected
+  table, and says which came closest, and how long each took. Your blocks are not changed.
 
 - **Align by:** letters for the languages of South Asia: on a real commentary passage, alignment by letters and by
   akṣaras was far better than by words, as Li advises. For a language that spaces its words (Latin, Greek, Arabic,

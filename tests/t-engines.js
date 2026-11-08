@@ -194,6 +194,40 @@ const { LANGS, make, buildInPage } = require('./languages');
     ok('a block with corrections offers no places one by one', ![...document.querySelectorAll('.modal-foot .btn')].some((x) => x.textContent === 'Take the places ticked'));
     [...document.querySelectorAll('.modal-foot .btn')].find((x) => x.textContent === 'Close').click();
     await cmp;
+
+    // scoring against what the editor made of a block
+    ok('the score counts pairs of tokens sharing a column, as the benchmark does', (() => {
+      const s = Collate.pairScore(['A', 'B', 'C'], { A: ['x', 'y'], B: ['x', 'y'], C: ['x'] },
+        { cols: { A: [0, 1], B: [0, 1], C: [0] }, ncols: 2 }, { cols: { A: [0, 1], B: [0, 2], C: [1] }, ncols: 3 });
+      return s.truth === 4 && s.found === 2 && s.both === 1;
+    })(), Collate.pairScore(['A', 'B', 'C'], { A: ['x', 'y'], B: ['x', 'y'], C: ['x'] }, { cols: { A: [0, 1], B: [0, 1], C: [0] }, ncols: 2 }, { cols: { A: [0, 1], B: [0, 2], C: [1] }, ncols: 3 }));
+    const gapMark = ME.Norm.GAP;
+    const gs = Collate.pairScore(['A', 'B'], { A: ['x', gapMark], B: ['x', 'y'] }, { cols: { A: [0, 1], B: [0, 1] }, ncols: 2 }, { cols: { A: [0, 1], B: [0, 1] }, ncols: 2 });
+    ok('a token for lost text is not scored', gs.truth === 1 && gs.both === 1, gs);
+    delete ed.collate.blocks; delete ed.collate.engine; delete ed.collate.base;
+    await Collate.run(ed, fresh, 'main', { force: true });
+    const goldSum = (await sums())[0];
+    const goldRec = await ME.Store.getCollation(goldSum.key);
+    ok('no block read through, nothing to score', (await Collate.goldBlocks(ed)).length === 0);
+    E.perform(goldRec.table, { op: 'check', on: true });
+    await Collate.saveTable(ed, goldRec);
+    const goldBefore = JSON.stringify(goldRec.table.states);
+    const score = await Collate.scoreMethods(ed);
+    ok('every method is scored on the block read through', score.blocks === 1 && score.rows.length === 3 && score.rows.every((r) => !r.error && r.f1 > 0.5) && score.best, score);
+    ok('the block is not changed by scoring', JSON.stringify((await ME.Store.getCollation(goldSum.key)).table.states) === goldBefore);
+    const sak = score.rows.find((r) => r.engine === 'saktumiva');
+    ok('Saktumiva, which made this table, is scored as matching it', sak.f1 > 0.999, sak);
+    ed.collate.engine = 'poa';
+    await Collate.run(ed, fresh, 'main', {});
+    ok('a block read through stays so when it is collated again', (await ME.Store.getCollation(goldSum.key)).table.checked === true && (await Collate.goldBlocks(ed)).length === 1);
+    delete ed.collate.engine;
+    dialog = ME.CollateView.comparison(ed, list, null);
+    await wait(() => { const b = document.querySelector('[data-action="score-methods"]'); return b && !b.disabled; });
+    document.querySelector('[data-action="score-methods"]').click();
+    await wait(() => document.querySelector('.cm-score tbody tr'));
+    ok('the dialog reports the methods, the best marked', document.querySelectorAll('.cm-score tbody tr').length === 3 && document.querySelectorAll('.cm-score tr.best').length === 1);
+    [...document.querySelectorAll('.modal-foot .btn')].find((x) => x.textContent === 'Close').click();
+    await dialog;
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);

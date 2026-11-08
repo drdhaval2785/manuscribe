@@ -227,6 +227,39 @@
     return box;
   }
 
+  /* Which method suits these manuscripts: every method on the blocks the editor has read through. */
+  function goldScores(ed, redraw) {
+    const box = U.el('div', { class: 'cv-gold' });
+    const note = U.el('p', { class: 'help' }, 'Which suits your manuscripts? Mark some blocks of different kinds as read, and the methods can be scored on them.');
+    const out = U.el('div');
+    const btn = U.el('button', { class: 'btn small', disabled: true, dataset: { action: 'score-methods' }, onclick: async () => {
+      btn.disabled = true;
+      out.textContent = 'Lining up…';
+      try {
+        const res = await Collate.scoreMethods(ed, { onStep: (i, n) => { out.textContent = 'Lining up… ' + Math.round(100 * i / n) + '%'; } });
+        const pc = (x) => (100 * x).toFixed(1);
+        out.innerHTML = '';
+        out.append(U.el('table', { class: 'cm-score' },
+          U.el('thead', null, U.el('tr', null, ['Method', 'Right among its pairs', 'Of the true pairs found', 'Score (F1)', 'Time'].map((h) => U.el('th', null, h)))),
+          U.el('tbody', null, res.rows.map((r) => U.el('tr', { class: r.engine === res.best ? 'best' : '' }, U.el('td', null, r.name),
+            r.error ? U.el('td', { colspan: 4 }, 'failed: ' + r.error) : [U.el('td', null, pc(r.precision) + '%'), U.el('td', null, pc(r.recall) + '%'), U.el('td', null, pc(r.f1)), U.el('td', null, howLong(r.secs))])))));
+        const now = Collate.choiceOf(ed, '', '').engine;
+        if (res.best) {
+          const name = Collate.ENGINES[res.best].name;
+          out.append(U.el('p', { class: 'help' }, res.blocks < 3 ? 'On only ' + res.blocks + ' block(s): read through at least three of different kinds before relying on this. ' : '',
+            res.best === now ? name + ', which this edition uses, did best on them.' : U.el('span', null, name + ' did best on them. ', U.el('button', { class: 'btn small', onclick: async () => { ed.collate = Object.assign({}, ed.collate, { engine: res.best }); await Edition.save(ed); redraw(); } }, 'Use it for this edition'))));
+        }
+      } catch (e) { out.textContent = 'Could not score them: ' + e.message; }
+      btn.disabled = false;
+    } }, 'Score the methods on them');
+    box.append(note, U.el('div', { class: 'nv-head' }, btn), out);
+    Collate.goldBlocks(ed).then((recs) => {
+      btn.disabled = !recs.length;
+      if (recs.length) note.textContent = 'You have read through ' + recs.length + ' block(s). What you made of them is the standard the methods are measured by.';
+    });
+    return box;
+  }
+
   /* One difficult passage its own way: that block alone is lined up again. What the editor has corrected stays.
      close: closes the block's own view, to open it again as it now is. */
   CollateView.lineUpAgain = async function (ed, list, workId, table, close) {
@@ -340,6 +373,7 @@
         U.el('h3', null, 'Lined up by'), U.el('div', { class: 'nv-head' }, tok),
         U.el('h3', null, 'How to line up the witnesses'),
         methodChooser(ed, Collate.choiceOf(ed, '', ''), async (how) => { ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base }); await Edition.save(ed); draw(); }),
+        goldScores(ed, draw),
         U.el('h3', null, 'Ties between readings'),
         U.el('p', { class: 'help' }, 'Where readings tie, the reading of the more trusted witness is proposed: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ' ',
           U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) draw(); } }, 'Change…')));
