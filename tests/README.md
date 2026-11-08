@@ -37,6 +37,7 @@ apart from `t-features.js`, which starts at the default.
 | `t-collate.js` | Editing operations and undo; on the sample, tokens back to their lines, identical re-runs, exchange formats, and locks that survive random edits |
 | `t-calibrate.js` | Calibration in one pane: the PDF takes the whole window while the boxes are drawn, zooms in to draw closely, a box drawn zoomed in lands where it was drawn, and the typing area comes back as it was (skipped without `linear.pdf`) |
 | `t-apparatus.js` | The proposal by majority and trust; faulty entries caught; decisions never moved silently; witnesses read back from the TEI |
+| `t-engines.js` | The methods of lining up witnesses: every token kept in order on hard random text, very long blocks, changing method, one block its own way, comparing and taking places, scoring on blocks read through |
 | `t-stemma.js` | Trees, copies and the archetype on a tradition with a known stemma; lacunae never agree; NEXUS; timings |
 | `t-metre.js` | Metres recognised in known verses, among them an ardhasama and an āryā; every metre of the list from a verse made to its pattern; seeded faults flagged; no run of words of a prose passage taken for verse |
 | `t-mobile.js` | Phones and tablets: on a phone (390 × 844, touch) the line view enlarges the letters to about 16 px and the scan with them, with the device's own sizes; the folio bar on one row, the Tags panel from the bottom that closes when a tag is chosen; buttons for a finger; no page scrolls sideways; calibration by touch (a finger draws, two pinch); on a tablet held upright the project's sizes and the Tags panel; on a computer, as before; wide tables with the naming column in view |
@@ -71,6 +72,8 @@ looked for in `/Applications`; set `CHROME` to use another. Profiles and downloa
 folder, under `manuscribe-tests`.
 
 `bench-collate.js` is a benchmark too: it lines up generated witnesses, whose true alignment is known, with every collation method (Manuscribe today, Saktumiva alone and with refinement, partial-order alignment, alignment to a base text, a diff, and CollateX when `CX_PYTHON` names a Python with collatex), and reports time and precision, recall and F1 of the word pairs each puts together: `node tests/bench-collate.js [quick|full] [engines]`. The findings are in `reports/Collation algorithms.md`.
+
+`node tests/bench-collate.js gold [methods]` scores the methods on real witnesses that scholars have collated (`gold-sets.js`: 3 John in Greek and the Frankenstein Variorum in English, each downloaded once). With `CX_PYTHON` set it includes CollateX.
 
 `bench-languages.js` is a benchmark, not a test, and `run.js` does not run it: `node tests/bench-languages.js [language codes, or all] [witnesses] [folio sides]` makes, for each language (from `languages.js`, shared with `t-languages.js`), fifteen witnesses of about ten folio sides copied down a stemma of three families, collates them, publishes the print page, the browser's PDF of it, the reader and TEI, and reports how long each step takes; the outputs and a picture of a page of each are saved with the test files.
 
