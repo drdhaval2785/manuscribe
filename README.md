@@ -454,7 +454,7 @@ Above the steps: **‹ Start**, the title, **Export…** (every output, see [Pub
     lacks, with links to the place. The grid shows **All** works at first, each under its own heading, or one
     work. Click an empty cell to explain the gap: lacuna, not yet transcribed, or outside that witness's scope.
   - A fold you open stays open while you change things in it.
-- **2 Collate:** how the witnesses are compared, in one line with **Change…**; **Collate**; the blocks, each with
+- **2 Collate:** how the witnesses are compared, in one line; **Collate with** and **Collation settings…**; **Collate**; the blocks, each with
   its words, the places where the witnesses differ, how many you have decided and how many wait for review (click
   a block to open it and decide); **Edited text and apparatus…** for the whole work, with its indices; and
   **Tools**, the optional tools switched on under ⚙ Settings: metre (with the South Asian pack), agreement, the
@@ -516,7 +516,7 @@ and keeps what is done.
   **Compare methods…** beside it shows another method's alignment of the block next to the table as it stands, place by
   place. Nothing changes until you take all of it or, in a block with no corrections, the places you tick.
 - **Which method?** Mark as read a few blocks of different kinds, after correcting them; then **Score the methods on
-  them** (Collate › Change…) lines each of those blocks up by every method, compares the result with your corrected
+  them** (**Collation settings…** on the Collate step) lines each of those blocks up by every method, compares the result with your corrected
   table, and says which came closest, and how long each took. Your blocks are not changed.
 
 - **Align by:** letters for the languages of South Asia: on a real commentary passage, alignment by letters and by
@@ -524,7 +524,7 @@ and keeps what is done.
   English…), the first Collate chooses words, since a letter aligner pairs letters of different words where one word
   stands for another; for a script written without spaces (Japanese, Chinese, Thai…), letters, with the words found by
   the browser's word segmenter, so that an entry is a word or two, not a run of the sentence; in Tibetan, the tsheg and
-  the shad divide the words. **Change…** chooses
+  the shad divide the words. **Collation settings…** chooses
   otherwise. Fifteen witnesses of about ten folio sides each collate in one to eight seconds in all
   (`tests/bench-languages.js` measures it in 38 languages).
 - **Any script.** Every script Unicode encodes can be collated and published: the 172 of Unicode 17.0, from cuneiform,
@@ -560,7 +560,7 @@ appears below, if the witness has its PDF here.
 - **Most witnesses win.** For each word, the reading most witnesses have is proposed. A witness has one vote: its text
   before correction does not vote, and a witness whose text is lost here abstains.
 - **Ties go to the witness you trust most.** Before the first collation you are asked to put the witnesses in order,
-  most trusted first; **Change…** in the Collate step changes it at any time, and nothing has to be aligned again.
+  most trusted first; **Collation settings…** in the Collate step changes it at any time, and nothing has to be aligned again.
 - **Only real differences are marked.** Readings that differ only in spelling the normalisation rules ignore, or only in
   spacing and punctuation, count as one reading. A long compound with differences far apart is divided around them.
 - **Your choice:** the buttons, or the keys 1 to 9, choose another reading. **Follow the votes again** takes it back,

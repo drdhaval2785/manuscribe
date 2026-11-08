@@ -162,10 +162,10 @@
       U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
     const anyTable = [...summaries.values()].some((s) => workIds.includes(s.work));
     const workPick = works.length > 1 ? U.el('label', null, all || LI.codeOf(workId) ? 'Layer ' : 'Work ', pick) : null;
-    // the comparison in a line, with everything about it behind Change…
+    // the comparison in a line; everything about it is behind Collation settings, beside the method
     const norm = Norm.settings(ed.norm);
-    const comparison = U.el('p', { class: 'help cv-trustline' }, 'Compared as ', U.el('strong', null, norm.profile.name), ', by ', U.el('strong', null, Norm.TOKENIZERS[kind].label.toLowerCase()), '; ties go to ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? ' ' : ' (not set yet) ',
-      U.el('button', { class: 'btn small', dataset: { action: 'comparison' }, onclick: () => CollateView.comparison(ed, list, redraw) }, 'Change…'));
+    const comparison = U.el('p', { class: 'help cv-trustline' }, 'Compared as ', U.el('strong', null, norm.profile.name), ', by ', U.el('strong', null, Norm.TOKENIZERS[kind].label.toLowerCase()), '; ties go to ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ed.trust ? '' : ' (not set yet)');
+    const settingsBtn = U.el('button', { class: 'btn small', title: 'What counts as the same reading, whether to line up by letters or words, the order of trust, and which method suits your manuscripts', dataset: { action: 'comparison' }, onclick: () => CollateView.comparison(ed, list, redraw) }, 'Collation settings…');
     // the optional tools, in one menu; what is not switched on is a click away in Settings
     const close = (e) => { const d = e.target.closest('details'); if (d) d.open = false; };
     const item = (t) => U.el('button', { class: 'btn small', title: t.title, dataset: { action: t.action }, onclick: (e) => { close(e); t.run(); } }, t.label);
@@ -182,7 +182,7 @@
       ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base });
       Edition.save(ed).then(redraw);
       return true;
-    }, { label: 'Collate with' });
+    }, { label: 'Collate with', beside: settingsBtn });
     return U.el('div', null,
       U.el('p', { class: 'help' }, anyTable
         ? 'Open a block to read its text word by word: choose a reading where the witnesses differ, or click any word to emend it. Collate again after changing a transcription; a block whose text has not changed keeps its table and your decisions.'
@@ -222,7 +222,7 @@
       help.textContent = (Collate.ENGINES[how.engine] || { help: 'This block goes as the rest of the edition does.' }).help;
     };
     paint();
-    box.append(U.el('div', { class: 'nv-head' }, o.label ? U.el('strong', null, o.label) : null, pick, extra), help, note);
+    box.append(U.el('div', { class: 'nv-head' }, o.label ? U.el('strong', null, o.label) : null, pick, extra, o.beside || null), help, note);
     (async () => {
       const times = {};
       for (const e of list) times[e.id] = await Collate.estimateAll(ed, e.id);
@@ -387,7 +387,7 @@
           U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) draw(); } }, 'Change…')));
     };
     draw();
-    await UI.modal({ title: 'How witnesses are compared', body, wide: true, buttons: [{ label: 'Close', value: null }] });
+    await UI.modal({ title: 'Collation settings', body, wide: true, buttons: [{ label: 'Close', value: null }] });
     if (redraw) redraw();
   };
 
@@ -407,7 +407,7 @@
       // lined up by words where the language spaces its words, else by letters
       const by = Collate.tokenKind(ed);
       await Edition.save(ed);
-      U.toast('The witnesses are not in a language of South Asia, so they are compared as written, ' + (by === 'word' ? 'word by word' : 'letter by letter') + ' (Collate › Change… to choose otherwise)', 'info', 7000);
+      U.toast('The witnesses are not in a language of South Asia, so they are compared as written, ' + (by === 'word' ? 'word by word' : 'letter by letter') + ' (Collation settings, under Collate, to choose otherwise)', 'info', 7000);
     }
     if (CollateView.running) { U.toast('A collation is already running'); return; }
     ME.App.flush();
