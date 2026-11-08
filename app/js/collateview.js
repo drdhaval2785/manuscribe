@@ -176,11 +176,19 @@
       anyTable ? ME.Steps.tools(ed, list, redraw).map(item) : null,
       U.el('button', { class: 'btn small ghost', title: 'Choose which optional tools are shown', dataset: { action: 'tools-settings' }, onclick: (e) => { close(e); ME.App.showSettings(); } }, 'Switch tools on or off…')));
     void trustLine; void tok;
+    // the method, on the step itself; a change while a collation runs would give its blocks different methods
+    const method = methodChooser(ed, Collate.choiceOf(ed, '', ''), (how) => {
+      if (CollateView.running) { U.toast('Wait until this collation is done, or cancel it'); return false; }
+      ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base });
+      Edition.save(ed).then(redraw);
+      return true;
+    }, { label: 'Collate with' });
     return U.el('div', null,
       U.el('p', { class: 'help' }, anyTable
         ? 'Open a block to read its text word by word: choose a reading where the witnesses differ, or click any word to emend it. Collate again after changing a transcription; a block whose text has not changed keeps its table and your decisions.'
         : 'Lines up the witnesses, block by block, by their citation IDs. It only reads your transcriptions.'),
       comparison,
+      method,
       U.el('div', { class: 'nv-head' }, workPick, go,
         U.el('button', { class: 'btn small', disabled: !anyTable, title: 'The edited text of the whole work, its apparatus, checks, search and indices', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
         tools),
@@ -196,7 +204,7 @@
     const box = U.el('div', { class: 'cv-method' });
     const list = Object.values(Collate.ENGINES);
     const options = new Map();
-    const pick = U.el('select', { 'aria-label': 'How to line up the witnesses', onchange: () => { how.engine = pick.value; onChange(how); paint(); } },
+    const pick = U.el('select', { 'aria-label': 'How to line up the witnesses', onchange: () => { const was = how.engine; how.engine = pick.value; if (onChange(how) === false) { how.engine = was; pick.value = was; } paint(); } },
       o.asEdition ? U.el('option', { value: '', selected: !how.engine }, 'As the edition: ' + o.asEdition) : null,
       list.map((e) => { const opt = U.el('option', { value: e.id, selected: e.id === how.engine }, e.name); options.set(e.id, opt); return opt; }));
     const extra = U.el('span');
@@ -206,7 +214,7 @@
       extra.innerHTML = '';
       if (how.engine === 'base') {
         const sigla = ed.witnesses.map((w) => w.siglum);
-        const base = U.el('select', { 'aria-label': 'The base text', onchange: () => { how.base = base.value || null; onChange(how); } },
+        const base = U.el('select', { 'aria-label': 'The base text', onchange: () => { const was = how.base; how.base = base.value || null; if (onChange(how) === false) { how.base = was; base.value = was || ''; } } },
           U.el('option', { value: '', selected: !how.base }, 'The most trusted witness (' + Collate.trustOrder(ed)[0] + ')'),
           sigla.map((s) => U.el('option', { value: s, selected: s === how.base }, s)));
         extra.append(' against ', base);
@@ -214,7 +222,7 @@
       help.textContent = (Collate.ENGINES[how.engine] || { help: 'This block goes as the rest of the edition does.' }).help;
     };
     paint();
-    box.append(U.el('div', { class: 'nv-head' }, pick, extra), help, note);
+    box.append(U.el('div', { class: 'nv-head' }, o.label ? U.el('strong', null, o.label) : null, pick, extra), help, note);
     (async () => {
       const times = {};
       for (const e of list) times[e.id] = await Collate.estimateAll(ed, e.id);

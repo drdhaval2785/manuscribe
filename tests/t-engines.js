@@ -228,6 +228,24 @@ const { LANGS, make, buildInPage } = require('./languages');
     ok('the dialog reports the methods, the best marked', document.querySelectorAll('.cm-score tbody tr').length === 3 && document.querySelectorAll('.cm-score tr.best').length === 1);
     [...document.querySelectorAll('.modal-foot .btn')].find((x) => x.textContent === 'Close').click();
     await dialog;
+
+    // the choice stands on the Collate step itself
+    delete ed.collate.engine; delete ed.collate.base;
+    let redrawn = 0;
+    const panel = await ME.CollateView.section(ed, list, () => { redrawn++; });
+    document.body.append(panel);
+    panel.id = 'collate-step';
+    const onStep = () => panel.querySelector('select[aria-label="How to line up the witnesses"]');
+    const collateBtn = panel.querySelector('[data-action="collate"]');
+    ok('the Collate step offers the method, before the Collate button', onStep() && (onStep().compareDocumentPosition(collateBtn) & Node.DOCUMENT_POSITION_FOLLOWING) && [...onStep().options].map((x) => x.value).join() === 'saktumiva,poa,base' && onStep().value === 'saktumiva', onStep() && onStep().value);
+    await wait(() => /\(/.test(onStep().options[0].textContent));
+    ME.CollateView.running = {};
+    set(onStep(), 'poa');
+    ok('it cannot be changed while a collation runs', onStep().value === 'saktumiva' && !ed.collate.engine, ed.collate);
+    ME.CollateView.running = null;
+    set(onStep(), 'poa');
+    await wait(() => redrawn === 1);
+    ok('choosing there is kept on the edition, and the step is drawn again', ed.collate.engine === 'poa');
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);
