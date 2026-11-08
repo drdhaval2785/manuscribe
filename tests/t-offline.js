@@ -49,9 +49,26 @@ const { launch, sleep, checks, ROOT, WORK, CHROME, CHROME_ARGS, serve, stop, OTH
   await p2.close();
   T.check('without the internet it opens as before, in an open tab and in a new one', off.app && off.start && off.controlled && off2 && !errors.length, { off, off2, errors });
 
-  // a new version on the website: offered, and brought in by Reload
+  // what the editor has made, saved before the update: a transcription, its scan, an edition, a collation, a setting
+  const mine = await page.evaluate(async () => {
+    const { Model, Store, Edition } = ME;
+    const p = Model.upgrade(Model.newProject({ meta: { title: 'Kept', siglum: 'K' }, layoutType: 'linear', lines: { main: 1 }, folios: {} }));
+    p.pages = { '1r': { boxes: { main: ['text kept across the update'] } } };
+    await Store.putProject(p);
+    await Store.putPdf(p.id, new Blob(['%PDF-kept'], { type: 'application/pdf' }));
+    const ed = Edition.create('Kept edition');
+    ed.witnesses.push({ siglum: 'K', projectId: p.id, streams: {} });
+    await Store.putEdition(ed);
+    const key = ME.Collate.keyOf(ed.id, 'main', 'u1');
+    await Store.putCollation({ key, edition: ed.id, work: 'main', unit: 'u1', seen: {}, paramsKey: 'kept', table: { unit: 'u1', work: 'main', order: [], states: {}, ncols: 0 } });
+    return { p: p.id, ed: ed.id, key };
+  });
+
+  // a new version on the website, whose storage has also moved on: offered, and brought in by Reload
   const next = sw.replace(/const VERSION = "[^"]*";/, 'const VERSION = "9.9.9-test";');
-  server = await serve(port, { 'app/sw.js': next });
+  const storeSrc = fs.readFileSync(path.join(ROOT, 'app', 'js', 'store.js'), 'utf8');
+  const dbWas = +/DB_VERSION = (\d+)/.exec(storeSrc)[1];
+  server = await serve(port, { 'app/sw.js': next, 'app/js/store.js': storeSrc.replace(/DB_VERSION = \d+/, 'DB_VERSION = ' + (dbWas + 1)) });
   await page.evaluate(() => ME.Install.registration.update());
   for (let k = 0; k < 60 && !(await page.$('#update-bar button.primary')); k++) await sleep(100);
   const offered = await page.evaluate(() => { const b = document.getElementById('update-bar'); return b ? b.textContent : ''; });
@@ -60,6 +77,14 @@ const { launch, sleep, checks, ROOT, WORK, CHROME, CHROME_ARGS, serve, stop, OTH
   await sleep(800);
   const after = await page.evaluate(async () => ({ keys: await caches.keys(), bar: !!document.getElementById('update-bar'), app: !!(window.ME && ME.App) }));
   T.check('Reload brings it in: the new version runs, and the old copy is cleared away', after.app && !after.bar && after.keys.length === 1 && after.keys[0] === 'manuscribe-9.9.9-test', after);
+  const survived = await page.evaluate(async ({ p, ed, key }) => {
+    const { Store } = ME;
+    await Store.ready;
+    const proj = await Store.getProject(p), pdf = await Store.getPdf(p), edition = await Store.getEdition(ed), col = await Store.getCollation(key);
+    const dbs = await indexedDB.databases();
+    return { text: proj && proj.pages['1r'].boxes.main[0], pdf: pdf ? await (pdf.text ? pdf.text() : new Response(pdf).text()) : null, edition: edition && edition.title, col: col && col.paramsKey, version: Math.max(...dbs.map((d) => d.version || 0)) };
+  }, mine);
+  T.check('after the update, and an upgrade of the storage, everything the editor made is still there', survived.text === 'text kept across the update' && survived.pdf === '%PDF-kept' && survived.edition === 'Kept edition' && survived.col === 'kept' && survived.version === dbWas + 1, survived);
 
   // the browser's offer to install becomes a button on the start screen
   const inst = await page.evaluate(async () => {
