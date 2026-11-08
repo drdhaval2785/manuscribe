@@ -80,8 +80,8 @@
       make: async (ctx) => { const s = await scoped(ctx); const layered = ME.LayersView ? await ME.LayersView.baseTexts(ctx.ed, s.work.id) : null; return file(base(ctx) + '.reader.html', await ME.Publish.reader(ctx.ed, ctx.list, s.built, layered), 'text/html'); } },
     { id: 'print-page', for: 'edition', group: 'read', label: 'Print page, one HTML file', desc: 'The print edition as a page, to open and print later on any computer.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, Object.assign({ fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }, bare(ctx))), 'text/html'); } },
-    { id: 'markdown', for: 'edition', group: 'read', label: 'Markdown', desc: 'The edition in Markdown, for GitHub, Obsidian, Pandoc and other Markdown tools: the front matter, the edited text, and its apparatus as footnotes at the lemmas.',
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.md', ME.Markdown.edition(ctx.ed, ctx.list, s.built, bare(ctx)), 'text/markdown'); } },
+    { id: 'markdown', for: 'edition', group: 'read', label: 'Markdown', desc: 'The edition in Markdown: the front matter, the edited text, and its apparatus as numbered notes linked from the lemmas.',
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.md', ME.Markdown.edition(ctx.ed, ctx.list, s.built, Object.assign(bare(ctx), { notes: ctx.mdNotes })), 'text/markdown'); } },
     { id: 'tei', for: 'edition', group: 'exchange', label: 'TEI apparatus', desc: 'TEI P5, parallel segmentation: for other editions, teiphy and open-cbgm.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.edition.xml', ME.Apparatus.tei(ctx.ed, s.built, s.work), 'application/xml'); } },
     { id: 'text', for: 'edition', group: 'exchange', label: 'Apparatus as text', desc: 'The edited text with its apparatus under it, plain text.',
@@ -162,6 +162,13 @@
         const sel = U.el('select', { 'aria-label': 'How', dataset: { action: 'pdf-route' }, onchange: () => { ctx.pdfRoute = sel.value; last.pdfRoute = sel.value; } },
           U.el('option', { value: 'direct', selected: X.pdfRoute(ctx) === 'direct' }, 'saved at once, as a file'),
           U.el('option', { value: 'print', selected: X.pdfRoute(ctx) === 'print' }, 'through this browser’s print dialog'));
+        extra = U.el('span', { class: 'xp-route' }, ' ', sel);
+      }
+      if (f.id === 'markdown') {
+        ctx.mdNotes = last.mdNotes || 'links';
+        const sel = U.el('select', { 'aria-label': 'How the notes are written', dataset: { action: 'md-notes' }, onchange: () => { ctx.mdNotes = sel.value; last.mdNotes = sel.value; } },
+          U.el('option', { value: 'links', selected: ctx.mdNotes === 'links' }, 'notes as superscript links, for any viewer'),
+          U.el('option', { value: 'footnotes', selected: ctx.mdNotes === 'footnotes' }, 'Markdown footnotes, for Pandoc'));
         extra = U.el('span', { class: 'xp-route' }, ' ', sel);
       }
       const row = U.el('label', { class: 'xp-row', dataset: { format: f.id, kind: X.kindOf(f) } }, radio, U.el('span', null, U.el('strong', null, f.label), U.el('span', { class: 'help' }, ' ' + f.desc), extra));

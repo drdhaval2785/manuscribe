@@ -3,9 +3,10 @@
 
    An edition: what the print edition has (PrintHTML.data), in Markdown: the title, the citation, the conspectus as a
    table and the editorial principles; then the edited text, a paragraph for each block (a commentary set off with
-   ">" and its [abbr]), each note of the apparatus a footnote at its lemma ([^…], as GitHub, Pandoc and most
-   Markdown read it), with its testimonia, singular readings, spelling and decisions; then the versions. For a book
-   (opts.bare): the text and its footnotes only.
+   ">" and its [abbr]), each note of the apparatus at its lemma, with its testimonia, singular readings, spelling and
+   decisions; then the versions. The notes are a superscript number linked to the note, and back, in inline HTML,
+   which every Markdown viewer shows; or, with opts.notes = 'footnotes', Markdown footnotes ([^…]), which many viewers
+   do not read but Pandoc needs to carry notes into another format. For a book (opts.bare): the text and its notes only.
 
    A transcription: each folio side with its lines, numbered, block by block, letters as written; a deletion struck
    (~~…~~), an addition and supplied text in ⟨…⟩, a gap as […]. */
@@ -35,6 +36,7 @@
         if (c.nodeType === 3) out += esc(c.textContent);
         else if (c.nodeType === 1) {
           if (c.classList.contains('an')) out += an ? an(c.dataset.k) : '';
+          else if (c.classList.contains('labl')) out += '**' + esc(c.textContent) + '**';
           else if (c.tagName === 'SUP') out += '<sup>' + esc(c.textContent) + '</sup>';
           else out += walk(c);
         }
@@ -68,24 +70,35 @@
       for (const p of D.principles) out.push(esc(p), '');
       out.push('## Text', '');
     }
+    const native = !!(opts && opts.notes === 'footnotes');
     const notes = [];
+    let count = 0;
+    // a note, numbered as its marker is met in the text, linked to it and back
+    const numbered = (text, linked) => { const m = ++count; notes.push((linked ? '<a id="n' + m + '"></a><sup><a href="#r' + m + '">' + m + '</a></sup> ' : '<sup>' + m + '</sup> ') + text, ''); return '<sup><a id="r' + m + '" href="#n' + m + '">' + m + '</a></sup>'; };
     for (const b of D.blocks) {
       const id = (k) => b.id.replace(/[^\w.-]+/g, '_') + '-' + k;
-      let para = fromHtml(b.html, (k) => '[^' + id(k) + ']');
-      if (b.depth) para = '**[' + esc(b.abbr) + ']** ' + para;
-      out.push((b.depth ? '> '.repeat(b.depth) : '') + para, '');
+      const texts = new Map();
       for (const n of b.notes) {
         const parts = [];
         if (n.by.A) parts.push(fromHtml(n.by.A));
         for (const [s, label] of Object.entries(SERIES)) if (n.by[s]) parts.push('*' + label + ':* ' + fromHtml(n.by[s]));
-        if (parts.length) notes.push('[^' + id(n.k) + ']: ' + parts.join(' — '));
+        if (parts.length) texts.set(String(n.k), parts.join(' — '));
       }
+      const used = new Set();
+      const para = fromHtml(b.html, (k) => {
+        if (!texts.has(String(k))) return '';
+        used.add(String(k));
+        return native ? '[^' + id(k) + ']' : numbered(texts.get(String(k)), true);
+      });
+      out.push((b.depth ? '> '.repeat(b.depth) : '') + para, '');
+      if (native) { for (const [k, text] of texts) if (used.has(k)) notes.push('[^' + id(k) + ']: ' + text); }
+      else for (const [k, text] of texts) if (!used.has(k)) numbered(text, false);
     }
     if (D.stars && D.stars.length) {
       out.push('## Additional passages', '');
       for (const s of D.stars) out.push('**' + esc(s.id) + '** (' + esc(s.wits) + '): ' + esc(s.text), '');
     }
-    if (notes.length) out.push(...notes, '');
+    if (notes.length) out.push(...(native ? [] : bare ? ['---', ''] : ['## Apparatus', '']), ...notes, '');
     if (!bare && D.versions) out.push('---', '', '*' + esc(D.versions) + '*', '');
     return out.join('\n');
   };

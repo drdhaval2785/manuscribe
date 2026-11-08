@@ -1137,7 +1137,7 @@ app/js/
   collateview.js        the Collation part of the edition screen, and the table
   apparatus.js          the edited text and apparatus: entries, conventions, checks, search, TEI
   publish.js            the reader file and the reledmac edition, with conspectus, principles and citation
-  markdown.js           Markdown: the edition with its apparatus as footnotes; a transcription by folio and line
+  markdown.js           Markdown: the edition with its apparatus as linked notes; a transcription by folio and line
   stemma.js             stemmatics: agreement, distance, trees, parsimony, copies, reconstruction, NEXUS and DOT
   stemmaview.js         the stemmatic workbench and its drawings
   metre.js              syllable weight, and which metre a verse is in
