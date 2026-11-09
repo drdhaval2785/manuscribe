@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manuscribe keyboard probe</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; padding: 12px 14px 40px; font: 15px/1.45 -apple-system, system-ui, sans-serif; color: #1d1a16; background: #f6f1e7; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 4px 0 10px; color: #5a4e3c; }
+  .box { background: #fff; border: 1px solid #c9b99e; border-radius: 8px; padding: 8px 10px; margin: 10px 0; }
+  .box b { display: block; font-size: 13px; color: #8c2a17; margin-bottom: 4px; }
+  .line { min-height: 1.6em; font-size: 22px; line-height: 1.6; white-space: pre; overflow-x: auto; outline: none; border-bottom: 2px solid #c9b99e; padding: 2px 4px; }
+  .line:focus { border-bottom-color: #8c2a17; }
+  input.plain { font-size: 20px; width: 100%; box-sizing: border-box; padding: 4px; border: 1px solid #c9b99e; border-radius: 6px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  button { font: 15px -apple-system, system-ui, sans-serif; padding: 8px 14px; border-radius: 8px; border: 1px solid #a89473; background: #fff; }
+  button.primary { background: #b3392a; color: #fff; border-color: #b3392a; }
+  pre { background: #1d1a16; color: #efe6d3; font: 12px/1.4 ui-monospace, Menlo, monospace; padding: 8px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; max-height: 40vh; overflow: auto; margin: 0; }
+  #summary { background: #fff8e6; border-color: #e0c98a; white-space: pre-wrap; font: 13px/1.5 ui-monospace, Menlo, monospace; }
+  .note { font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Manuscribe keyboard probe</h1>
+<p>This page records what your keyboard sends to a web page. Nothing leaves this page: <b>Copy log</b> puts the record on the clipboard, and you paste it to the developer.</p>
+
+<div class="box"><b>1 · A line of the transcription (the editor uses a line like this)</b>
+  <div class="line" id="ce" contenteditable="true" spellcheck="false" autocapitalize="off" autocorrect="off">धर्मक्षेत्रे कुरुक्षेत्रे </div>
+  <div class="note">Type a few akṣaras here, press Backspace three times, press Return, tap in the middle of the text and type one letter.</div>
+</div>
+
+<div class="box"><b>2 · Typing scheme test (Latin letters should turn into Devanagari as you type)</b>
+  <div class="line" id="scheme" contenteditable="true" spellcheck="false" autocapitalize="off" autocorrect="off"></div>
+  <div class="note">With the English keyboard, type: <code>dharma kSetre</code>. The letters are converted the way Manuscribe converts them: one at a time, as they arrive.</div>
+</div>
+
+<div class="box"><b>3 · A plain text field, for comparison</b>
+  <input class="plain" id="plain" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="type a few letters here too">
+</div>
+
+<div class="btns">
+  <button class="primary" id="copy">Copy log</button>
+  <button id="clear">Clear</button>
+  <button id="kb">Show / hide the summary</button>
+</div>
+<div class="box" id="summary"></div>
+<pre id="log"></pre>
+
+<script>
+(function () {
+  'use strict';
+  const logEl = document.getElementById('log'), sumEl = document.getElementById('summary');
+  const lines = [];
+  let t0 = null;
+  const now = () => { const n = performance.now(); if (t0 === null) t0 = n; return '+' + Math.round(n - t0); };
+  const q = (s) => JSON.stringify(s === undefined || s === null ? '' : String(s));
+  const add = (s) => {
+    lines.push(now() + ' ' + s);
+    if (lines.length % 1 === 0) { logEl.textContent = lines.slice(-300).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+    summary();
+  };
+  const who = (el) => (el === ce ? 'ce' : el === scheme ? 'scheme' : el === plain ? 'input' : 'other');
+  const ce = document.getElementById('ce'), scheme = document.getElementById('scheme'), plain = document.getElementById('plain');
+
+
+  // what the caret is at, in the focused line
+  const sel = (el) => {
+    const s = getSelection();
+    if (el === plain) return plain.selectionStart + '-' + plain.selectionEnd;
+    if (!s.rangeCount || !el.contains(s.anchorNode)) return '?';
+    const r = s.getRangeAt(0), pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
+    const a = pre.toString().length;
+    return a + '-' + (a + r.toString().length);
+  };
+  const text = (el) => (el === plain ? plain.value : el.textContent);
+
+  const vv = window.visualViewport;
+  const stats = { keydown: 0, kd229: 0, keys: new Set(), beforeinput: {}, input: {}, comp: 0, compTypes: new Set(), bsKey: 0, bsBI: 0, enterKey: 0, enterBI: 0, arrows: 0, vvMin: vv ? Math.round(vv.height) : null, vvTopMax: 0, converted: 0, passed: 0, passedTypes: new Set(), replacement: 0 };
+  function summary() {
+    const bi = Object.entries(stats.beforeinput).map(([k, v]) => k + '×' + v).join(', ') || 'none';
+    const ip = Object.entries(stats.input).map(([k, v]) => k + '×' + v).join(', ') || 'none';
+    sumEl.textContent = [
+      'SUMMARY',
+      'keydown events: ' + stats.keydown + (stats.keydown ? ' (keyCode 229 = "composing": ' + stats.kd229 + '; keys seen: ' + [...stats.keys].slice(0, 12).join(' ') + ')' : ''),
+      'beforeinput: ' + bi,
+      'input: ' + ip,
+      'composition events: ' + stats.comp + (stats.comp ? ' (' + [...stats.compTypes].join(', ') + ')' : ''),
+      'Backspace: as a key ' + stats.bsKey + ', as deleteContentBackward ' + stats.bsBI,
+      'Return: as a key ' + stats.enterKey + ', as insertParagraph/insertLineBreak ' + stats.enterBI,
+      'arrow keys: ' + stats.arrows,
+      'predictive/autocorrect replacements (insertReplacementText): ' + stats.replacement,
+      'scheme box: converted ' + stats.converted + ', passed through unconverted ' + stats.passed + (stats.passed ? ' (' + [...stats.passedTypes].join(', ') + ')' : ''),
+      'visual viewport: smallest height ' + stats.vvMin + ', largest offsetTop ' + stats.vvTopMax,
+    ].join('\n');
+  }
+
+  // the device (after the summary exists: add() refreshes it)
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  add('device ua=' + q(navigator.userAgent) + ' screen=' + screen.width + 'x' + screen.height + ' inner=' + innerWidth + 'x' + innerHeight + ' dpr=' + devicePixelRatio + ' touch=' + navigator.maxTouchPoints + ' standalone=' + standalone + ' vv=' + (vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) : 'none') + ' lang=' + navigator.language);
+  for (const el of [ce, scheme, plain]) {
+    const w = who(el);
+    el.addEventListener('keydown', (e) => { stats.keydown++; if (e.keyCode === 229) stats.kd229++; else stats.keys.add(e.key); if (e.key === 'Backspace') stats.bsKey++; if (e.key === 'Enter') stats.enterKey++; if (/^Arrow/.test(e.key)) stats.arrows++; add(w + ' keydown key=' + q(e.key) + ' code=' + q(e.code) + ' kc=' + e.keyCode + ' comp=' + e.isComposing + ' sel=' + sel(el)); });
+    el.addEventListener('keyup', (e) => add(w + ' keyup key=' + q(e.key) + ' kc=' + e.keyCode));
+    el.addEventListener('beforeinput', (e) => {
+      stats.beforeinput[e.inputType] = (stats.beforeinput[e.inputType] || 0) + 1;
+      if (e.inputType === 'deleteContentBackward') stats.bsBI++;
+      if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') stats.enterBI++;
+      if (e.inputType === 'insertReplacementText') stats.replacement++;
+      let ranges = '';
+      try { ranges = e.getTargetRanges ? e.getTargetRanges().map((r) => r.startOffset + '-' + r.endOffset).join(',') : ''; } catch (x) { ranges = '?'; }
+      add(w + ' beforeinput type=' + e.inputType + ' data=' + q(e.data) + ' comp=' + e.isComposing + ' sel=' + sel(el) + (ranges ? ' target=' + ranges : '') + (e.dataTransfer ? ' dt=' + q(e.dataTransfer.getData('text/plain')) : ''));
+      // the scheme box converts as Manuscribe does: a single, non-composing letter, replaced as it arrives
+      if (el === scheme) {
+        if (e.isComposing) { stats.passed++; stats.passedTypes.add(e.inputType + '(composing)'); return; }
+        if (e.inputType === 'insertText' && e.data && e.data.length === 1 && /[A-Za-z]/.test(e.data)) {
+          e.preventDefault();
+          const MAP = { a: 'अ', A: 'आ', i: 'इ', u: 'उ', e: 'ए', o: 'ओ', k: 'क', g: 'ग', c: 'च', j: 'ज', t: 'त', d: 'द', n: 'न', p: 'प', b: 'ब', m: 'म', y: 'य', r: 'र', l: 'ल', v: 'व', s: 'स', h: 'ह', S: 'श', T: 'ट', D: 'ड', N: 'ण' };
+          const out = MAP[e.data] || e.data.toUpperCase();
+          const s = getSelection(); if (!s.rangeCount) return;
+          const r = s.getRangeAt(0); r.deleteContents(); const tn = document.createTextNode(out); r.insertNode(tn); r.setStartAfter(tn); r.collapse(true); s.removeAllRanges(); s.addRange(r);
+          stats.converted++;
+          add('scheme converted ' + q(e.data) + ' -> ' + q(out));
+        } else if (/^insert/.test(e.inputType) && e.data) { stats.passed++; stats.passedTypes.add(e.inputType); }
+      }
+    });
+    el.addEventListener('input', (e) => { stats.input[e.inputType || 'none'] = (stats.input[e.inputType || 'none'] || 0) + 1; add(w + ' input type=' + (e.inputType || '-') + ' data=' + q(e.data) + ' comp=' + e.isComposing + ' text=' + q(text(el))); });
+    for (const t of ['compositionstart', 'compositionupdate', 'compositionend']) el.addEventListener(t, (e) => { stats.comp++; stats.compTypes.add(t); add(w + ' ' + t + ' data=' + q(e.data) + ' text=' + q(text(el))); });
+    el.addEventListener('focus', () => add(w + ' focus'));
+    el.addEventListener('blur', () => add(w + ' blur'));
+  }
+  if (vv) {
+    const say = (t) => { stats.vvMin = Math.min(stats.vvMin, Math.round(vv.height)); stats.vvTopMax = Math.max(stats.vvTopMax, Math.round(vv.offsetTop)); add('vv ' + t + ' h=' + Math.round(vv.height) + ' w=' + Math.round(vv.width) + ' top=' + Math.round(vv.offsetTop) + ' pageTop=' + Math.round(vv.pageTop) + ' scale=' + vv.scale.toFixed(2) + ' inner=' + innerHeight); };
+    vv.addEventListener('resize', () => say('resize'));
+    vv.addEventListener('scroll', () => say('scroll'));
+  }
+  window.addEventListener('resize', () => add('win resize inner=' + innerWidth + 'x' + innerHeight));
+  window.addEventListener('scroll', () => add('win scroll y=' + Math.round(scrollY)));
+
+  document.getElementById('clear').onclick = () => { lines.length = 0; t0 = null; logEl.textContent = ''; for (const k of Object.keys(stats)) { if (typeof stats[k] === 'number') stats[k] = 0; else if (stats[k] instanceof Set) stats[k].clear(); else if (stats[k] && typeof stats[k] === 'object') stats[k] = {}; } stats.vvMin = vv ? Math.round(vv.height) : null; summary(); };
+  document.getElementById('kb').onclick = () => { sumEl.hidden = !sumEl.hidden; };
+  document.getElementById('copy').onclick = async () => {
+    const all = sumEl.textContent + '\n\nLOG\n' + lines.join('\n');
+    try { await navigator.clipboard.writeText(all); add('copied ' + lines.length + ' lines'); }
+    catch (e) {
+      // no clipboard: the log is selected, to copy by hand
+      const ta = document.createElement('textarea'); ta.value = all; ta.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:60%'; document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); add('copied (fallback)'); } catch (x) { add('copy failed: select the text above and copy it'); }
+      setTimeout(() => ta.remove(), 4000);
+    }
+  };
+  summary();
+})();
+</script>
+</body>
+</html>
