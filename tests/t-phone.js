@@ -89,7 +89,10 @@ const { launch, sleep, checks, ROOT } = require('./h');
       const r = (el) => { const b = el.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right) }; };
       const create = [...foot.querySelectorAll('.btn')].find((b) => b.textContent === 'Create'), cancel = [...foot.querySelectorAll('.btn')].find((b) => b.textContent === 'Cancel');
       const title = m.querySelector('input[placeholder*="Haima"]'), siglum = m.querySelector('input[placeholder*="P1"]');
-      const out = { modal: r(m), create: r(create), cancel: r(cancel), bodyScrolls: body.scrollHeight > body.clientHeight + 4, bodyH: body.clientHeight, inner: innerHeight, stacked: siglum.getBoundingClientRect().top >= title.getBoundingClientRect().bottom, createH: Math.round(create.getBoundingClientRect().height) };
+      const controls = [...m.querySelectorAll('input:not([type=file]), select, textarea, button, .layout-card')].filter((el) => getComputedStyle(el).display !== 'none').map((el) => ({ n: el.tagName.toLowerCase() + '.' + (el.className || el.placeholder || el.textContent.trim().slice(0, 12)), l: Math.round(el.getBoundingClientRect().left), r: Math.round(el.getBoundingClientRect().right) }));
+      const cards = [...m.querySelectorAll('.layout-card')].map((c) => c.getBoundingClientRect());
+      const stackedCards = cards.every((c, i) => !i || c.top >= cards[i - 1].bottom - 1);
+      const out = { tooWide: controls.filter((c) => c.r > 390 || c.l < 0), nControls: controls.length, stackedCards, modal: r(m), create: r(create), cancel: r(cancel), bodyScrolls: body.scrollHeight > body.clientHeight + 4, bodyH: body.clientHeight, inner: innerHeight, stacked: siglum.getBoundingClientRect().top >= title.getBoundingClientRect().bottom, createH: Math.round(create.getBoundingClientRect().height) };
       // the keyboard open: still within what can be seen
       ME.Narrow.viewport({ height: 362, offsetTop: 24 });
       await new Promise((r2) => setTimeout(r2, 50));
@@ -103,6 +106,8 @@ const { launch, sleep, checks, ROOT } = require('./h');
     T.check('New transcription on a phone fills the screen, no wider than it, and its body scrolls', dlg.inner === 844 && dlg.modal.left >= 0 && dlg.modal.right <= 390 && dlg.modal.top >= 0 && dlg.modal.bottom <= dlg.inner && dlg.bodyScrolls, dlg);
     T.check('Cancel and Create are in sight, big enough for a thumb, and the two-column rows are stacked', dlg.create.bottom <= dlg.inner && dlg.create.top > 0 && dlg.cancel.bottom <= dlg.inner && dlg.createH >= 40 && dlg.stacked, dlg);
     T.check('with the keyboard open the dialog keeps to what can be seen, Create still in sight', dlg.kb.modal.top >= 24 && dlg.kb.modal.bottom <= 24 + 362 + 1 && dlg.kb.create.bottom <= 24 + 362 + 1 && dlg.kb.bodyScrolls, dlg.kb);
+    T.check('every field, drop-down and button of the dialog is within the phone’s width (' + dlg.nControls + ' looked at)', dlg.nControls > 12 && dlg.tooWide.length === 0, dlg.tooWide);
+    T.check('the layout cards stand one above another', dlg.stackedCards);
     T.check('Cancel closes it', dlg.closed);
     // a zoom of the device's own wins over the letters
     await page.evaluate(async () => { ME.Narrow.save({ pdf: 1.5 }); await ME.App.open(window.__pid); });

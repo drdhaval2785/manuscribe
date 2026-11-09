@@ -849,8 +849,16 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .modal-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
   .modal-foot .btn { min-height: 44px; flex: 1 1 auto; }
   .modal-foot .btn.left { flex: 0 0 auto; }
-  .row2, .row4 { grid-template-columns: 1fr; gap: 0; }
+  /* every field within the phone's width: one to a row, the controls as wide as the row and no wider; the layout
+     cards one above another */
+  .modal .row2, .modal .row4, .modal .layout-cards { grid-template-columns: minmax(0, 1fr); gap: 0 }
+  .modal .layout-cards { gap: 8px; }
+  .modal .field { min-width: 0; }
+  .modal .field > input, .modal .field > select, .modal .field > textarea, .modal .lang-pick { width: 100%; max-width: 100%; min-width: 0; }
+  .modal .lang-pick > * { flex: 1 1 0; min-width: 0; width: auto; }
+  .modal .lines-inputs .field { width: 92px; }
   .file-row { flex-wrap: wrap; }
+  .file-row .file-name { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
   .new-project .field { margin: 6px 0; }
 }
 /* a phone: the line view (narrow.js), and a header of icons */
