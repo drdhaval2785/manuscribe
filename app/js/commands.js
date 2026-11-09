@@ -458,6 +458,11 @@
     const st = stateAtCaret(c);
     const sk = streamKey(c);
     const suggestion = U.nextId(st.lastIds[kind], ID_PREFIX[sk][kind] + '1');
+    // what is selected, now: the dialog takes the focus, and with it the selection. A selection within the line counts
+    const rng = Editor.spanRange() || (c.range.collapsed ? null : {
+      start: { label: Editor.entry.label, box: c.box, i: c.i, offset: Spans.offsetOf(c.line, c.range.startContainer, c.range.startOffset) },
+      end: { label: Editor.entry.label, box: c.box, i: c.i, offset: Spans.offsetOf(c.line, c.range.endContainer, c.range.endOffset) },
+    });
     const id = await UI.prompt(kind === 'p' ? 'New paragraph <p>' : 'New verse <lg>', 'xml:id', suggestion, {
       validate: idValidator(),
       help: 'Unique identifier used by Saktumiva to collate this ' + (kind === 'p' ? 'paragraph' : 'verse') + ' with other witnesses, e.g. ' + (kind === 'p' ? '“p12” or “1.2.3”' : '“v1.12”') + '. ' +
@@ -465,7 +470,6 @@
     });
     restore(c);
     if (!id) return;
-    const rng = Editor.spanRange();
     if (rng) { spanMarkers(rng, kind === 'p' ? 'p-start' : 'lg-start', { id }, kind === 'p' ? 'p-end' : 'lg-end'); return; }
     Editor.capture('command');
     const m = markerAt(c, c.range, false, kind === 'p' ? 'p-start' : 'lg-start', { id });

@@ -259,7 +259,8 @@ works too.
 
 ### Over several lines or folios
 
-Select across the lines and press the shortcut. For a tag that ends on another folio:
+Select across the lines and press the shortcut; `<p>` and `<lg>` then open at the start of the selection and close at
+its end. For a tag that ends on another folio:
 
 1. press `.` (⌃⌥. on a Mac) where it starts; a flag (↦) marks the place;
 2. go to where it ends, and press the tag's shortcut.
