@@ -904,7 +904,7 @@
       U.el('h4', null, 'Lines on this folio side'), linesBox,
       pg.lines ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.lines; App.changed(); rerender(); } }, 'Use the project defaults') : null,
       U.el('h4', null, 'Calibration'),
-      U.el('p', { class: 'help' }, reg ? (ownReg ? 'This folio side has its own calibration.' : 'Calibrated (shared with other folio sides).') + ' The typing area copies the blocks drawn on the PDF.' : 'Not calibrated: the typing area uses a standard layout and the line guide on the PDF is off.'),
+      U.el('p', { class: 'help' }, reg ? (ownReg ? 'This folio side has its own calibration.' : 'Calibrated (shared with other folio sides).') + ' The typing area copies the blocks drawn on the PDF.' : 'Not calibrated: the typing area uses a standard layout and the line guide on the PDF is only a guess.'),
       U.el('div', { class: 'btn-row' },
         U.el('button', { class: 'btn small primary', onclick: () => App.calibrate() }, reg ? 'Recalibrate…' : 'Calibrate…'),
         ownReg ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.regions; App.changed(); rerender(); } }, 'Use shared calibration') : null),

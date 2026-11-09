@@ -331,13 +331,29 @@
   };
 
   // Page-normalised rectangle of line `i` of `box`, for the reading guide on the PDF.
+  /* Where line i of a block is on the page, [x, y, w, h] page-normalised; null where nothing is known of the page.
+     Before the blocks are drawn, a guess: the standard block inside the leaf (the leaf is found on the scan when a
+     transcription is made); the rect then carries guessed: true, and the guide on the scan shows it fainter. */
   Model.lineRect = function (project, entry, box, i) {
     const reg = Model.regions(project, entry);
-    if (!reg || !reg.boxes) return null;
+    if (!reg || !reg.leaf) return null;
     const type = Model.pageLayout(project, entry.label);
-    const r = reg.boxes[box === 'gloss' ? 'main' : box];
-    if (!r) return null;
+    const key = box === 'gloss' ? 'main' : box;
+    let r = reg.boxes && reg.boxes[key], guessed = false;
+    if (!r) {
+      const lines = {};
+      for (const b of LAYOUTS[type].boxes) lines[b] = Model.lineCount(project, entry.label, b);
+      const d = Model.defaultBoxes(type, lines)[key], L = reg.leaf;
+      if (!d) return null;
+      r = [L[0] + d[0] * L[2], L[1] + d[1] * L[3], d[2] * L[2], d[3] * L[3]];
+      guessed = true;
+    }
     const n = Model.lineCount(project, entry.label, box);
+    const out = Model._lineOf(type, box, r, n, i);
+    if (guessed) out.guessed = true;
+    return out;
+  };
+  Model._lineOf = function (type, box, r, n, i) {
     if (type === 'interlinear') {
       const row = r[3] / n;
       return box === 'gloss' ? [r[0], r[1] + i * row, r[2], row * 0.42] : [r[0], r[1] + i * row + row * 0.38, r[2], row * 0.62];

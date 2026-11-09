@@ -23,6 +23,15 @@ const { launch, sleep, checks, ROOT } = require('./h');
       ok('typing on at the end, with no line above: over the figure given', Math.abs(f({ before: 13, total: 13, atEnd: true, above: [], perLine: 65 }) - 13 / 65) < 1e-9 && Math.abs(f({ before: 13, total: 13, atEnd: true, above: [] }) - 13 / 65) < 1e-9);
       ok('with lines above: over their average, a short last line of a paragraph left out', Math.abs(Follow.expected([64, 66, 12, 68, 65], 65) - (64 + 66 + 68 + 65) / 4) < 1e-9 && Math.abs(Follow.expected([30, 32, 31], 65) - 31) < 1e-9);
       ok('never past the end of the line', f({ before: 80, total: 80, atEnd: true, above: [], perLine: 65 }) < 1 && f({ before: 80, total: 80, atEnd: true, above: [], perLine: 65 }) > 0.98);
+      // before the blocks are drawn: a guess inside the leaf, marked as such; nothing without a leaf
+      const q = Model.newProject({ lines: { main: 10 }, pdf: { name: 'x.pdf', pages: 2 } }), e0 = Model.entries(q)[0];
+      ok('with no leaf known, a line has no place on the scan', Model.lineRect(q, e0, 'main', 0) === null);
+      q.layout.regions['0'] = { leaf: [0.1, 0.2, 0.8, 0.6], boxes: {} };
+      const g = Model.lineRect(q, e0, 'main', 3);
+      ok('with the leaf known and no blocks drawn, a line is guessed inside the leaf, and says so', g && g.guessed === true && g[0] > 0.1 && g[0] + g[2] < 0.9 && g[1] > 0.2 && g[1] + g[3] < 0.8 && Math.abs(g[3] - 0.6 * 0.82 / 10) < 0.01, g);
+      q.layout.regions['0'].boxes.main = [0.2, 0.3, 0.6, 0.4];
+      const d = Model.lineRect(q, e0, 'main', 0);
+      ok('with the block drawn, the line is where it was drawn, and not a guess', d && !d.guessed && d[0] === 0.2 && Math.abs(d[3] - 0.04) < 1e-9, d);
       const p = Model.newProject({ lettersPerLine: 80 }), old = Model.upgrade({ meta: {}, layout: { type: 'linear', lines: {} } });
       ok('the figure is kept with the project (80), and an old project gets 65', p.layout.lettersPerLine === 80 && Model.newProject({}).layout.lettersPerLine === 65 && old.layout.lettersPerLine === 65, [p.layout.lettersPerLine, old.layout.lettersPerLine]);
       return out;

@@ -373,7 +373,7 @@
     const { rect, style } = PdfView.guide;
     if (!rect || style === 'off' || PdfView.calibrating) { guideEl.hidden = true; return; }
     guideEl.hidden = false;
-    guideEl.className = 'pdf-guide guide-' + style;
+    guideEl.className = 'pdf-guide guide-' + style + (rect.guessed ? ' guessed' : '');
     // handwritten lines are seldom straight: pad the band by 25% of the line height above and below
     const padY = rect[3] * 0.25, padX = rect[2] * 0.01;
     Object.assign(guideEl.style, { left: (rect[0] - padX) * 100 + '%', top: (rect[1] - padY) * 100 + '%', width: (rect[2] + 2 * padX) * 100 + '%', height: (rect[3] + 2 * padY) * 100 + '%' });
