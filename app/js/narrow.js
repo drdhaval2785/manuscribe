@@ -14,6 +14,7 @@
   const mq = window.matchMedia ? window.matchMedia('(max-width: 700px)') : { matches: false, addEventListener() {} };
   const KEY = 'manuscribe.narrow';
   const LEGIBLE = 16; // px: the size the letters are brought to
+  Narrow.LETTERS_IN_VIEW = 22; // akṣaras of the scan across the screen: readable, with room for the guess of where the letter is
   Narrow.on = () => mq.matches;
   Narrow.state = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } };
   Narrow.save = (patch) => { try { localStorage.setItem(KEY, JSON.stringify(Object.assign(Narrow.state(), patch))); } catch (e) { /* this visit only */ } };
@@ -28,8 +29,23 @@
     return Math.min(4, Math.max(1, (E.zoom * LEGIBLE) / px));
   };
 
-  /* After a folio is laid out: in a narrow window, the device's own sizes, or legible ones the first time. */
+  /* The zoom of the scan that shows about LETTERS_IN_VIEW akṣaras of a line across the screen, on a calibrated folio:
+     from the width of the text block and the usual number of letters in a line. -> zoom, or null */
+  Narrow.letterZoom = function () {
+    const P = ME.PdfView, A = ME.App, M = ME.Model;
+    if (!P || !A || !A.project || !A.entries || !M) return null;
+    const e = A.entries[A.idx];
+    const reg = e && M.regions(A.project, e);
+    const r = reg && reg.boxes && reg.boxes.main;
+    if (!r) return null;
+    return P.zoomToShow((r[2] * Narrow.LETTERS_IN_VIEW) / (A.project.layout.lettersPerLine || 65));
+  };
+
+  /* After a folio is laid out: in a narrow window, the device's own sizes, or legible ones the first time: the
+     letters of the typing area 16 px; the scan showing about 22 letters of a line, or, where the folio is not
+     calibrated, enlarged as the typing area is. */
   let fitting = false;
+  const label = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = Math.round(v * 100) + '%'; };
   Narrow.fit = function () {
     if (!Narrow.on() || fitting || !ME.App || !ME.App.project) return;
     const E = ME.Editor, P = ME.PdfView;
@@ -39,11 +55,17 @@
     fitting = true;
     try {
       if (Math.abs(E.zoom - z) > 0.01) E.setZoom(z);
-      const pz = st.pdf || z;
-      // (a render begun before is cancelled, and pdf.js says so: not an error)
-      if (P && Math.abs(P.zoom - pz) > 0.01) { P.zoom = pz; if (P.entry) Promise.resolve(P.render()).catch(() => {}); }
-      const label = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = Math.round(v * 100) + '%'; };
-      label('ed-zoom', E.zoom); label('pdf-zoom', P ? P.zoom : 1);
+      label('ed-zoom', E.zoom);
+      if (!P) return;
+      const applyPdf = () => {
+        const pz = st.pdf || Narrow.letterZoom() || z;
+        // (a render begun before is cancelled, and pdf.js says so: not an error)
+        if (Math.abs(P.zoom - pz) > 0.01) { P.zoom = pz; if (P.entry) Promise.resolve(P.render()).catch(() => {}); }
+        label('pdf-zoom', P.zoom);
+      };
+      // the scan's size at zoom 1 is known once it has been drawn
+      if (st.pdf || P.pagePx1 || !ME.App.pdfShown) applyPdf();
+      else Promise.resolve(ME.App.pdfShown).then(applyPdf, () => {});
     } finally { fitting = false; }
   };
 

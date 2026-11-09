@@ -803,6 +803,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 /* ---------------- fingers, and phones (narrow.js) ---------------- */
 #midbar-grip { touch-action: none; }
 .tags-btn { display: none; }
+.line-nav { display: none; }
 /* a finger: buttons big enough to touch */
 @media (pointer: coarse) {
   .tbtn { min-height: 40px; min-width: 40px; }
@@ -846,6 +847,9 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .calib-label { flex-basis: 100%; order: 3; font-size: 12.5px; }
   #pdf-view.calibrating .pdf-scroller { top: 112px; }
   #statusbar .ed-zoom-ctl .sbtn.zoom { min-width: 44px; }
+  .line-nav { display: inline-flex; }
+  .line-nav .sbtn { font-size: 18px; }
+  .status-pos { font-size: 11px; }
 }
 
 /* wide tables on a narrow screen: they scroll sideways in their box, the column that names the row staying in view */

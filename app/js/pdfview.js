@@ -179,6 +179,11 @@
     PdfView.calibScale = z1;
     return PdfView.render().then(() => { scroller.scrollLeft = fx * scroller.scrollWidth - ax; scroller.scrollTop = fy * scroller.scrollHeight - ay; if (PdfView.cb.onCalibZoom) PdfView.cb.onCalibZoom(z1); });
   };
+  // The zoom at which this fraction of the page's width fills the pane. -> zoom, or null before the first render
+  PdfView.zoomToShow = function (fraction) {
+    if (!PdfView.pagePx1 || !(fraction > 0) || !scroller) return null;
+    return U.clamp(Math.max(200, scroller.clientWidth - 28) / (fraction * PdfView.pagePx1), 0.3, 8);
+  };
   PdfView.setZoom = function (z) { PdfView.zoom = U.clamp(z, 0.3, 8); if (PdfView.cb.onZoom) PdfView.cb.onZoom(PdfView.zoom); return PdfView.render(); };
   PdfView.setRotation = function (r) { PdfView.rotation = ((r % 360) + 360) % 360; PdfView.cache.clear(); return PdfView.render(); };
 
@@ -231,6 +236,7 @@
     // the whole page must be visible to draw on it, and is the point of "page" mode
     if (PdfView.calibrating || PdfView.mode === 'page') fit = Math.min(fit, availH / (region[3] * vp1.height));
     const scale = Math.round(fit * (PdfView.calibrating ? PdfView.calibScale : PdfView.zoom) * 1000) / 1000;
+    if (!PdfView.calibrating) PdfView.pagePx1 = vp1.width * fit; // the page's width on the screen at zoom 1
     const r = await renderToCanvas(entry.pdfPage, scale);
     if (seq !== PdfView.renderSeq) return;
     const old = stage.querySelector('canvas');

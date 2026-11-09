@@ -1300,9 +1300,19 @@
       if (!line) return;
       const stack = Editor.tagStack();
       if (stack.length) stack[stack.length - 1].classList.add('active');
+      if (ME.Narrow && ME.Narrow.on()) Editor.keepCaretAcross(line);
       hook('onCaret', posOf(line), stack);
     });
   }
+
+  // On a phone the line is wider than the screen: the caret is kept in the middle half of the typing area.
+  Editor.keepCaretAcross = function (line) {
+    const cr = caretRect();
+    if (!cr || !pane || !line) return;
+    const pr = pane.getBoundingClientRect();
+    if (cr.left >= pr.left + pr.width * 0.25 && cr.left <= pr.right - pr.width * 0.25) return;
+    pane.scrollBy({ left: cr.left - (pr.left + pr.width / 2), behavior: 'smooth' });
+  };
 
   // Tags around the caret/selection, outermost first (a selected chip counts as innermost).
   Editor.tagStack = function () {

@@ -1420,6 +1420,11 @@
       else U.toast('Could not copy to the clipboard', 'warn');
     };
     $('translit-badge').onclick = () => App.toggleTranslit();
+    // the line above or below, for a phone's keyboard, which has no arrows; the caret stays in the typing area
+    for (const [id, dir] of [['btn-line-up', -1], ['btn-line-down', 1]]) {
+      $(id).onpointerdown = (e) => e.preventDefault();
+      $(id).onclick = () => { const line = Editor.activeLine(); if (line) Editor.verticalMove(line, dir); else U.toast('Tap a line first'); };
+    }
     for (const t of U.$$('.side-tab')) t.onclick = () => { App.project.ui.sidebarTab = t.dataset.tab; App.changed(true); App.refreshSidebar(); };
 
     // PDF controls
