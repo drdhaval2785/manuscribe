@@ -177,7 +177,7 @@
       U.el('button', { class: 'btn small ghost', title: 'Choose which optional tools are shown', dataset: { action: 'tools-settings' }, onclick: (e) => { close(e); ME.App.showSettings(); } }, 'Switch tools on or off…')));
     void trustLine; void tok;
     // the method, on the step itself; a change while a collation runs would give its blocks different methods
-    const method = methodChooser(ed, Collate.choiceOf(ed, '', ''), (how) => {
+    const method = ed.witnesses.length < 2 ? U.el('div', { class: 'nv-head' }, U.el('span', { class: 'help', dataset: { action: 'one-witness' } }, 'One witness: there is nothing to line it up against, so Collate only prepares its text. It takes seconds.'), settingsBtn) : methodChooser(ed, Collate.choiceOf(ed, '', ''), (how) => {
       if (CollateView.running) { U.toast('Wait until this collation is done, or cancel it'); return false; }
       ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base });
       Edition.save(ed).then(redraw);
@@ -379,9 +379,9 @@
       body.append(
         U.el('h3', null, 'What counts as the same reading'), ME.NormView.section(ed, list, draw),
         U.el('h3', null, 'Lined up by'), U.el('div', { class: 'nv-head' }, tok),
-        U.el('h3', null, 'How to line up the witnesses'),
-        methodChooser(ed, Collate.choiceOf(ed, '', ''), async (how) => { ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base }); await Edition.save(ed); draw(); }),
-        goldScores(ed, draw),
+        ed.witnesses.length < 2 ? null : U.el('h3', null, 'How to line up the witnesses'),
+        ed.witnesses.length < 2 ? null : methodChooser(ed, Collate.choiceOf(ed, '', ''), async (how) => { ed.collate = Object.assign({}, ed.collate, { engine: how.engine, base: how.base }); await Edition.save(ed); draw(); }),
+        ed.witnesses.length < 2 ? null : goldScores(ed, draw),
         U.el('h3', null, 'Ties between readings'),
         U.el('p', { class: 'help' }, 'Where readings tie, the reading of the more trusted witness is proposed: ', U.el('strong', null, Collate.trustOrder(ed).join(' › ')), ' ',
           U.el('button', { class: 'btn small', onclick: async () => { if (await CollateView.askTrust(ed, false)) draw(); } }, 'Change…')));
@@ -1173,11 +1173,11 @@
     goBlock.has = (d) => !!blockIds[at + d];
     CollateView.goBlock = goBlock;
     const reopen = () => { replaced = true; CollateView.goNext = table.unit; const b = body.closest('.modal') && body.closest('.modal').querySelector('.modal-foot .btn'); if (b) b.click(); };
-    const againBtn = !ME.Features.on('alignMore') ? null : U.el('button', { class: 'btn small', title: 'Line up this block again, by another method if you wish. What you have corrected stays.', dataset: { action: 'line-up-again' }, onclick: async () => {
+    const againBtn = !ME.Features.on('alignMore') || ed.witnesses.length < 2 ? null : U.el('button', { class: 'btn small', title: 'Line up this block again, by another method if you wish. What you have corrected stays.', dataset: { action: 'line-up-again' }, onclick: async () => {
       await saveNow();
       CollateView.lineUpAgain(ed, list, workId, table, reopen);
     } }, 'Line up again…');
-    const compareBtn = !ME.Features.on('alignMore') ? null : U.el('button', { class: 'btn small', title: 'Compare this block with another method’s alignment. Nothing changes until you take something.', dataset: { action: 'compare-methods' }, onclick: async () => {
+    const compareBtn = !ME.Features.on('alignMore') || ed.witnesses.length < 2 ? null : U.el('button', { class: 'btn small', title: 'Compare this block with another method’s alignment. Nothing changes until you take something.', dataset: { action: 'compare-methods' }, onclick: async () => {
       await saveNow();
       CollateView.compareMethods(ed, list, workId, rec, reopen);
     } }, 'Compare methods…');
@@ -1608,7 +1608,7 @@
       host, detailBox, scanBox, unitBox, placesBox,
       U.el('p', { class: 'nv-legend' },
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
-        (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + (params.aligner.base ? ' against ' + params.aligner.base : '') + ', by ') + params.tokens + ', profile ' + params.profile + '. ' + (params.aligner.tool === Collate.ENGINES.saktumiva.tool ? 'Rows follow the aligner’s guide tree, so similar witnesses sit together.' : 'Rows are in the order of trust.'))]);
+        (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : table.oneWitness ? 'One witness, by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + (params.aligner.base ? ' against ' + params.aligner.base : '') + ', by ') + params.tokens + ', profile ' + params.profile + '. ' + (table.oneWitness ? '' : params.aligner.tool === Collate.ENGINES.saktumiva.tool ? 'Rows follow the aligner’s guide tree, so similar witnesses sit together.' : 'Rows are in the order of trust.'))]);
     body.append(...[
       U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, againBtn, compareBtn, checkBtn,
         U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),

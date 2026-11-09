@@ -507,6 +507,7 @@ Sandhi rules read word spaces, as they do in Saktumiva. If a scribe's space fall
 whose text or settings have changed are aligned again, and the page stays usable meanwhile; **Cancel** stops it
 and keeps what is done.
 
+- **One witness:** there is nothing to line it up against, so Collate only prepares its text, in seconds however long it is, and offers no method. This is the quick way to see what the text, PDF and HTML will look like.
 - **Collate with:** on the Collate step, above the Collate button, three methods, each making the same kind of table.
   **Saktumiva** is Charles Li's aligner from Saktumiva 2.0, with its default scoring, and is what an edition uses
   until you choose otherwise. **Careful, all witnesses together** lines each witness up against all those before it,

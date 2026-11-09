@@ -246,6 +246,34 @@ const { LANGS, make, buildInPage } = require('./languages');
     set(onStep(), 'poa');
     await wait(() => redrawn === 1);
     ok('choosing there is kept on the edition, and the step is drawn again', ed.collate.engine === 'poa');
+
+    // one witness: nothing to line up, however long the block, even with the scribe's corrections in it
+    const solo = await (async () => {
+      const { Model, Store, Edition } = ME;
+      const P = '<x-marker type="p-start" id="v1"/>', END = '<x-marker type="p-end"/>';
+      const lines = Array.from({ length: 4000 }, (_, i) => 'alpha beta gamma delta epsilon zeta eta theta ' + (i % 500 === 7 ? '<del rend="crossed out">wrong</del> right' : 'iota'));
+      lines[0] = P + lines[0]; lines[lines.length - 1] += END;
+      const p = Model.upgrade(Model.newProject({ meta: { title: 'S', siglum: 'S', textLang: 'en' }, layoutType: 'linear', lines: { main: lines.length }, folios: {} }));
+      p.pdf = { name: 's.pdf', pages: 1 }; p.pages = { '1r': { boxes: { main: lines } } };
+      await Store.putProject(p);
+      const one = Edition.create('One witness');
+      const w = { siglum: 'S', projectId: p.id, streams: {} };
+      one.witnesses.push(w);
+      one.collate = { tokens: 'letter' };
+      await Store.putEdition(one);
+      return { ed: one, list: [{ w, p }] };
+    })();
+    let soloEstimate = null;
+    const soloStart = performance.now();
+    const soloDone = await Collate.run(solo.ed, solo.list, 'main', { onEstimate: (x) => { soloEstimate = x; } });
+    const soloMs = performance.now() - soloStart;
+    const soloRec = (await ME.Store.listCollations(solo.ed.id))[0], soloT = soloRec.table;
+    ok('one witness with its corrections: a block of about ' + Math.round(soloT.tokens / 2000) + ',000 letters is done in ' + (soloMs / 1000).toFixed(1) + ' s, and said to be short', soloDone.done.length === 1 && soloEstimate < 30 && soloMs < 60000 * (window.MANUSCRIBE_CI ? 3 : 1), { soloEstimate, soloMs });
+    ok('its text before and after the corrections is matched, by the quick way', soloT.oneWitness && soloT.order.length === 2 && E.problems(soloT).length === 0, [soloT.order, E.problems(soloT)]);
+    ok('and stays up to date: the method it would have is as recorded', Collate.isCurrent(solo.ed, solo.list, (await Collate.summaries(solo.ed.id)).get(soloRec.key)) === true);
+    ok('one state alone takes no time at all, by any estimate', ['saktumiva', 'poa', 'base'].every((m) => Collate.estimateSeconds([{ n: new Array(500000) }], m) === 0));
+    const soloPanel = await ME.CollateView.section(solo.ed, solo.list, () => {});
+    ok('the Collate step offers no method for one witness, says why, and keeps its settings', !soloPanel.querySelector('select[aria-label="How to line up the witnesses"]') && soloPanel.querySelector('[data-action="one-witness"]') && soloPanel.querySelector('[data-action="comparison"]'), soloPanel.textContent.slice(0, 200));
     return out;
   });
   for (const [n, ok, x] of res) T.check(n, ok, x);

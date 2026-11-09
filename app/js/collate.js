@@ -15,13 +15,13 @@
   const SCORING = { match: 1, mismatch: -1, gap_open: -2, gap_extend: -0.25, gap_skip_initial: true, scalegap: false, recursive: false, realigndepth: 0, distancefunc: 'ngrams', ngramsize: 3 };
   /* The methods an editor can line witnesses up with. Saktumiva's is vendor/saktumiva-aligner.js, the others
      js/engines.js; each gives the same table. perToken2 is the seconds a block takes, over witnesses × length ×
-     the lesser of length and band (past which the method is banded), as measured in a Worker. */
+     the lesser of length and band, or at most cells (past which the method is banded), as measured in a Worker. */
   Collate.ENGINES = {
     saktumiva: { id: 'saktumiva', name: 'Saktumiva', tool: ENGINE.tool, version: ENGINE.version, perToken2: 0,
       help: 'Charles Li’s aligner, as Manuscribe has always used it: witnesses are joined in the order of a tree of their similarity. Slow with many witnesses.' },
     poa: { id: 'poa', name: 'Careful, all witnesses together', tool: 'manuscribe-poa', version: '1', perToken2: 5e-9, band: 2000,
       help: 'Each witness is lined up against all those before it, the more trusted first, so that a reading any of them has can be matched. Quick, even with many witnesses.' },
-    base: { id: 'base', name: 'Against a base text', tool: 'manuscribe-base', version: '1', perToken2: 1.2e-8, band: 14000,
+    base: { id: 'base', name: 'Against a base text', tool: 'manuscribe-base', version: '1', perToken2: 1.2e-8, cells: 2e8,
       help: 'Each witness on its own against one you name. What two other witnesses share is seen only through the base, so choose a base that is complete. Quick, and easy to explain in an edition.' },
   };
   Collate.DEFAULT_ENGINE = 'saktumiva';
@@ -218,8 +218,9 @@
   // Roughly how long a block takes, measured in a Worker on an M2 Pro: Saktumiva's grows with the square of the
   // witnesses and of the length, the others with the witnesses and the square of the length.
   const estimate = (witnesses, longest, engine) => {
+    if (witnesses < 2) return 0; // nothing to line up
     const e = Collate.ENGINES[engine];
-    return e && e.perToken2 ? e.perToken2 * witnesses * longest * Math.min(longest, e.band) : 4.5e-9 * witnesses * witnesses * longest * longest;
+    return e && e.perToken2 ? e.perToken2 * witnesses * Math.min(longest * Math.min(longest, e.band || longest), e.cells || Infinity) : 4.5e-9 * witnesses * witnesses * longest * longest;
   };
   Collate.estimateSeconds = (rows, engine) => estimate(rows.length, rows.reduce((a, r) => Math.max(a, r.n.length), 0), engine);
   // The same for all the edition's blocks that have been collated, from what is known of them. -> seconds, or null
@@ -418,12 +419,18 @@
         continue;
       }
       const tokenRows = states.map((st) => ({ label: st.label, n: st.tokens.map((t) => t.n) }));
-      if (o.onEstimate) o.onEstimate(Collate.estimateSeconds(tokenRows, how.engine));
+      /* A block only one witness has: there is nothing to line it up against. Its text before and after the scribe's
+         corrections is nearly the same, so it is matched directly, whichever method the edition uses: seconds, where
+         a method for comparing witnesses would take hours over a long block. */
+      const oneWitness = new Set(states.map((s) => s.siglum)).size === 1;
+      const engine = oneWitness ? 'base' : how.engine;
+      if (o.onEstimate) o.onEstimate(Collate.estimateSeconds(tokenRows, engine));
       const shared = { unit: u.id, work: workId, params, inputs, absent, states: {}, empty: dropped.map((s) => s.label), tokens: tokenRows.reduce((a, r) => a + r.n.length, 0) };
+      if (oneWitness) shared.oneWitness = true;
       for (const st of states) shared.states[st.label] = stateRecord(st);
       // the new methods take the witnesses in the order of trust; Saktumiva, in the order of its guide tree
-      const method = { engine: how.engine, settings: how.engine === 'base' ? { base: baseLabel(ed, states, how.base) } : null };
-      const rows = how.engine === 'saktumiva' ? tokenRows : byTrust(ed, states, tokenRows);
+      const method = { engine, settings: engine === 'base' ? { base: baseLabel(ed, states, oneWitness ? null : how.base) } : null };
+      const rows = engine === 'saktumiva' ? tokenRows : byTrust(ed, states, tokenRows);
       let table;
       if (old && ME.CollateEdit.hasLocks(old.table)) {
         // what the editor has corrected stays; only the rest is aligned again

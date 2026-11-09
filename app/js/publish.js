@@ -52,9 +52,10 @@
     const decided = built.reduce((acc, b) => acc + b.entries.filter((e) => e.decision).length, 0);
     const emended = built.reduce((acc, b) => acc + b.entries.filter((e) => e.decision && /emendatio|conjecture/.test(e.decision.type)).length, 0);
     return [
-      'The witnesses were transcribed diplomatically and lined up by computer, block by block, by their citation IDs, ' + Collate.methodSentence(ed) + '; the alignment was then checked and corrected by the editor.',
+      ed.witnesses.length < 2 ? 'The text rests on one witness, transcribed diplomatically; there was nothing to collate it with.'
+        : 'The witnesses were transcribed diplomatically and lined up by computer, block by block, by their citation IDs, ' + Collate.methodSentence(ed) + '; the alignment was then checked and corrected by the editor.',
       'Readings were compared after normalisation by the ' + n.name + ' profile' + (n.provisional ? ' (provisional)' : '') + ', with ' + n.rules.length + ' rules: ' + n.rules.map((r) => r.name.toLowerCase()).join('; ') + '. Text marked as ' + n.ignoredTags.map((t) => '<' + t + '>').join(', ') + ' was not compared.',
-      'Where the witnesses differ, the reading of most witnesses was proposed, and where readings tie, that of the more trusted witness, in this order: ' + Collate.trustOrder(ed).join(', ') + '. The editor decided ' + decided + ' place(s)' + (emended ? ', of which ' + emended + ' by emendation or conjecture' : '') + '.',
+      (ed.witnesses.length < 2 ? '' : 'Where the witnesses differ, the reading of most witnesses was proposed, and where readings tie, that of the more trusted witness, in this order: ' + Collate.trustOrder(ed).join(', ') + '. ') + 'The editor decided ' + decided + ' place(s)' + (emended ? ', of which ' + emended + ' by emendation or conjecture' : '') + '.',
       'The apparatus is ' + (s.polarity === 'auto' ? 'negative, and positive where few witnesses have the lemma' : s.polarity) + '. ' + ab.om + ' = omits, ' + ab.add + ' = adds, ' + ab.ac + ' = before correction, ' + ab.lac + ' = lost, ' + ab.em + ' = emended, ' + ab.conj + ' = conjectured; † marks a corrupt place, and a wavy line an uncertain one. A hyphen marks part of a word.' + (s.groups && ed.witnesses.some((w) => w.group) ? ' A group siglum stands for all its members that can be read at that place.' : ''),
     ];
   };
