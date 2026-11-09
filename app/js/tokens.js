@@ -118,7 +118,21 @@
               walk(c, Object.assign({}, ctx, { into: m, flags: ctx.flags, ignored: null }));
               continue;
             }
-            if (EDITORIAL.has(name)) { walk(c, Object.assign({}, ctx, { into: 'editorial' })); continue; }
+            /* With one witness there is nothing to compare what the scribe wrote against: the text to publish is the
+               corrected one. So the editor's corrections are the text after correction, and what they replace (in a
+               <choice>) the text before it. With more witnesses they stay out, and the scribes' own words are compared. */
+            if (EDITORIAL.has(name)) {
+              // inside what was deleted there is no text after correction for it to belong to
+              if (opts && opts.editorial && !ctx.into && ctx.layer !== 'ac') walk(c, Object.assign({}, ctx, { layer: 'pc' }));
+              else walk(c, Object.assign({}, ctx, { into: 'editorial' }));
+              continue;
+            }
+            if (opts && opts.editorial && !ctx.into && (name === 'orig' || name === 'sic' || name === 'abbr') && c.parentNode && c.parentNode.nodeName === 'choice' && Array.from(c.parentNode.children).some((x) => EDITORIAL.has(x.nodeName))) {
+              // and inside what was added, none before it: only the correction stands there
+              if (ctx.layer === 'pc') walk(c, Object.assign({}, ctx, { into: 'editorial' }));
+              else walk(c, Object.assign({}, ctx, { layer: 'ac', flags: FLAGGED.has(name) ? ctx.flags.concat(name) : ctx.flags }));
+              continue;
+            }
             if (name === 'del') {
               if (ctx.into) walk(c, Object.assign({}, ctx, { ignored: 'del', flags: ctx.flags.concat('del') }));
               else walk(c, Object.assign({}, ctx, { layer: 'ac', flags: ctx.flags.concat('del') }));
@@ -230,7 +244,7 @@
     for (const { w, p } of here) {
       const keys = layer ? Export.streamsUsed(p) : Export.streamsUsed(p).filter((s) => ((w.streams && w.streams[s]) || s) === workId);
       if (!keys.length) continue;
-      const { blocks, unreadable: bad } = yield* readSteps(p, keys, { ignoreTags: settings.ignoreTags });
+      const { blocks, unreadable: bad } = yield* readSteps(p, keys, { ignoreTags: settings.ignoreTags, editorial: ed.witnesses.length < 2 });
       for (const u of bad) unreadable.push(Object.assign({ siglum: w.siglum }, u));
       let prev = -1;
       for (const [id, b] of blocks) {

@@ -35,13 +35,15 @@
     let word = 0;
     let prevText = '';
     const ends = (t) => !t || /[\s।॥|་།༎]$/.test(t);
+    // a witness on its own: its corrections are all the apparatus there is, wherever they fall
+    const oneWitness = new Set(table.order.map((l) => table.states[l].siglum)).size === 1;
     P.units.forEach((u, ui) => {
       const before = ui > 0 ? P.units[ui - 1].text : '';
       const after = ui + 1 < P.units.length;
       const lemma = trim(u.text);
       const ref = table.unit + '.' + (word + 1);
       if (trim(u.text).replace(/[।॥|.,;:]/g, '')) word += trim(u.text).split(' ').length;
-      const differs = u.differs || (u.decision && u.decision.type !== 'selectio') || u.review;
+      const differs = u.differs || (u.decision && u.decision.type !== 'selectio') || u.review || (oneWitness && u.groups.length > 1);
       // spellings that differ where the witnesses agree: kept, for the TEI and an orthographica tier
       const spelled = !differs && !u.missing.length && u.groups.some((g) => new Set(g.members.filter((m) => m.votes).map((m) => letters(m.text))).size > 1);
       const hasEvidence = ME.Layers && ME.Layers.evidenceAt(ed, table.work, table.unit, u.key).length > 0;
@@ -171,7 +173,9 @@
     } else {
       const shown = negative && lemWho === sig(e.lemWits) ? '' : lemWho;
       const rdgs = merged(e.readings).map((r) => (r.text ? hy(pr(r.text)) : ab.om) + ' ' + sig(r.wits));
-      bits.push((lem || '—') + ' ]' + (shown ? ' ' + shown + (rdgs.length ? ';' : '') : '') + (rdgs.length ? ' ' + rdgs.join('; ') : ''));
+      // a word deleted, with nothing left in its place: placed by the word before it
+      const lastWord = bare(shorten(e.prev || '').split(' ').pop() || '');
+      bits.push((lem || (lastWord ? ab.post + ' ' + lastWord : '—')) + ' ]' + (shown ? ' ' + shown + (rdgs.length ? ';' : '') : '') + (rdgs.length ? ' ' + rdgs.join('; ') : ''));
     }
     for (const a of e.ac) bits.push((a.text ? hy(a.text) : ab.om) + ' ' + a.wit + '<sup>' + ab.ac + '</sup>');
     if (s.orthographica) for (const o of e.orth) bits.push('(' + o.text + ' ' + sig(o.wits) + ')');

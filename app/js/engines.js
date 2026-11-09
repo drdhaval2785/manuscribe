@@ -109,8 +109,10 @@ ME.alignEngineSource = function (global) {
   }
 
   // one witness against the base: where each of its tokens goes, {at: base place} or {after: base place, k}
-  function toBase(base, w) {
+  function toBase(base, w, noAnchors) {
     const n = base.length, m = w.length, M = 1, X = -1, O = -2, G = -0.25, N = -1e15;
+    if (!noAnchors && (n + 1) * (m + 1) > BASE_CELLS) return numbered(toBaseAnchored(base, w));
+    if (!n || !m) return numbered(w.map(() => ({ after: n - 1 })));
     // only the way back is kept for every cell, and over a long block only for a band along the diagonal
     const big = (n + 1) * (m + 1) > BASE_CELLS, half = big ? bandFor(n, m, BASE_CELLS) : m, W = big ? 2 * half + 1 : m + 1;
     const loOf = (i) => (big ? Math.max(0, Math.round(i * m / n) - half) : 0), hiOf = (i) => (big ? Math.min(m, Math.round(i * m / n) + half) : m);
@@ -142,8 +144,46 @@ ME.alignEngineSource = function (global) {
       else if (st === 1) { st = t & 4 ? 1 : 0; i--; }
       else { out[j - 1] = { after: i - 1 }; st = t & 8 ? 2 : 0; j--; }
     }
+    return noAnchors ? out : numbered(out);
+  }
+  /* A long block is too big for the whole table, and a band along the diagonal loses its way once the texts have drifted
+     apart by more than its width. The two go on being alike for long stretches: follow them while they agree, find where
+     they next agree (twelve tokens running, the nearest such place), and align only the gap between. */
+  // what a witness adds at one place of the base, numbered in order
+  function numbered(out) {
     let last = -2, k = 0;
     for (const x of out) if (x.after !== undefined) { if (x.after !== last) { last = x.after; k = 0; } x.k = k++; } else last = -2;
+    return out;
+  }
+  function toBaseAnchored(base, w) {
+    const n = base.length, m = w.length, K = 12, out = new Array(m).fill(null);
+    const hash = (a, at) => { let h = 7; for (let t = 0; t < K; t++) { const s = a[at + t]; for (let c = 0; c < s.length; c++) h = Math.imul(h, 31) + s.charCodeAt(c) | 0; h = Math.imul(h, 17) | 0; } return h; };
+    const agree = (p, q) => { for (let t = 0; t < K; t++) if (base[p + t] !== w[q + t]) return false; return true; };
+    const nextAgreement = (i, j) => {
+      for (let reach = 64; ; reach *= 4) {
+        const where = new Map();
+        for (let q = Math.min(j + reach, m - K); q >= j; q--) where.set(hash(w, q), q); // the nearest wins, by going backwards
+        let best = null;
+        for (let p = i, top = Math.min(i + reach, n - K); p <= top; p++) {
+          if (best && p - i >= best[2]) break;
+          const q = where.get(hash(base, p));
+          if (q === undefined || !agree(p, q)) continue;
+          const d = p - i + q - j;
+          if (!best || d < best[2]) best = [p, q, d];
+        }
+        if (best) return best;
+        if (reach >= n + m) return [n, m, n + m];
+      }
+    };
+    let i = 0, j = 0;
+    while (i < n || j < m) {
+      while (i < n && j < m && base[i] === w[j]) { out[j] = { at: i }; i++; j++; }
+      if (i >= n || j >= m) { for (; j < m; j++) out[j] = { after: n - 1 }; break; }
+      const [p, q] = nextAgreement(i, j);
+      const gap = toBase(base.slice(i, p), w.slice(j, q), true);
+      gap.forEach((x, g) => { out[j + g] = x.at !== undefined ? { at: x.at + i } : { after: x.after + i }; });
+      i = p; j = q;
+    }
     return out;
   }
   function againstBase(seqs, b, opts) {

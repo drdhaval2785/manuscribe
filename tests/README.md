@@ -42,6 +42,7 @@ apart from `t-features.js`, which starts at the default.
 | `t-progress.js` | Export shows a bar that moves through its stages and goes away, and the page is not frozen while a PDF is made |
 | `t-hyphen.js` | A long word of an Indian script breaks between akṣaras with a hyphen, never in a cluster or overflowing the margin, on the page and in the PDF |
 | `t-paragraph.js` | `<p>` and `<lg>` on what is selected: within a line, over lines with the mouse, over folios from a marked start |
+| `t-sole.js` | An edition of one witness: the corrected text is printed, each reading before correction is in the apparatus and the HTML, and a very long block still lines up |
 | `t-stemma.js` | Trees, copies and the archetype on a tradition with a known stemma; lacunae never agree; NEXUS; timings |
 | `t-metre.js` | Metres recognised in known verses, among them an ardhasama and an āryā; every metre of the list from a verse made to its pattern; seeded faults flagged; no run of words of a prose passage taken for verse |
 | `t-mobile.js` | Phones and tablets: on a phone (390 × 844, touch) the line view enlarges the letters to about 16 px and the scan with them, with the device's own sizes; the folio bar on one row, the Tags panel from the bottom that closes when a tag is chosen; buttons for a finger; no page scrolls sideways; calibration by touch (a finger draws, two pinch); on a tablet held upright the project's sizes and the Tags panel; on a computer, as before; wide tables with the naming column in view |

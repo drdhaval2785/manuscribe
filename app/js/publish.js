@@ -52,7 +52,7 @@
     const decided = built.reduce((acc, b) => acc + b.entries.filter((e) => e.decision).length, 0);
     const emended = built.reduce((acc, b) => acc + b.entries.filter((e) => e.decision && /emendatio|conjecture/.test(e.decision.type)).length, 0);
     return [
-      ed.witnesses.length < 2 ? 'The text rests on one witness, transcribed diplomatically; there was nothing to collate it with.'
+      ed.witnesses.length < 2 ? 'The text rests on one witness, transcribed diplomatically; there was nothing to collate it with. The text printed is the corrected one, the corrections being the scribe’s and the editor’s, and the apparatus gives each reading before correction.'
         : 'The witnesses were transcribed diplomatically and lined up by computer, block by block, by their citation IDs, ' + Collate.methodSentence(ed) + '; the alignment was then checked and corrected by the editor.',
       'Readings were compared after normalisation by the ' + n.name + ' profile' + (n.provisional ? ' (provisional)' : '') + ', with ' + n.rules.length + ' rules: ' + n.rules.map((r) => r.name.toLowerCase()).join('; ') + '. Text marked as ' + n.ignoredTags.map((t) => '<' + t + '>').join(', ') + ' was not compared.',
       (ed.witnesses.length < 2 ? '' : 'Where the witnesses differ, the reading of most witnesses was proposed, and where readings tie, that of the more trusted witness, in this order: ' + Collate.trustOrder(ed).join(', ') + '. ') + 'The editor decided ' + decided + ' place(s)' + (emended ? ', of which ' + emended + ' by emendation or conjecture' : '') + '.',
