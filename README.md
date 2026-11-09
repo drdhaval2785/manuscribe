@@ -155,6 +155,8 @@ and offers **Download .xml** and **Download .html**.
 - **With a finger:** buttons are big enough to touch; the bar between the scan and the typing area can be
   dragged; two fingers pinch to zoom the scan; while calibrating, one finger draws a box.
 - Wide tables of an edition scroll sideways in their box, with the column that names the row kept in view.
+- **Memory:** only the part of the page shown is drawn, at most 12 megapixels on a phone (24 on a computer), and two
+  drawn pages are kept rather than five, so that a large scan does not exhaust a phone's memory.
 
 On a phone, reading the edition and deciding readings work well; transcribing a whole manuscript is
 better on a tablet or a computer.

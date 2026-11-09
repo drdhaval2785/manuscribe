@@ -54,7 +54,7 @@ body.sidebar-open #sidebar { display: flex; }
 .pdf-stage { position: absolute; cursor: grab; touch-action: none; }
 .pdf-clip { will-change: transform; }
 .pdf-stage.panning { cursor: grabbing; }
-.pdf-stage canvas { display: block; }
+.pdf-stage canvas { display: block; position: absolute; }
 .pdf-overlay { position: absolute; inset: 0; pointer-events: none; }
 .calibrating .pdf-overlay { pointer-events: auto; cursor: crosshair; touch-action: none; }
 .calibrating .pdf-stage { cursor: crosshair; }

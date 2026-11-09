@@ -3,7 +3,12 @@
    the reading guide that follows the line being typed, and the calibration tool. */
 (function (ME) {
   const { U } = ME;
-  const MAX_CANVAS_PIXELS = 24e6;
+  /* What is drawn is kept within a phone's memory: a canvas of at most 12 megapixels there (Safari on iOS refuses one of
+     more than about 16), 24 on a computer; two pages kept drawn rather than five; and only the part of the page that
+     is shown drawn at all, since a page zoomed in on a phone would not fit whole. */
+  const smallDevice = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || (window.matchMedia && window.matchMedia('(max-width: 900px)').matches);
+  const maxPixels = () => (smallDevice() ? 12e6 : 24e6);
+  const cachePages = () => (smallDevice() ? 2 : 5);
 
   const PdfView = {
     doc: null,
@@ -146,7 +151,7 @@
     await ensureWorker();
     const data = new Uint8Array(await blob.arrayBuffer());
     if (PdfView.doc) { try { PdfView.doc.destroy(); } catch (e) { /* ignore */ } }
-    PdfView.cache.clear();
+    dropCache();
     PdfView.doc = await window.pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
     const p1 = await PdfView.doc.getPage(1);
     const vp = p1.getViewport({ scale: 1 });
@@ -157,7 +162,7 @@
   PdfView.unload = function () {
     if (PdfView.doc) { try { PdfView.doc.destroy(); } catch (e) { /* ignore */ } }
     PdfView.doc = null;
-    PdfView.cache.clear();
+    dropCache();
   };
 
   PdfView.show = function (entry, leaf) {
@@ -185,7 +190,7 @@
     return U.clamp(Math.max(200, scroller.clientWidth - 28) / (fraction * PdfView.pagePx1), 0.3, 8);
   };
   PdfView.setZoom = function (z) { PdfView.zoom = U.clamp(z, 0.3, 8); if (PdfView.cb.onZoom) PdfView.cb.onZoom(PdfView.zoom); return PdfView.render(); };
-  PdfView.setRotation = function (r) { PdfView.rotation = ((r % 360) + 360) % 360; PdfView.cache.clear(); return PdfView.render(); };
+  PdfView.setRotation = function (r) { PdfView.rotation = ((r % 360) + 360) % 360; dropCache(); return PdfView.render(); };
 
   PdfView.setFilters = function (f) {
     PdfView.filters = Object.assign({}, PdfView.filters, f);
@@ -197,24 +202,37 @@
     return PdfView.mode === 'leaf' && !PdfView.calibrating ? PdfView.leaf : [0, 0, 1, 1];
   }
 
-  async function renderToCanvas(pageNo, scale) {
-    const key = pageNo + '@' + scale.toFixed(4) + '@' + PdfView.rotation;
-    if (PdfView.cache.has(key)) return PdfView.cache.get(key);
+  /* The part `region` (page-normalised [x, y, w, h]) of a page, drawn at `scale`. -> {canvas, w, h: the whole page's
+     size on the screen; x0, y0, rw, rh: where the part is on it, and its size}. The canvas is kept, with a few others
+     lately drawn; the latest used is kept longest. */
+  async function renderToCanvas(pageNo, scale, region) {
+    const reg = region || [0, 0, 1, 1];
+    const key = pageNo + '@' + scale.toFixed(4) + '@' + PdfView.rotation + '@' + reg.map((v) => v.toFixed(4)).join(',');
+    const hit = PdfView.cache.get(key);
+    if (hit) { PdfView.cache.delete(key); PdfView.cache.set(key, hit); return hit; }
     const page = await PdfView.doc.getPage(pageNo);
     const vp = page.getViewport({ scale, rotation: PdfView.rotation });
+    const x0 = Math.floor(reg[0] * vp.width), y0 = Math.floor(reg[1] * vp.height);
+    const rw = Math.max(1, Math.ceil((reg[0] + reg[2]) * vp.width) - x0), rh = Math.max(1, Math.ceil((reg[1] + reg[3]) * vp.height) - y0);
     let dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    while (vp.width * vp.height * dpr * dpr > MAX_CANVAS_PIXELS && dpr > 0.5) dpr *= 0.85;
+    const most = maxPixels();
+    while (rw * rh * dpr * dpr > most && dpr > 0.5) dpr *= 0.85;
     const canvas = document.createElement('canvas');
-    canvas.width = Math.floor(vp.width * dpr);
-    canvas.height = Math.floor(vp.height * dpr);
-    canvas.style.width = vp.width + 'px';
-    canvas.style.height = vp.height + 'px';
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale: scale * dpr, rotation: PdfView.rotation }) }).promise;
-    const out = { canvas, w: vp.width, h: vp.height };
+    canvas.width = Math.floor(rw * dpr);
+    canvas.height = Math.floor(rh * dpr);
+    canvas.style.width = rw + 'px';
+    canvas.style.height = rh + 'px';
+    canvas.style.left = x0 + 'px';
+    canvas.style.top = y0 + 'px';
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale: scale * dpr, rotation: PdfView.rotation, offsetX: -x0 * dpr, offsetY: -y0 * dpr }) }).promise;
+    const out = { canvas, w: vp.width, h: vp.height, x0, y0, rw, rh, region: reg };
     PdfView.cache.set(key, out);
-    while (PdfView.cache.size > 5) PdfView.cache.delete(PdfView.cache.keys().next().value);
+    while (PdfView.cache.size > cachePages()) { const k = PdfView.cache.keys().next().value; const v = PdfView.cache.get(k); PdfView.cache.delete(k); free(v); }
     return out;
   }
+  // a canvas no longer shown gives its memory back at once, not when the garbage collector gets to it
+  function free(v) { if (v && v.canvas && !v.canvas.isConnected) { v.canvas.width = 0; v.canvas.height = 0; } }
+  function dropCache() { for (const v of PdfView.cache.values()) free(v); PdfView.cache.clear(); }
 
   /* A render begun when the PDF is closed (another transcription opened) is cancelled by pdf.js: that is no error. */
   PdfView.render = () => renderNow().catch((e) => { if (e && /Cancel/i.test(e.name || '')) return; throw e; });
@@ -237,10 +255,14 @@
     if (PdfView.calibrating || PdfView.mode === 'page') fit = Math.min(fit, availH / (region[3] * vp1.height));
     const scale = Math.round(fit * (PdfView.calibrating ? PdfView.calibScale : PdfView.zoom) * 1000) / 1000;
     if (!PdfView.calibrating) PdfView.pagePx1 = vp1.width * fit; // the page's width on the screen at zoom 1
-    const r = await renderToCanvas(entry.pdfPage, scale);
+    const r = await renderToCanvas(entry.pdfPage, scale, region);
     if (seq !== PdfView.renderSeq) return;
     const old = stage.querySelector('canvas');
-    if (old !== r.canvas) { if (old) old.remove(); stage.insertBefore(r.canvas, overlay); }
+    if (old !== r.canvas) {
+      if (old) { old.remove(); if (![...PdfView.cache.values()].some((v) => v.canvas === old)) { old.width = 0; old.height = 0; } }
+      stage.insertBefore(r.canvas, overlay);
+    }
+    PdfView._shown = r;
     stage.style.width = r.w + 'px';
     stage.style.height = r.h + 'px';
     stage.style.left = -region[0] * r.w + 'px';
@@ -260,23 +282,26 @@
     if (newPage || (PdfView.calibrating && PdfView.calibScale === 1) || !PdfView.guide.rect) scroller.scrollTop = Math.max(0, pad - 14);
     pageInfo.textContent = 'PDF page ' + entry.pdfPage + ' / ' + PdfView.doc.numPages + (entry.half !== null && entry.half !== undefined ? (entry.half ? ' · lower half' : ' · upper half') : '');
     if (PdfView.cb.onPageSize) PdfView.cb.onPageSize(entry, { width: vp1.width, height: vp1.height });
-    const paper = samplePaper(r.canvas, PdfView.leaf);
+    const paper = samplePaper(r, PdfView.leaf);
     if (PdfView.cb.onPaper) PdfView.cb.onPaper(paper);
     PdfView.positionGuide(true);
     // warm the cache for the next page
     const next = entry.pdfPage + 1;
-    if (next <= PdfView.doc.numPages) setTimeout(() => { if (seq === PdfView.renderSeq) renderToCanvas(next, scale).catch(() => {}); }, 400);
+    if (next <= PdfView.doc.numPages) setTimeout(() => { if (seq === PdfView.renderSeq) renderToCanvas(next, scale, region).catch(() => {}); }, 400);
   };
 
-  // Average colour of the bright (non-ink) pixels inside the leaf.
-  function samplePaper(canvas, leaf) {
+  // Average colour of the bright (non-ink) pixels inside the leaf. r: what was drawn (renderToCanvas), the leaf page-normalised.
+  function samplePaper(r, leaf) {
     try {
-      const S = 48;
+      const S = 48, canvas = r.canvas;
       const t = document.createElement('canvas');
       t.width = S; t.height = S;
       const ctx = t.getContext('2d', { willReadFrequently: true });
-      const x = (leaf[0] + leaf[2] * 0.15) * canvas.width, y = (leaf[1] + leaf[3] * 0.15) * canvas.height;
-      ctx.drawImage(canvas, x, y, leaf[2] * 0.7 * canvas.width, leaf[3] * 0.7 * canvas.height, 0, 0, S, S);
+      // the leaf, in the pixels of the part drawn
+      const kx = canvas.width / r.rw, ky = canvas.height / r.rh;
+      const lx = (leaf[0] * r.w - r.x0) * kx, ly = (leaf[1] * r.h - r.y0) * ky, lw = leaf[2] * r.w * kx, lh = leaf[3] * r.h * ky;
+      const x = Math.max(0, lx + lw * 0.15), y = Math.max(0, ly + lh * 0.15);
+      ctx.drawImage(canvas, x, y, Math.min(lw * 0.7, canvas.width - x), Math.min(lh * 0.7, canvas.height - y), 0, 0, S, S);
       const d = ctx.getImageData(0, 0, S, S).data;
       const px = [];
       for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2], 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]]);
@@ -329,8 +354,10 @@
       for (let x = 0; x < W; x++) { let n = 0; for (let y = y0; y <= y1; y++) n += fg[y * W + x]; cols.push(n / (y1 - y0 + 1)); }
       const [x0, x1] = longestRun(cols, 0.5);
       if (x1 <= x0) return null;
-      const r = [x0 / W, y0 / H, (x1 - x0 + 1) / W, (y1 - y0 + 1) / H];
-      if (r[2] * r[3] < 0.08 || r[2] * r[3] > 0.97) return null;
+      // in the part of the page that was drawn: given back in the page's own measure
+      const reg = (PdfView._shown && PdfView._shown.region) || [0, 0, 1, 1];
+      const r = [reg[0] + (x0 / W) * reg[2], reg[1] + (y0 / H) * reg[3], ((x1 - x0 + 1) / W) * reg[2], ((y1 - y0 + 1) / H) * reg[3]];
+      if (r[2] * r[3] < 0.08 * reg[2] * reg[3] || r[2] * r[3] > 0.97 * reg[2] * reg[3]) return null;
       return r;
     } catch (e) { return null; }
   };

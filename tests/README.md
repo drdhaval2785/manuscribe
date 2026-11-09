@@ -40,6 +40,7 @@ apart from `t-features.js`, which starts at the default.
 | `t-engines.js` | The methods of lining up witnesses: every token kept in order on hard random text, very long blocks, changing method, one block its own way, comparing and taking places, scoring on blocks read through |
 | `t-deleted.js` | Text deleted from the transcriptions after collation: gone from what is shown and exported, its saved tables cleared by the next Collate, and a warning when blocks have changed since they were collated |
 | `t-progress.js` | Export shows a bar that moves through its stages and goes away, and the page is not frozen while a PDF is made |
+| `t-scan.js` | What is drawn of a scan: only the part shown, placed on the page, the whole page in page mode; a bounded cache whose evicted canvases are freed, smaller on a phone; the leaf detection and the paper colour still right |
 | `t-phone.js` | Typing on a phone: the scan shows about 22 letters of a line on a calibrated folio (a zoom of the device's own wins), the caret is kept in the middle of the typing area along a long line, ↑ and ↓ go to the line above or below, with the caret kept |
 | `t-follow.js` | The scan follows the letter being typed: akṣaras counted, the line's length learnt from the lines above, the letter kept in the middle, a pan by hand that pauses it until Follow or the next line, a pinch that zooms, the letters-per-line figure |
 | `t-hyphen.js` | A long word of an Indian script breaks between akṣaras with a hyphen, never in a cluster or overflowing the margin, on the page and in the PDF |
