@@ -95,6 +95,26 @@
        on one line though it runs onto the next. */
     const unspaced = D.unspaced || /^(ja|zh|yue|th|lo|km|my|bo)\b/i.test(D.lang);
     const seg = (() => { try { return new Intl.Segmenter(D.lang === 'und' ? undefined : D.lang, { granularity: unspaced ? 'grapheme' : 'word' }); } catch (e) { return null; } })();
+    /* The scripts of India and their neighbours have no words a dictionary could hyphenate, and a compound can be longer
+       than the line. A word of them may break between its akṣaras, marked by a soft hyphen, which shows only where the
+       line does break: never within a cluster (after a virama), and at least two akṣaras on each side. */
+    const SHY = '\u00AD';
+    const INDIC = /[\u0900-\u0DFF\u{11000}-\u{11DFF}]/u;
+    const VIRAMA = /[\u094D\u09CD\u0A4D\u0ACD\u0B4D\u0BCD\u0C4D\u0CCD\u0D4D\u0DCA\u{11046}\u{1107F}\u{110B9}\u{11133}\u{11134}\u{111C0}\u{11235}\u{112EA}\u{1134D}\u{11442}\u{114C2}\u{115BF}\u{1163F}\u{116B6}\u{1172B}\u{11839}\u{11C3F}\u{11D45}\u200C\u200D]/u;
+    const inAksharas = (word) => {
+      if (!INDIC.test(word)) return [word];
+      const chars = Array.from(word), starts = [0];
+      for (let i = 1; i < chars.length; i++) {
+        // a new akṣara begins at a letter, unless the sign before it joins the two; the avagraha belongs to what it follows
+        if (/\p{L}/u.test(chars[i]) && chars[i] !== '\u093D' && !VIRAMA.test(chars[i - 1])) starts.push(i);
+      }
+      if (starts.length < 4) return [word];
+      const out = [];
+      let from = 0;
+      for (let k = 2; k <= starts.length - 2; k++) { out.push(chars.slice(from, starts[k]).join('') + SHY); from = starts[k]; }
+      out.push(chars.slice(from).join(''));
+      return out;
+    };
     let pageNo = 0;
     const report = { pages: 0, overfull: 0, pagesInfo: [] };
     let pg = null, textLines = 0;
@@ -204,7 +224,7 @@
           if (c.nodeType === 3) {
             const parts = seg ? Array.from(seg.segment(c.nodeValue), (x) => x.segment) : c.nodeValue.split(/(\s+)/);
             const frag = document.createDocumentFragment();
-            for (const t of parts) { if (!t) continue; const s = el('span', 'w'); s.textContent = t; frag.appendChild(s); into.push({ node: s }); }
+            for (const t of parts) { if (!t) continue; for (const piece of inAksharas(t)) { const s = el('span', 'w'); s.textContent = piece; frag.appendChild(s); into.push({ node: s }); } }
             c.replaceWith(frag);
           } else if (c.classList && c.classList.contains('an')) into.push({ node: c, anchor: +c.dataset.k });
           else if (c.classList && c.classList.contains('unsure')) { const inner = []; walk(c, inner); for (const x of inner) x.unsure = true; into.push(...inner); }
@@ -232,45 +252,50 @@
       // where each line's pieces begin: a long block is not searched for each fragment of it
       const firstOf = [];
       items.forEach((it, i) => { if (firstOf[it.line] === undefined) firstOf[it.line] = i; });
-      const inLines = function* (a, z) { for (let i = firstOf[a] === undefined ? items.length : firstOf[a]; i < items.length && items[i].line <= z; i++) if (items[i].line >= a) yield items[i]; };
+      // the index just after line z
+      const endOf = (z) => (z + 1 < nLines && firstOf[z + 1] !== undefined ? firstOf[z + 1] : items.length);
       const lineOfAnchor = new Map(items.filter((x) => x.anchor).map((x) => [x.anchor, x.line + 1]));
-      // a fragment of the block: lines a..z, as a paragraph of its own
-      const fragment = (a, z) => {
-        const p = el('p', 'txt' + depthCls + (z < nLines - 1 ? ' cont' : '') + (a === 0 ? ' first' : ''));
+      // a fragment of the block: the pieces from..to - 1, as a paragraph of its own
+      const fragment = (from, to) => {
+        const p = el('p', 'txt' + depthCls + (to < items.length ? ' cont' : '') + (from === 0 ? ' first' : ''));
         p.lang = D.lang;
         let un = null;
-        for (const it of inLines(a, z)) {
+        for (let i = from; i < to; i++) {
+          const it = items[i];
           const node = it.node.cloneNode(true);
           if (it.unsure) { if (!un) { un = el('span', 'unsure'); p.appendChild(un); } un.appendChild(node); } else { un = null; p.appendChild(node); }
         }
+        // a word carried over to the next page has no line break here for the soft hyphen to show at
+        if (to < items.length) { const ws = p.querySelectorAll('.w'), end = ws[ws.length - 1]; if (end && end.textContent.endsWith(SHY)) end.textContent = end.textContent.slice(0, -1) + '-'; }
         p.dir = 'auto'; // last, for the same reason
-        p.dataset.from = a; p.dataset.block = b.id;
+        p.dataset.from = from; p.dataset.block = b.id;
         return p;
       };
       // a note cites its line as numbered in the margin: on the page, or through the text
-      const notesIn = (a, z) => [...inLines(a, z)].filter((x) => x.anchor).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: lineBase(pg) + (x.line - a) + 1 })).filter((n) => n.note);
+      const notesIn = (from, to) => items.slice(from, to).filter((x) => x.anchor).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: lineBase(pg) + (x.line - items[from].line) + 1 })).filter((n) => n.note);
       // place it: on each page, as many lines as fit with their notes. No internal reference is printed: a reader
       // finds a place by the page, its lines and the notes' numbers
-      let a = 0;
-      while (a < nLines) {
-        await rest(a / nLines);
+      let at = 0;
+      while (at < items.length) {
+        await rest(at / items.length);
+        const a = items[at].line;
         const headEl = null;
         let best = -1, shown = null;
-        // the most lines that fit: by leaps, doubling, and then halving the gap between what fits and what does not
-        const tryUpTo = (z) => {
-          const p = fragment(a, z);
+        const tryUpTo = (to) => {
+          const p = fragment(at, to);
           if (shown) shown.replaceWith(p); else pg.body.appendChild(p);
           shown = p;
           const kept = pg.notes;
-          pg.notes = kept.concat(notesIn(a, z));
+          pg.notes = kept.concat(notesIn(at, to));
           drawNotes(pg, true);
           const ok = fits(pg);
           pg.notes = kept;
           return ok;
         };
+        // the most lines that fit: by leaps, doubling, and then halving the gap between what fits and what does not
         for (let lo = a - 1, hi = nLines, leap = 1; lo + 1 < hi;) {
           const z = hi === nLines ? Math.min(lo + leap, nLines - 1) : (lo + hi) >> 1;
-          if (tryUpTo(z)) { lo = best = z; leap *= 2; } else hi = z;
+          if (tryUpTo(endOf(z))) { lo = best = z; leap *= 2; } else hi = z;
         }
         if (best < 0) {
           shown.remove();
@@ -279,23 +304,34 @@
           if (pg.body.childElementCount) { pg = newPage(true); continue; }
           // not one line fits even on an empty page: it is set anyway, and counted
           if (headEl) pg.body.appendChild(headEl);
-          const p = fragment(a, a);
+          const to = endOf(a), p = fragment(at, to);
           pg.body.appendChild(p);
-          pg.notes = pg.notes.concat(notesIn(a, a));
+          pg.notes = pg.notes.concat(notesIn(at, to));
           drawNotes(pg);
           report.overfull++;
           numberLines(pg, p);
-          a++;
-          if (a < nLines) pg = newPage(true);
+          at = to;
+          if (at < items.length) pg = newPage(true);
           continue;
         }
-        const p = fragment(a, best);
+        let to = endOf(best);
+        /* Set in place the text can take up a little less room than it was measured to, and the last line then comes out
+           short and is stretched across the page. So as many pieces of the next line as still leave it the same height. */
+        if (to < items.length) {
+          tryUpTo(to);
+          const height = shown.getBoundingClientRect().height;
+          for (let lo = to, hi = endOf(best + 1); lo + 1 < hi;) {
+            const mid = (lo + hi) >> 1;
+            if (tryUpTo(mid) && shown.getBoundingClientRect().height <= height + 0.5) { lo = to = mid; } else hi = mid;
+          }
+        }
+        const p = fragment(at, to);
         shown.replaceWith(p);
-        pg.notes = pg.notes.concat(notesIn(a, best));
+        pg.notes = pg.notes.concat(notesIn(at, to));
         drawNotes(pg);
         numberLines(pg, p);
-        a = best + 1;
-        if (a < nLines) pg = newPage(true);
+        at = to;
+        if (at < items.length) pg = newPage(true);
       }
     }
     // the lines of the text, counted down the page, or on through the text; every fifth (or every one) numbered
@@ -349,7 +385,7 @@ body { font-family: var(--font); color: #1d1a16; }
 /* the edition's version and Manuscribe's, under the notes of every page */
 .versions { position: absolute; left: 20mm; right: 18mm; bottom: 8mm; text-align: center; font-size: calc(var(--size) * 0.6); color: #8a7c66; }
 .measure { position: absolute; visibility: hidden; left: 0; top: 0; }
-.txt { margin: 0 0 0.4em; text-align: justify; hyphens: auto; }
+.txt { margin: 0 0 0.4em; text-align: justify; hyphens: auto; overflow-wrap: break-word; }
 .txt.cont { text-align-last: justify; }
 .bid { font-size: calc(var(--size) * 0.72); color: #6b5a3e; margin-top: 0.7em; }
 /* the layers of a layered edition: each deeper one set in further, and smaller */

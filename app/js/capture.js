@@ -104,7 +104,20 @@
           if (st.visibility === 'hidden' || st.display === 'none') continue;
           const px = parseFloat(st.fontSize);
           const colour = colourOf(st.color);
-          const place = (word, at) => {
+          // the soft hyphen of a word broken at the end of this line: the browser draws it, and so must the PDF
+          const lineEndsAfter = (rect) => {
+            let next = el.nextElementSibling;
+            if (!next && el.parentElement.classList.contains('unsure')) next = el.parentElement.nextElementSibling;
+            const r = next && next.getClientRects()[0];
+            return !!r && r.top > rect.top + rect.height / 2;
+          };
+          const hyphenAfter = (rect) => {
+            const v = fontFor('-');
+            if (!v) return;
+            const asc = v.font.ascent, desc = -v.font.descent;
+            page.glyphs(v.shaper.shape('-'), (rect.right - pr.left) * k, (rect.top - pr.top) * k + rect.height * k * (asc / (asc + desc)), px * k, '\u00AD', colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1, bold: +st.fontWeight >= 600 });
+          };
+          const place = (word, at, soft) => {
             range.setStart(n, at); range.setEnd(n, at + word.length);
             const rects = [...range.getClientRects()].filter((r) => r.width > 0);
             if (!rects.length) return;
@@ -115,6 +128,7 @@
               return;
             }
             place1(word, at, rects[0]);
+            if (soft && lineEndsAfter(rects[0])) hyphenAfter(rects[0]);
           };
           const place1 = (word, at, rect) => {
             if (!rect) {
@@ -163,7 +177,10 @@
             page.hiddenText(word, x, top + height * 0.8, size, width);
             count.pictures++;
           };
-          for (const s of seg.segment(t)) if (s.segment.trim()) place(s.segment, s.index);
+          for (const s of seg.segment(t)) {
+            const soft = s.segment.endsWith('\u00AD'), word = soft ? s.segment.slice(0, -1) : s.segment;
+            if (word.trim()) place(word, s.index, soft);
+          }
         }
         // the links: a marker to its note, a note back to its marker
         for (const a of pageEl.querySelectorAll('a[href^="#"]')) {
