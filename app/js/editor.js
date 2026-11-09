@@ -1124,6 +1124,17 @@
     }
     const mode = Editor.project.settings.translit;
     if (!mode || mode === 'off' || e.isComposing) return;
+    /* A keyboard that transliterates by itself (the Hindi keyboard of iOS types Latin letters, then puts the word in
+       Devanagari in their place): with Manuscribe's scheme on too, the letters would be converted twice. The scheme
+       goes off, and the word stands as the scheme made it. */
+    if (t === 'insertReplacementText') {
+      e.preventDefault();
+      tlReset();
+      if (ME.App && ME.App.toggleTranslit) ME.App.toggleTranslit();
+      else Editor.project.settings.translit = 'off';
+      if (ME.U && ME.U.toast) ME.U.toast('Your keyboard converts to ' + (Translit.SCHEMES[mode] && /deva/i.test(mode) ? 'Devanagari' : 'the script') + ' by itself, so Manuscribe’s typing scheme has been switched off: the two would convert the same letters twice. The badge below switches it on again.', 'info', 8000);
+      return;
+    }
     if (t === 'insertText' && e.data && e.data.length === 1 && Translit.isAlpha(mode, e.data)) {
       e.preventDefault();
       tlType(line, e.data);

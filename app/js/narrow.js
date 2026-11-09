@@ -81,14 +81,26 @@
   };
 
   /* ---------- the height that can be seen ---------- */
-  function seen() {
-    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
-  }
+  /* The app is as tall as can be seen (the keyboard takes the rest), and follows the browser where it scrolls the page
+     to bring the line typed above the keyboard (Safari on iOS does: visualViewport.offsetTop). While the keyboard is
+     open on a phone, the top bar gives its room to the typing area (body.keyboard-open). Measured on the iPhone
+     Simulator: the keyboard leaves 362 px of 699, and Safari scrolled the page by up to 306 px. */
+  Narrow.viewport = function (v) {
+    const vv = window.visualViewport;
+    const h = v && v.height !== undefined ? v.height : vv ? vv.height : window.innerHeight;
+    const top = v && v.offsetTop !== undefined ? v.offsetTop : vv ? vv.offsetTop : 0;
+    const root = document.documentElement.style;
+    root.setProperty('--app-h', Math.round(h) + 'px');
+    root.setProperty('--app-top', Math.round(top) + 'px');
+    const open = Narrow.on() && window.innerHeight - h > 150;
+    document.body.classList.toggle('keyboard-open', open);
+    return { height: Math.round(h), offsetTop: Math.round(top), keyboardOpen: open };
+  };
+  const seen = () => Narrow.viewport();
 
   window.addEventListener('DOMContentLoaded', () => {
     seen();
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', seen);
+    if (window.visualViewport) { window.visualViewport.addEventListener('resize', seen); window.visualViewport.addEventListener('scroll', seen); }
     window.addEventListener('resize', seen);
     const b = document.getElementById('btn-tags');
     if (b) b.addEventListener('click', () => Narrow.toggleTags());

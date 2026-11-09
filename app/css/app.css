@@ -830,8 +830,16 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   body.tags-open #toolbar .tb-group { border-left: 0; flex-wrap: wrap; gap: 6px; padding: 0; }
   body.tags-open #toolbar .tb-btn { height: 42px; padding: 0 12px; font-size: 15px; line-height: 40px; border: 1px solid var(--line); background: #fff; }
 }
+/* a phone or a tablet: the app follows the browser's own scrolling when the keyboard opens (narrow.js) */
+@media (max-width: 900px) {
+  /* (moved, not transformed: a transform would make #main the box the tags sheet is fixed to) */
+  #topbar, #main { position: relative; top: var(--app-top, 0px); }
+}
 /* a phone: the line view (narrow.js), and a header of icons */
 @media (max-width: 700px) {
+  /* while the keyboard is open, the top bar gives its room to the typing area */
+  body.keyboard-open #topbar { display: none; }
+  body.keyboard-open #main { height: var(--app-h, 100dvh); }
   .copy-folio, .folio-count { display: none; }
   #topbar { gap: 4px; padding: 0 6px; }
   .brand { margin-right: 0; }

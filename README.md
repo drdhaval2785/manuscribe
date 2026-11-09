@@ -148,7 +148,8 @@ and offers **Download .xml** and **Download .html**.
   transcription is made, and learnt from the lines you type). The sizes you choose there are kept for that device, so the project keeps the sizes of
   the computer you mostly type on. The scan shows about 22 letters of a line across the screen, so that they
   can be read; pinch to show more or fewer. **↑** and **↓** in the status bar go to the line above or below,
-  since a phone's keyboard has no arrows. Tap the letter size (**100%** under **− / +**) to come back to readable
+  since a phone's keyboard has no arrows. While the keyboard is open the top bar steps aside, so that the scan
+  and the line being typed have the room above it. Tap the letter size (**100%** under **− / +**) to come back to readable
   letters. The tags are behind one **Tags** button, which opens them from the bottom of the screen; one
   chosen is applied to the selected text and the panel closes.
 - **A tablet held upright** (up to 900 px) keeps the whole folio, with the same **Tags** button.

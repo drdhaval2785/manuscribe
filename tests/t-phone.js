@@ -58,6 +58,27 @@ const { launch, sleep, checks, ROOT } = require('./h');
       return { caretX: Math.round(c.left - pane.left), paneW: Math.round(pane.width), lineW: Math.round(line.width), scrolled: Math.round(document.getElementById('editor-pane').scrollLeft) };
     });
     T.check('along a line wider than the screen (' + caret.lineW + ' px) the caret is kept in the middle half', caret.lineW > caret.paneW && caret.caretX > caret.paneW * 0.2 && caret.caretX < caret.paneW * 0.8 && caret.scrolled > 0, caret);
+    // the keyboard: the app is as tall as can be seen, follows the browser's scrolling, and the top bar steps aside
+    const kb = await page.evaluate(() => {
+      const r1 = ME.Narrow.viewport({ height: 362, offsetTop: 40 });
+      const cs = getComputedStyle(document.documentElement);
+      const open = { r: r1, h: cs.getPropertyValue('--app-h').trim(), top: cs.getPropertyValue('--app-top').trim(), cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height), mainTop: Math.round(document.getElementById('main').getBoundingClientRect().top) };
+      const r2 = ME.Narrow.viewport({ height: 844, offsetTop: 0 });
+      const closed = { r: r2, cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height) };
+      return { open, closed };
+    });
+    T.check('with the keyboard open (362 px left, the page scrolled by 40): the app is 362 px tall, moved down by 40, and the top bar steps aside', kb.open.h === '362px' && kb.open.top === '40px' && kb.open.cls && kb.open.topbar === 'none' && kb.open.main === 362 && kb.open.mainTop === 40, kb.open);
+    T.check('with the keyboard closed, all is as before', !kb.closed.cls && kb.closed.topbar !== 'none' && kb.closed.main === 844 - 46, kb.closed);
+    // a keyboard that transliterates by itself (iOS's Hindi keyboard): Manuscribe's scheme steps aside
+    const tl = await page.evaluate(() => {
+      ME.App.project.settings.translit = 'itrans-deva';
+      const line = ME.Editor.focusLine('main', 5, 0);
+      const dt = new DataTransfer(); dt.setData('text/plain', 'समवेता');
+      const ev = new InputEvent('beforeinput', { inputType: 'insertReplacementText', data: '', dataTransfer: dt, bubbles: true, cancelable: true });
+      const stopped = !line.dispatchEvent(ev);
+      return { stopped, translit: ME.App.project.settings.translit, badge: document.getElementById('translit-badge').textContent, toast: [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ') };
+    });
+    T.check('a keyboard that puts a transliterated word in place of the letters switches Manuscribe’s scheme off, and says so', tl.stopped && tl.translit === 'off' && /Unicode/.test(tl.badge) && /converts to Devanagari by itself/.test(tl.toast), tl);
     // a zoom of the device's own wins over the letters
     await page.evaluate(async () => { ME.Narrow.save({ pdf: 1.5 }); await ME.App.open(window.__pid); });
     for (let k = 0; k < 40 && !(await page.evaluate(() => !!document.querySelector('.pdf-stage canvas'))); k++) await sleep(150);
