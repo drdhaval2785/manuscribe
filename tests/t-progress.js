@@ -71,6 +71,22 @@ const { LANGS, make, buildInPage } = require('./languages');
       return out;
     });
     for (const [n, ok, x] of res) T.check(n, ok, x);
+    // one very long block: the percentage is of the whole, and stays within it
+    const lines = Array.from({ length: 26 }, () => 'धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः मामकाः पाण्डवाश्चैव किमकुर्वत सञ्जय');
+    const pages = Array.from({ length: 80 }, () => lines.slice());
+    pages[0][0] = '<x-marker type="p-start" id="v1"/>' + pages[0][0];
+    pages[79][25] += '<x-marker type="p-end"/>';
+    await buildInPage(page, LANGS.sa, [{ siglum: 'A', pages }], 26);
+    const said = await page.evaluate(async () => {
+      const { ed, list } = window.lang;
+      await ME.Collate.run(ed, list, 'main', {});
+      const built = (await ME.Release.works(ed, list))[0].built;
+      const seen = [];
+      await ME.Capture.pdf(ed, list, built, { onProgress: (f, t) => seen.push([f, t]) });
+      return seen;
+    });
+    const percents = said.map(([, t]) => /(\d+)%/.exec(t)).filter(Boolean).map((m) => +m[1]);
+    T.check('over one long block the layout reports within the block, and never above 100% (' + percents.join(', ') + ')', percents.length > 1 && percents.every((p) => p >= 0 && p <= 100) && said.every(([f]) => f <= 1), said.slice(0, 12));
     T.done(page);
   } finally { await browser.close(); }
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

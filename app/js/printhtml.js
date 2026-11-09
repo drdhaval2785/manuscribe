@@ -173,7 +173,7 @@
     const measure = el('div', 'body measure');
     // a long edition: the page says how far it has got, and lets others draw
     const channel = new MessageChannel();
-    let slice = performance.now(), blockNo = 0;
+    let slice = performance.now(), blockNo = -1; // the block being laid out, from 0
     const rest = async (within) => {
       if (performance.now() - slice <= 40) return;
       window.__paginating = (blockNo + within) / D.blocks.length;
@@ -181,8 +181,8 @@
       slice = performance.now();
     };
     for (const b of D.blocks) {
-      await rest(0);
       blockNo++;
+      await rest(0);
       // the whole block, at the width of the page, to find its lines
       const page0 = pg.el;
       measure.style.width = pg.body.getBoundingClientRect().width + 'px';
