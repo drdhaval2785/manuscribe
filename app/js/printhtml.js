@@ -121,7 +121,7 @@
     let textDir = '';
     // in a layered edition, the notes keep the order of the blocks: a verse's, then its commentary's under its [abbreviation]
     const abbrOf = new Map(D.layers.map((l) => [l.code, l.abbr]));
-    function drawNotes(pg) {
+    function drawNotes(pg, trial) { // on a trial only the height of the notes matters
       pg.foot.innerHTML = '';
       // the notes run in the direction of the text, right to left for Arabic or Hebrew
       if (textDir) pg.foot.dir = textDir;
@@ -142,7 +142,7 @@
         pg.foot.appendChild(p);
       }
       // the markers in the text take the same numbers, 1 on, on each page, and lead to their notes
-      pg.notes.forEach((n, j) => {
+      if (!trial) pg.notes.forEach((n, j) => {
         const an = [...pg.body.querySelectorAll('[data-block] .an[data-k="' + n.note.k + '"]')].find((x) => x.closest('[data-block]').dataset.block === n.block);
         if (!an) return;
         an.id = 'fr-' + pg.no + '-' + (j + 1);
@@ -174,8 +174,14 @@
     // a long edition: the page says how far it has got, and lets others draw
     const channel = new MessageChannel();
     let slice = performance.now(), blockNo = 0;
+    const rest = async (within) => {
+      if (performance.now() - slice <= 40) return;
+      window.__paginating = (blockNo + within) / D.blocks.length;
+      await new Promise((resolve) => { channel.port1.onmessage = resolve; channel.port2.postMessage(0); });
+      slice = performance.now();
+    };
     for (const b of D.blocks) {
-      if (performance.now() - slice > 40) { window.__paginating = blockNo / D.blocks.length; await new Promise((resolve) => { channel.port1.onmessage = resolve; channel.port2.postMessage(0); }); slice = performance.now(); }
+      await rest(0);
       blockNo++;
       // the whole block, at the width of the page, to find its lines
       const page0 = pg.el;
@@ -205,7 +211,10 @@
           else into.push({ node: c });
         }
       };
+      // with dir="auto" the browser looks through the whole paragraph again at each word put in: minutes over a long block
+      full.removeAttribute('dir');
       walk(full, items);
+      full.dir = 'auto';
       // a new line where a piece starts below the bottom of the line so far: pieces set in different fonts (kanji
       // and kana, say) sit a little higher or lower on one line, and are not a line each
       let line = -1, bottom = -Infinity;
@@ -218,40 +227,50 @@
       }
       const nLines = line + 1;
       page0.removeChild(measure);
-      const noteOf = (k) => b.notes.find((n) => n.k === k);
+      const notesByK = new Map(b.notes.map((n) => [n.k, n]));
+      const noteOf = (k) => notesByK.get(k);
+      // where each line's pieces begin: a long block is not searched for each fragment of it
+      const firstOf = [];
+      items.forEach((it, i) => { if (firstOf[it.line] === undefined) firstOf[it.line] = i; });
+      const inLines = function* (a, z) { for (let i = firstOf[a] === undefined ? items.length : firstOf[a]; i < items.length && items[i].line <= z; i++) if (items[i].line >= a) yield items[i]; };
       const lineOfAnchor = new Map(items.filter((x) => x.anchor).map((x) => [x.anchor, x.line + 1]));
       // a fragment of the block: lines a..z, as a paragraph of its own
       const fragment = (a, z) => {
         const p = el('p', 'txt' + depthCls + (z < nLines - 1 ? ' cont' : '') + (a === 0 ? ' first' : ''));
-        p.lang = D.lang; p.dir = 'auto';
+        p.lang = D.lang;
         let un = null;
-        for (const it of items) {
-          if (it.line < a || it.line > z) continue;
+        for (const it of inLines(a, z)) {
           const node = it.node.cloneNode(true);
           if (it.unsure) { if (!un) { un = el('span', 'unsure'); p.appendChild(un); } un.appendChild(node); } else { un = null; p.appendChild(node); }
         }
+        p.dir = 'auto'; // last, for the same reason
         p.dataset.from = a; p.dataset.block = b.id;
         return p;
       };
       // a note cites its line as numbered in the margin: on the page, or through the text
-      const notesIn = (a, z) => items.filter((x) => x.anchor && x.line >= a && x.line <= z).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: lineBase(pg) + (x.line - a) + 1 })).filter((n) => n.note);
+      const notesIn = (a, z) => [...inLines(a, z)].filter((x) => x.anchor).map((x) => ({ block: b.id, layer: b.layer, note: noteOf(x.anchor), line: lineBase(pg) + (x.line - a) + 1 })).filter((n) => n.note);
       // place it: on each page, as many lines as fit with their notes. No internal reference is printed: a reader
       // finds a place by the page, its lines and the notes' numbers
       let a = 0;
       while (a < nLines) {
+        await rest(a / nLines);
         const headEl = null;
         let best = -1, shown = null;
-        for (let z = a; z < nLines; z++) {
+        // the most lines that fit: by leaps, doubling, and then halving the gap between what fits and what does not
+        const tryUpTo = (z) => {
           const p = fragment(a, z);
           if (shown) shown.replaceWith(p); else pg.body.appendChild(p);
           shown = p;
           const kept = pg.notes;
           pg.notes = kept.concat(notesIn(a, z));
-          drawNotes(pg);
+          drawNotes(pg, true);
           const ok = fits(pg);
           pg.notes = kept;
-          if (!ok) break;
-          best = z;
+          return ok;
+        };
+        for (let lo = a - 1, hi = nLines, leap = 1; lo + 1 < hi;) {
+          const z = hi === nLines ? Math.min(lo + leap, nLines - 1) : (lo + hi) >> 1;
+          if (tryUpTo(z)) { lo = best = z; leap *= 2; } else hi = z;
         }
         if (best < 0) {
           shown.remove();
