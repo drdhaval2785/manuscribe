@@ -35,6 +35,7 @@
       onPaper: (rgb) => Editor.applyPaper(rgb),
       onFileDrop: (f) => App.replacePdf(f),
       onZoom: (z) => { $('pdf-zoom').textContent = Math.round(z * 100) + '%'; if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ pdf: z }); return; } if (App.project) { App.project.ui.pdfZoom = z; App.changed(true); } },
+      onFollow: (on) => { $('btn-follow').hidden = on; },
     });
     Editor.init($('editor-pane'), {
       onChange: () => App.changed(),
@@ -291,6 +292,7 @@
     const siglum = U.el('input', { type: 'text', placeholder: 'e.g. P1', style: { maxWidth: '8em' } });
     const language = languageInputs();
     const lines = linesInputs(type, {});
+    const perLine = U.el('input', { type: 'number', min: '5', max: '400', value: '65', style: { maxWidth: '6em' } });
     const cards = layoutCards(type, (k) => { type = k; lines.draw(k); });
     const firstPage = U.el('input', { type: 'number', min: '1', value: '1' });
     const startNo = U.el('input', { type: 'number', min: '0', value: '1' });
@@ -321,7 +323,9 @@
         language.el, language.help),
       U.el('section', null, U.el('h3', null, '3 · Layout of the folios'), cards,
         U.el('div', { class: 'opt-title' }, 'Usual number of lines per folio side'), lines.el,
-        U.el('p', { class: 'help' }, 'Individual folios can differ — you can change the number of lines on any folio while typing.')),
+        U.el('p', { class: 'help' }, 'Individual folios can differ — you can change the number of lines on any folio while typing.'),
+        U.el('label', { class: 'field small' }, U.el('span', null, 'Usual number of letters (akṣaras) in a line'), perLine),
+        U.el('p', { class: 'help' }, 'So that the scan can follow the letter you are typing, on a phone above all. A rough figure will do: Manuscribe learns the real one from the lines you type.')),
       U.el('section', null, U.el('h3', null, '4 · Folio numbering'), U.el('div', { class: 'row4' },
         U.el('label', { class: 'field' }, U.el('span', null, 'First PDF page with text'), firstPage),
         U.el('label', { class: 'field' }, numberLabel, startNo),
@@ -345,7 +349,7 @@
     if (!ok) return;
     const p = Model.newProject({
       meta: Object.assign({ title: title.value.trim(), siglum: siglum.value.trim() }, language.value()),
-      layoutType: type, lines: lines.values(),
+      layoutType: type, lines: lines.values(), lettersPerLine: +perLine.value || 65,
       folios: { firstPage: Math.max(1, +firstPage.value || 1), startNo: Math.max(0, +startNo.value || 0), startSide: startSide.value, sidesPerPage: +sides.value, missing: missing.value.trim() },
       pdf: { name: file.name, bytes: file.size },
     });
@@ -659,7 +663,7 @@
     if (!App.project) return;
     updateStatus(pos, stack);
     const line = Editor.activeLine();
-    if (line) PdfView.followX(Editor.caretFraction(line));
+    if (line) PdfView.followX(ME.Follow.along(App.project, line, pos));
     if (App.project.ui.sidebarTab === 'tag') Commands.renderInspector($('tab-tag'), stack);
   }
 
@@ -1039,6 +1043,8 @@
       App.changed();
       rerender();
     });
+    const perLineInput = U.el('input', { type: 'number', min: '5', max: '400', value: String(p.layout.lettersPerLine || 65), style: { maxWidth: '6em' } });
+    perLineInput.addEventListener('change', () => { p.layout.lettersPerLine = Math.max(5, +perLineInput.value || 65); perLineInput.value = String(p.layout.lettersPerLine); App.changed(); });
     const fo = p.folios;
     const numbering = UI.form([
       { n: 'firstPage', label: 'First PDF page with text', type: 'number' },
@@ -1105,6 +1111,8 @@
       fold('folios', 'Folios and numbering',
         U.el('label', { class: 'field' }, U.el('span', null, 'Default layout'), layoutSel),
         U.el('p', { class: 'help' }, Model.LAYOUTS[p.layout.type].desc + ' A folio side can have its own layout, in the Folio tab. Usual lines per folio side:'), lines.el,
+        U.el('label', { class: 'field small' }, U.el('span', null, 'Usual letters (akṣaras) in a line'), perLineInput),
+        U.el('p', { class: 'help' }, 'For the scan to follow the letter being typed. Manuscribe learns the real figure from the lines typed; this one serves until then.'),
         U.el('h4', null, 'Folio numbering'), numbering.el,
         U.el('h4', null, 'PDF'),
         U.el('p', { class: 'help' }, p.pdf && p.pdf.name ? p.pdf.name + ' · ' + (p.pdf.pages || '?') + ' pages' : 'No PDF'),
@@ -1426,6 +1434,8 @@
       App.changed(true);
     };
     $('btn-rotate').onclick = () => { App.project.ui.rotation = ((App.project.ui.rotation || 0) + 90) % 360; PdfView.setRotation(App.project.ui.rotation); App.changed(true); };
+    $('btn-follow').onclick = () => PdfView.resumeFollow();
+    $('btn-follow').onpointerdown = (e) => e.preventDefault(); // the caret stays in its line
     $('btn-calibrate').onclick = () => App.calibrate();
     $('btn-filters').onclick = () => {
       const pop = $('filters-pop');

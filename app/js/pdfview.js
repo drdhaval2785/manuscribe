@@ -39,22 +39,59 @@
     calibBar = U.el('div', { class: 'calib-bar', hidden: true });
     root.append(scroller, pageInfo, emptyEl, calibBar);
 
-    // drag to pan
-    let pan = null;
+    // drag to pan; two fingers pinch to zoom (the stage is scaled while the fingers move, and drawn afresh when they lift)
+    let pan = null, pinch = null;
+    const fingers = new Map();
+    const spread = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    const middle = () => { const [a, b] = [...fingers.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
     stage.addEventListener('pointerdown', (e) => {
       if (PdfView.calibrating || e.button !== 0) return;
+      if (e.pointerType === 'touch') {
+        fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try { stage.setPointerCapture(e.pointerId); } catch (x) { /* a pointer the browser does not know: a test's */ }
+        if (fingers.size === 2) {
+          pan = null; stage.classList.remove('panning');
+          const m = middle(), box = clip.getBoundingClientRect();
+          pinch = { d: spread(), z: PdfView.zoom, f: 1, ox: m.x - box.left, oy: m.y - box.top, at: m };
+          clip.style.transformOrigin = pinch.ox + 'px ' + pinch.oy + 'px';
+          return;
+        }
+      }
       pan = { x: e.clientX, y: e.clientY, sl: scroller.scrollLeft, st: scroller.scrollTop };
-      stage.setPointerCapture(e.pointerId);
+      try { stage.setPointerCapture(e.pointerId); } catch (x) { /* a pointer the browser does not know: a test's */ }
       stage.classList.add('panning');
     });
     stage.addEventListener('pointermove', (e) => {
+      if (fingers.has(e.pointerId)) fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch) {
+        if (fingers.size === 2) { pinch.f = U.clamp(spread() / pinch.d, 0.3 / pinch.z, 8 / pinch.z); clip.style.transform = 'scale(' + pinch.f + ')'; }
+        return;
+      }
       if (!pan) return;
       scroller.scrollLeft = pan.sl - (e.clientX - pan.x);
       scroller.scrollTop = pan.st - (e.clientY - pan.y);
     });
-    const endPan = () => { pan = null; stage.classList.remove('panning'); };
+    const endPan = (e) => {
+      if (e && fingers.has(e.pointerId)) fingers.delete(e.pointerId);
+      if (pinch && fingers.size < 2) {
+        const p = pinch; pinch = null;
+        clip.style.transform = ''; clip.style.transformOrigin = '';
+        if (Math.abs(p.f - 1) > 0.02) {
+          // the point between the fingers stays where it was
+          const box = scroller.getBoundingClientRect();
+          const ax = p.at.x - box.left, ay = p.at.y - box.top;
+          const fx = (scroller.scrollLeft + ax) / Math.max(1, scroller.scrollWidth), fy = (scroller.scrollTop + ay) / Math.max(1, scroller.scrollHeight);
+          pauseFollow();
+          PdfView.setZoom(p.z * p.f).then(() => { auto(100); scroller.scrollLeft = fx * scroller.scrollWidth - ax; scroller.scrollTop = fy * scroller.scrollHeight - ay; });
+        }
+      }
+      pan = null; stage.classList.remove('panning');
+    };
     stage.addEventListener('pointerup', endPan);
     stage.addEventListener('pointercancel', endPan);
+    // a scroll the app did not ask for is the editor's own: the scan stops following until the next line, or Follow
+    scroller.addEventListener('scroll', () => { if (!autoUntil || performance.now() > autoUntil) pauseFollow(); });
+    if ('onscrollend' in scroller) scroller.addEventListener('scrollend', () => { autoUntil = 0; });
 
     scroller.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey) || !PdfView.doc) return;
@@ -204,12 +241,16 @@
     stage.style.top = -region[1] * r.h + 'px';
     clip.style.width = region[2] * r.w + 'px';
     clip.style.height = region[3] * r.h + 'px';
-    // half a pane of room above and below, so that any line can be brought to the middle
+    // half a pane of room above and below, so that any line can be brought to the middle; and, when the page is
+    // wider than the pane, to the left and right too, so that the first and the last letter of a line can be
     const pad = PdfView.calibrating ? 14 : Math.round(scroller.clientHeight / 2);
+    const padX = !PdfView.calibrating && region[2] * r.w > scroller.clientWidth - 28 ? Math.round(scroller.clientWidth / 2) : null;
     const newPage = PdfView._shownKey !== entry.key;
     PdfView._shownKey = entry.key;
     clip.style.marginTop = pad + 'px';
     clip.style.marginBottom = pad + 'px';
+    clip.style.marginLeft = clip.style.marginRight = padX === null ? 'auto' : padX + 'px';
+    auto(150);
     if (newPage || (PdfView.calibrating && PdfView.calibScale === 1) || !PdfView.guide.rect) scroller.scrollTop = Math.max(0, pad - 14);
     pageInfo.textContent = 'PDF page ' + entry.pdfPage + ' / ' + PdfView.doc.numPages + (entry.half !== null && entry.half !== undefined ? (entry.half ? ' · lower half' : ' · upper half') : '');
     if (PdfView.cb.onPageSize) PdfView.cb.onPageSize(entry, { width: vp1.width, height: vp1.height });
@@ -290,17 +331,36 @@
 
   /* ---------- reading guide ---------- */
 
+  /* The scan follows the line being typed, and the letter along it. A pan or a pinch by hand stops it following (so
+     that a marginal note can be read), until the typing moves to another line, or Follow is pressed. */
+  PdfView.following = true;
+  let autoUntil = 0; // until when a scroll is the app's own, not the editor's
+  function auto(ms) { autoUntil = performance.now() + ms; }
+  function pauseFollow() {
+    if (!PdfView.following || !PdfView.guide.rect) return;
+    PdfView.following = false;
+    if (PdfView.cb.onFollow) PdfView.cb.onFollow(false);
+  }
+  PdfView.resumeFollow = function () {
+    const was = PdfView.following;
+    PdfView.following = true;
+    if (!was && PdfView.cb.onFollow) PdfView.cb.onFollow(true);
+    scrollToGuide(false);
+  };
+
   PdfView.guide = { rect: null, style: 'band' };
   PdfView.setGuide = function (rect, style) {
+    const moved = JSON.stringify(rect) !== JSON.stringify(PdfView.guide.rect);
     PdfView.guide = { rect, style: style || PdfView.guide.style, fx: null };
+    if (moved && !PdfView.following) { PdfView.following = true; if (PdfView.cb.onFollow) PdfView.cb.onFollow(true); }
     PdfView.positionGuide(false);
   };
 
-  // fx: where the cursor is along the line (0..1); when zoomed in, the PDF follows it sideways
+  // fx: where the cursor is along the line (0..1); when zoomed in, the PDF keeps the letter in the middle of the pane
   PdfView.followX = function (fx) {
     if (!PdfView.guide.rect || fx === null || fx === undefined) return;
     PdfView.guide.fx = fx;
-    scrollToGuide(false);
+    if (PdfView.following) scrollToGuide(false);
   };
 
   PdfView.positionGuide = function (instant) {
@@ -319,7 +379,7 @@
   function scrollToGuide(instant) {
     const { rect, fx } = PdfView.guide;
     const sw = parseFloat(stage.style.width), sh = parseFloat(stage.style.height);
-    if (!rect || !sw || scroller.hidden) return;
+    if (!rect || !sw || scroller.hidden || !PdfView.following) return;
     const ox = clip.offsetLeft + (parseFloat(stage.style.left) || 0), oy = clip.offsetTop + (parseFloat(stage.style.top) || 0);
     const padY = rect[3] * 0.25;
     const top = oy + (rect[1] - padY) * sh, bottom = oy + (rect[1] + rect[3] + padY) * sh;
@@ -328,11 +388,13 @@
     const vt = scroller.scrollTop, vh = scroller.clientHeight;
     const target = Math.max(0, (top + bottom) / 2 - vh / 2);
     if (Math.abs(target - vt) > 3) to.top = target;
+    // and the letter being typed in the middle, once the letters have moved on by more than a little
     if (fx !== null && fx !== undefined && scroller.scrollWidth > scroller.clientWidth + 4) {
       const x = ox + (rect[0] + fx * rect[2]) * sw, vl = scroller.scrollLeft, vw = scroller.clientWidth;
-      if (x < vl + 60 || x > vl + vw - 60) to.left = Math.max(0, x - vw / 2);
+      const left = U.clamp(x - vw / 2, 0, scroller.scrollWidth - vw);
+      if (Math.abs(left - vl) > 12) to.left = left;
     }
-    if ('top' in to || 'left' in to) scroller.scrollTo(Object.assign(to, { behavior: instant ? 'auto' : 'smooth' }));
+    if ('top' in to || 'left' in to) { auto(instant ? 150 : 900); scroller.scrollTo(Object.assign(to, { behavior: instant ? 'auto' : 'smooth' })); }
   }
 
   /* ---------- calibration ---------- */

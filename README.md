@@ -104,7 +104,8 @@ Chrome and Edge can also keep backups in a folder by themselves.
 - give the title of the text and the siglum of this witness;
 - choose the language of the text and the script you will type in (the manuscript's own, or Latin for a
   transliteration such as IAST): Manuscribe fetches only the font that script needs;
-- pick the layout, and the usual number of lines in each block of a folio side;
+- pick the layout, and the usual number of lines in each block of a folio side, and of letters (akṣaras) in a
+  line: a rough figure, for the scan to follow the letter you type; Manuscribe learns the real one from your lines;
 - say which folio the first PDF page shows, and whether each PDF page shows one or two folio sides;
 - list any folios missing from the manuscript, such as `7, 12-14, 20v`.
 
@@ -133,7 +134,7 @@ and offers **Download .xml** and **Download .html**.
 | Area | What it holds |
 |---|---|
 | **Top bar** | Your projects, the title, the save status, Export… (TEI XML, an HTML page, a backup file), Settings, Help, and a button to show or hide the side panel |
-| **PDF pane** (top) | The scan, with the current line lit up. Its tools: zoom (also Ctrl + wheel), Leaf or whole page, rotate, brightness, contrast, greyscale and invert, and Calibrate |
+| **PDF pane** (top) | The scan, with the current line lit up; zoomed in, it keeps the letter you are typing in the middle. Drag it to look elsewhere (a marginal note, say): it then stays put until you move to another line or press **↩ Follow**. Its tools: zoom (also Ctrl + wheel, or a pinch), Leaf or whole page, rotate, brightness, contrast, greyscale and invert, and Calibrate |
 | **Middle bar** | Previous and next folio, the folio list, **⧉ XML** (copy this folio), and the tag toolbar. Drag it to resize the panes |
 | **Typing area** (bottom) | The folio you type into. Marginal notes stand outside the red rules, and editorial notes in a panel below the folio |
 | **Status bar** | Where you are, the open tags at the cursor, the typing scheme, **A− / A+** for the size of the letters (50–200%), and **− / +** for the size of the whole folio |
@@ -142,14 +143,15 @@ and offers **Download .xml** and **Download .html**.
 ### On a phone or a tablet
 
 - **A phone** (up to 700 px wide) shows a *line view*: the typing area and the scan are enlarged together until
-  the letters can be read, and both follow the line you type (on a calibrated folio the scan follows it
-  sideways too). The sizes you choose there are kept for that device, so the project keeps the sizes of
+  the letters can be read, and both follow the line you type: on a calibrated folio the scan keeps the letter you
+  are typing in the middle, reckoned from the letters typed and the usual number in a line (set when the
+  transcription is made, and learnt from the lines you type). The sizes you choose there are kept for that device, so the project keeps the sizes of
   the computer you mostly type on. Tap the letter size (**100%** under **− / +**) to come back to readable
   letters. The tags are behind one **Tags** button, which opens them from the bottom of the screen; one
   chosen is applied to the selected text and the panel closes.
 - **A tablet held upright** (up to 900 px) keeps the whole folio, with the same **Tags** button.
 - **With a finger:** buttons are big enough to touch; the bar between the scan and the typing area can be
-  dragged; while calibrating, one finger draws a box and two fingers pinch to zoom.
+  dragged; two fingers pinch to zoom the scan; while calibrating, one finger draws a box.
 - Wide tables of an edition scroll sideways in their box, with the column that names the row kept in view.
 
 On a phone, reading the edition and deciding readings work well; transcribing a whole manuscript is

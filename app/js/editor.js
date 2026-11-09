@@ -670,6 +670,8 @@
     return s;
   }
 
+  Editor.unitText = unitText;
+
   // e.g. "क|ि" while the caret stands inside an akṣara (shown in the status bar)
   Editor.insideAksara = function () {
     const sel = getSelection();

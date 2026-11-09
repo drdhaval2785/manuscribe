@@ -45,7 +45,8 @@
         title: '', author: '', siglum: '', language: 'Sanskrit', shelfmark: '', repository: '', settlement: '', country: '',
         scribe: '', date: '', transcriber: '', script: 'sa-Deva', textLang: 'sa-Latn', form: 'pothi', material: '', notes: '',
       }, opts.meta || {}),
-      layout: { type: opts.layoutType || 'linear', lines: Object.assign({}, DEFAULT_LINES, opts.lines || {}), regions: {} },
+      // lettersPerLine: the usual number of akṣaras in a line, for the scan to follow the letter being typed (Follow)
+      layout: { type: opts.layoutType || 'linear', lines: Object.assign({}, DEFAULT_LINES, opts.lines || {}), regions: {}, lettersPerLine: Math.max(5, +opts.lettersPerLine || 65) },
       folios: Object.assign({ firstPage: 1, startNo: 1, startSide: 'r', sidesPerPage: 1, overrides: {}, missing: '', pbWidth: null }, opts.folios || {}),
       pdf: opts.pdf || null,
       works: [],

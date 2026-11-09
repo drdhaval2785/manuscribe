@@ -51,7 +51,8 @@ body.sidebar-open #sidebar { display: flex; }
 #pdf-view.drop { outline: 3px dashed #ffd27a; outline-offset: -10px; }
 .pdf-scroller { position: absolute; inset: 0; overflow: auto; padding: 0 14px; }
 .pdf-clip { position: relative; overflow: hidden; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,.55); background: #111; }
-.pdf-stage { position: absolute; cursor: grab; }
+.pdf-stage { position: absolute; cursor: grab; touch-action: none; }
+.pdf-clip { will-change: transform; }
 .pdf-stage.panning { cursor: grabbing; }
 .pdf-stage canvas { display: block; }
 .pdf-overlay { position: absolute; inset: 0; pointer-events: none; }
