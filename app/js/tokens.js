@@ -15,6 +15,7 @@
 
   const EDITORIAL = new Set(['supplied', 'corr', 'reg', 'expan', 'ex']);
   const FLAGGED = new Set(['unclear', 'sic', 'abbr', 'damage', 'retrace']);
+  const LINE_END_SIGN = /\u0964\u094D\s*$/;
 
   const builder = () => ({ dip: '', runs: [], gaps: [], lastLine: null });
 
@@ -34,6 +35,7 @@
     for (const key of keys) {
       let para = null, verse = null; // ids of the enclosing paragraph and verse group
       let prev = { open: false, spaced: true, rawSpaced: true };
+      let carried = false; // the line before ended in the scribe's sign that a word goes on
       const started = new Set();
       for (const { label, box, i } of Spans.streamSeq(project, key)) {
         const pg = project.pages[label];
@@ -43,11 +45,18 @@
         if (proposed && !proposed.accepted && TEI.hasContent(fragment)) fragment = (fragment.match(/<x-marker[^>]*\/>/g) || []).join('') + '<gap reason="not yet proofread" unit="line" quantity="1"/>';
         const has = TEI.hasContent(fragment);
         const meta = pg && pg.lb && pg.lb[box] && pg.lb[box][i];
-        const line = { key: label + '/' + box + '/' + i, label, box, i, brk: has && (prev.open || (!!(meta && meta.brk) && !prev.rawSpaced)) };
+        const line = { key: label + '/' + box + '/' + i, label, box, i, brk: has && (carried || prev.open || (!!(meta && meta.brk) && !prev.rawSpaced)) };
         prev = has ? Export.lineEnd(fragment) : { open: false, spaced: true, rawSpaced: true };
         if (!has) continue;
         const root = TEI.parse(fragment);
         if (!root) { unreadable.push(line); continue; }
+        /* Scribes write "।्" at the end of a line to say that the word goes on in the next: it is not part of the text, and
+           the two halves are one word. A space before it means the word had ended, and that is left as it is. */
+        let firstText = null, lastText = null;
+        const findEnds = (n) => { for (const x of n.childNodes) { if (x.nodeType === 3) { if (x.nodeValue.trim()) { firstText = firstText || x; lastText = x; } } else if (x.nodeType === 1 && x.nodeName !== 'note') findEnds(x); } };
+        if (has) findEnds(root);
+        const endSign = lastText && LINE_END_SIGN.test(lastText.nodeValue) ? lastText : null, startsCarried = carried && firstText;
+        if (has) carried = !!endSign;
 
         let offs = 0;
         const current = () => blockFor(verse || para);
@@ -65,9 +74,12 @@
         const walk = (node, ctx) => {
           for (const c of Array.from(node.childNodes)) {
             if (c.nodeType === 3) {
-              const text = c.nodeValue, from = offs;
+              let text = c.nodeValue, from = offs;
               offs += text.length;
               account.total += text.length;
+              if (c === endSign) text = text.replace(LINE_END_SIGN, '');
+              if (c === startsCarried) { const t = text.replace(/^\s+/, ''); from += text.length - t.length; text = t; }
+              if (!text) continue;
               if (ctx.into === 'editorial') { account.editorial += text.length; continue; }
               if (ctx.into) { put(ctx.into, text, from, ctx.flags, ctx.ignored); account.marginal += text.length; continue; }
               const blk = current();

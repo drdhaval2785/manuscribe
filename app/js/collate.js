@@ -276,7 +276,7 @@
     return {
       aligner: alignerOf(ed, Collate.choiceOf(ed, work, unit)), tokens: kind, profile: s.profile.id + '@' + s.profile.version,
       rules: Array.from(s.on).sort(), ignoredTags: s.ignoreTags.slice().sort(),
-      ...(ed.witnesses.length < 2 ? { oneWitness: 'editorial-corrections@1' } : null), // a sole witness's text is read differently
+      ...(ed.witnesses.length < 2 ? { oneWitness: 'editorial-corrections@2' } : null), // a sole witness's text is read differently
     };
   };
 

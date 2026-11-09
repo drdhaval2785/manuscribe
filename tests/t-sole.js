@@ -13,6 +13,10 @@ const lines = [
   P('v7') + 'नर <supplied>पूर्ण</supplied> नारी' + END,
   P('v8') + 'सूर्य <unclear>चन्द्र</unclear> तारा' + END,
   P('v9') + 'अग्नि <add place="left-margin">मालाशिलो<choice><orig>च्छं</orig><corr>ञ्छं</corr></choice> जल</add> वायु' + END,
+  // the scribe's sign that a word goes on in the next line
+  P('v10') + 'राम लक्ष\u0964\u094D', 'मण सीता \u0964\u094D हरि' + END,
+  P('v11') + 'सूर्य चन्द<del rend="crossed out">\u0964\u094D</del>', ' र तारा' + END,
+  P('v12') + 'अग्नि शोके <surplus>\u0964\u094D</surplus>', 'वायु' + END,
 ];
 (async () => {
   const { browser, page } = await launch('sole', { fonts: true });
@@ -71,6 +75,9 @@ const lines = [
     T.check('<supplied> is in the text', w.v7.text === 'नर पूर्ण नारी' && w.v7.notes.length === 1, say(w.v7));
     T.check('<surplus> stays out, and unclear text is as it is, with no note', w.v6.text === 'देव मुनि' && !w.v6.notes.length && w.v8.text === 'सूर्य चन्द्र तारा' && !w.v8.notes.length, say([w.v6, w.v8]));
     T.check('a correction inside an addition: only the corrected form is printed, and nothing of it before correction', w.v9.text === 'अग्नि मालाशिलोञ्छं जल वायु' && !/च्छं/.test(w.v9.notes.join()) && w.v9.notes.length >= 1, say(w.v9));
+    T.check('the sign at the end of a line is dropped, and the word joined over the line', w.v10.text === 'राम लक्षमण सीता \u0964\u094D हरि', say(w.v10));
+    T.check('in a tag too, and it makes no note', w.v11.text === 'सूर्य चन्दर तारा' && !w.v11.notes.length, say(w.v11));
+    T.check('a space before the sign: the word had ended, and the two stay apart', w.v12.text === 'अग्नि शोके वायु' && !w.v12.notes.length, say(w.v12));
     const l = out.letter.rows;
     T.check('collated by letters, the text is the same', Object.keys(w).every((k) => l[k].text === w[k].text), say(l));
     T.check('and the same blocks have their notes', Object.keys(w).every((k) => !!l[k].notes.length === !!w[k].notes.length) && l.v4.notes.every((n) => /a\.c\./.test(n)), say([l.v2, l.v4]));
@@ -78,6 +85,7 @@ const lines = [
     T.check('the HTML reader carries the readings before correction, and the switch for them', out.word.reader.includes('गगन') && out.word.reader.includes('a.c.') && out.word.reader.includes('before correction'), out.word.reader.length);
     const t = out.two.rows;
     T.check('with two witnesses, the scribes’ words are compared, and agreeing corrections are not noted', t.v4.text === 'हरि गगन शिव' && !t.v4.notes.length && t.v7.text === 'नर नारी' && !t.v2.notes.length, say([t.v4, t.v7, t.v2]));
+    T.check('and the same with several witnesses', out.two.rows.v10.text === 'राम लक्षमण सीता \u0964\u094D हरि', say(out.two.rows.v10));
     T.done(page);
   } finally { await browser.close(); }
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });
