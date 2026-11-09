@@ -88,6 +88,35 @@ ME.VERSION = '0.10.0';
     }
   };
 
+  /* For a long job on this thread: call it in the job's loop, and every 40 ms it lets the screen be drawn. By a message,
+     since a browser slows timers in a tab that is not in front, and the job would slow with them. -> true if it did */
+  U.breather = function () {
+    const ch = new MessageChannel();
+    let last = performance.now();
+    return async () => {
+      if (performance.now() - last < 40) return false;
+      await new Promise((resolve) => { ch.port1.onmessage = resolve; ch.port2.postMessage(0); });
+      last = performance.now();
+      return true;
+    };
+  };
+
+  /* A bar in the corner of the screen, for a job that takes time. Its shine moves by the compositor, so that it goes on
+     moving even while the page is too busy to draw: the machine is seen not to have hung.
+     -> {set(fraction, text), close()} */
+  U.progressPanel = function (title) {
+    const fill = U.el('span', { class: 'xp-fill' });
+    const bar = U.el('span', { class: 'xp-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0', 'aria-label': title }, fill, U.el('span', { class: 'xp-shine' }));
+    const text = U.el('span', { class: 'xp-progress-text' });
+    const box = U.el('div', { class: 'xp-progress', dataset: { action: 'export-progress' } }, U.el('strong', null, title), bar, text);
+    document.body.appendChild(box);
+    let at = 0;
+    return {
+      set(f, t) { at = Math.max(at, Math.min(1, f)); fill.style.width = (100 * at).toFixed(1) + '%'; bar.setAttribute('aria-valuenow', String(Math.round(100 * at))); if (t) text.textContent = t; },
+      close() { box.remove(); },
+    };
+  };
+
   U.toast = function (msg, kind = 'info', ms = 2600) {
     let host = U.$('#toasts');
     if (!host) { host = U.el('div', { id: 'toasts' }); document.body.appendChild(host); }

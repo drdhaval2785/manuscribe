@@ -86,7 +86,7 @@
   /* ---------- the layout, which runs in the page ---------- */
 
   // Runs inside the print page and may use nothing from outside it.
-  function paginate() {
+  async function paginate() {
     const D = JSON.parse(document.getElementById('edition-data').textContent);
     const book = document.getElementById('book');
     const el = (tag, cls, html) => { const x = document.createElement(tag); if (cls) x.className = cls; if (html !== undefined) x.innerHTML = html; return x; };
@@ -171,7 +171,12 @@
     // ---- the edition ----
     pg = newPage(true);
     const measure = el('div', 'body measure');
+    // a long edition: the page says how far it has got, and lets others draw
+    const channel = new MessageChannel();
+    let slice = performance.now(), blockNo = 0;
     for (const b of D.blocks) {
+      if (performance.now() - slice > 40) { window.__paginating = blockNo / D.blocks.length; await new Promise((resolve) => { channel.port1.onmessage = resolve; channel.port2.postMessage(0); }); slice = performance.now(); }
+      blockNo++;
       // the whole block, at the width of the page, to find its lines
       const page0 = pg.el;
       measure.style.width = pg.body.getBoundingClientRect().width + 'px';

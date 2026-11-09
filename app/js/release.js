@@ -9,17 +9,25 @@
 
   R.LICENCES = { 'CC BY 4.0': 'CC-BY-4.0', 'CC BY-SA 4.0': 'CC-BY-SA-4.0', 'CC BY-NC 4.0': 'CC-BY-NC-4.0', 'CC BY-NC-SA 4.0': 'CC-BY-NC-SA-4.0', 'CC0 1.0': 'CC0-1.0' };
 
-  // Every work's tables, built, in the order of their citation IDs. -> [{work, built}]
-  R.works = async function (ed, list) {
+  // Every work's tables, built, in the order of their citation IDs. opts: {onStep(done, total)} -> [{work, built}]
+  R.works = async function (ed, list, opts) {
+    const onStep = opts && opts.onStep, breathe = onStep ? U.breather() : null;
     const recs = Collate.inWitnesses(ed, list, await Store.listCollations(ed.id));
     const reg = Edition.register(ed, list);
     const out = [];
+    let done = 0;
     for (const w of ed.works) {
       const mine = recs.filter((r) => r.work === w.id);
       if (!mine.length) continue;
       const order = reg[w.id] ? reg[w.id].order : [];
       mine.sort((a, b) => order.indexOf(a.unit) - order.indexOf(b.unit));
-      out.push({ work: w, recs: mine, built: mine.map((r) => Object.assign({ table: ME.CollateEdit.ensure(r.table) }, ME.Apparatus.entries(ed, r.table))) });
+      const built = [];
+      for (const r of mine) {
+        built.push(Object.assign({ table: ME.CollateEdit.ensure(r.table) }, ME.Apparatus.entries(ed, r.table)));
+        done++;
+        if (breathe && (await breathe())) onStep(done, recs.length);
+      }
+      out.push({ work: w, recs: mine, built });
     }
     return out;
   };

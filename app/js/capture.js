@@ -20,8 +20,11 @@
   /* -> {blob, pages, words: {text, pictures}} */
   C.pdf = async function (ed, list, built, opts) {
     const o = opts || {};
+    const say = o.onProgress || (() => {});
+    say(0.18, 'Getting the fonts…');
     await ME.Shaper.load();
     const embedded = await ME.PrintHTML.fonts(ed, built, list);
+    say(0.22, 'Laying out the pages…');
     const html = ME.PrintHTML.html(ed, list, built, { fonts: embedded, bare: !!o.bare });
     // the fonts Manuscribe can set text in: those of the page that are TrueType, in the page's order
     // (Tiro is among them where the edition has Devanagari); the first is the document's own font
@@ -47,7 +50,12 @@
     try {
       await new Promise((resolve) => { frame.onload = resolve; frame.srcdoc = html.replace('if (D.autoPrint)', 'if (false)'); });
       const win = frame.contentWindow, d = frame.contentDocument;
-      for (let k = 0; k < 1200 && !win.__paginated; k++) await sleep(50);
+      // however long it takes, as long as it is getting on
+      for (let stalled = 0, was = -1; !win.__paginated && stalled < 1200; stalled++) {
+        await sleep(50);
+        const p = win.__paginating || 0;
+        if (p !== was) { was = p; stalled = 0; say(0.22 + 0.38 * p, 'Laying out the pages: ' + Math.round(100 * p) + '%'); }
+      }
       if (!win.__paginated) throw new Error('the page did not lay itself out');
       const paper = ME.PrintHTML.PAPER[ME.PrintHTML.settings(ed).paper] || ME.PrintHTML.PAPER.a4;
       const toPt = (v) => { const m = /^([\d.]+)(mm|in)$/.exec(v); return m[2] === 'mm' ? (+m[1] * 72) / 25.4 : +m[1] * 72; };
@@ -70,7 +78,7 @@
         }
         return null;
       };
-      pageEls.forEach((pageEl, pi) => {
+      const onePage = (pageEl, pi) => {
         const pr = pageEl.getBoundingClientRect();
         const k = W / pr.width; // points to the CSS pixel
         const page = doc.page(W, H);
@@ -168,7 +176,13 @@
           page.link((r.left - pr.left) * k - 1, (r.top - pr.top) * k, (r.right - pr.left) * k + 1, (r.bottom - pr.top) * k, ti, Math.max(0, (tr.top - tpr.top) * (W / tpr.width) - 6));
         }
         void pi;
-      });
+      };
+      const breathe = ME.U.breather();
+      for (let pi = 0; pi < pageEls.length; pi++) {
+        onePage(pageEls[pi], pi);
+        if (await breathe()) say(0.6 + 0.34 * ((pi + 1) / pageEls.length), 'Writing page ' + (pi + 1) + ' of ' + pageEls.length);
+      }
+      say(0.95, 'Compressing the PDF…');
       const blob = await doc.save();
       return { blob, pages: pageEls.length, words: count, report: win.__paginated };
     } finally {

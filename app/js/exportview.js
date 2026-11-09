@@ -28,7 +28,10 @@
     }
     const workId = ctx.workId || (ctx.tables && ctx.tables[0] && ctx.tables[0].work);
     // the witnesses as they are now: they may have been edited since this screen was opened
-    const works = await ME.Release.works(ed, ctx.list ? await ME.CollateView.loadFresh(ctx.list) : []);
+    const say = ctx.progress || (() => {});
+    say(0.03, 'Reading the witnesses…');
+    const works = await ME.Release.works(ed, ctx.list ? await ME.CollateView.loadFresh(ctx.list) : [], { onStep: (done, total) => say(0.03 + 0.14 * (done / total), 'Preparing the text: block ' + done + ' of ' + total) });
+    say(0.17, 'Writing the file…');
     // every layer of a layered edition, as one text in reading order
     if (ME.CollateView && workId === ME.CollateView.ALL) {
       const layers = works.filter((x) => ME.LayerIds.codeOf(x.work.id));
@@ -45,7 +48,7 @@
   /* The formats that are printed, which may be made for a book: only the text and its apparatus, without the front
      page, the running head and the versions at the foot of the pages. */
   X.BOOK = new Set(['pdf', 'pdf-capture', 'pdf-any', 'pdf-direct', 'print-page', 'markdown', 'latex', 'text']);
-  const bare = (ctx) => ({ bare: !!ctx.bare });
+  const bare = (ctx) => ({ bare: !!ctx.bare, onProgress: ctx.progress });
   const file = (name, data, type) => ({ name, data, type: type || 'application/octet-stream' });
 
   /* Each format: {id, group, label, desc, on: (ctx) -> shown?, scopes: which, make(ctx) -> file | null (it opened a screen)} */
@@ -185,7 +188,7 @@
       go.disabled = true;
       const was = go.textContent;
       go.textContent = 'Making it…';
-      let c = null;
+      let c = null, panel = null;
       try {
         last[ctx.kind] = pick.id;
         last[ctx.kind + ':' + X.kindOf(pick)] = pick.id;
@@ -201,12 +204,20 @@
         // this dialog closes first, since a format may open a screen of its own
         const dlg = go.closest('.modal-backdrop');
         if (dlg) dlg.querySelector('.modal-foot .btn').click();
+        // a format with a screen of its own says for itself what it is doing; the others have a bar, drawn before they begin
+        if (ctx.kind === 'edition' && pick.id !== 'release') {
+          panel = U.progressPanel('Making the ' + (X.KINDS[X.kindOf(pick)] || 'file'));
+          c.progress = panel.set;
+          panel.set(0.02, 'Starting…');
+          await Promise.race([new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve))), new Promise((resolve) => setTimeout(resolve, 150))]);
+        }
         const f = await pick.make(c);
         if (f) { U.download(f.name, f.data instanceof Blob ? f.data : new Blob([f.data], { type: f.type })); U.toast('Saved ' + f.name, 'ok'); }
       } catch (e) {
         U.toast('Not exported: ' + e.message, 'err', 8000);
         if (c && c.win && !c.win.closed) { try { if (/Laying out/.test(c.win.document.title)) c.win.close(); } catch (x) { /* leave it */ } }
       }
+      if (panel) panel.close();
       go.disabled = false;
       go.textContent = was;
     } }, 'Export');

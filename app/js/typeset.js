@@ -312,7 +312,11 @@
     const byMarkers = ME.Apparatus.settings(ed).keys !== 'lines';
     // the number of the next line, as printed in the margin
     const nextLine = () => (PS.lines === 'text' ? textLines : 0) + pageLines + 1;
+    const breathe = ME.U.breather(), say = (options && options.onProgress) || (() => {});
+    let blockNo = 0;
     for (const b of built) {
+      if (await breathe()) say(0.2 + 0.72 * (blockNo / built.length), 'Setting block ' + (blockNo + 1) + ' of ' + built.length);
+      blockNo++;
       const depth = Math.min(b.layer ? b.layer.depth : 0, 6);
       const bsize = size * SCALE[depth], blead = bsize * 1.55, indent = size * INDENT[depth];
       const markers = byMarkers ? ME.Apparatus.markers(ed, b) : null;
