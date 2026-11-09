@@ -71,7 +71,14 @@ const { launch, sleep, checks } = require('./h');
   // ↓ past the last place of a block goes on to the first of the next; ↑ before the first, back to the last
   await page.evaluate(() => { ME.Features.save({ level: 'simple' }); ME.CollateView.open(window.ed, window.list, 'main', 'm1', () => {}); });
   await sleep(1000);
-  const where = () => page.evaluate(() => ({ title: document.querySelector('.modal-head h2').textContent, sel: (document.querySelector('.ct-text .ct-u.sel') || {}).textContent || null }));
+  // between one block and the next the window is closed for a moment: on a slow machine, a look may fall just then
+  const where = async () => {
+    for (let k = 0; k < 50; k++) {
+      if (await page.evaluate(() => !!document.querySelector('.modal-head h2'))) return page.evaluate(() => ({ title: document.querySelector('.modal-head h2').textContent, sel: (document.querySelector('.ct-text .ct-u.sel') || {}).textContent || null }));
+      await sleep(100);
+    }
+    throw new Error('the window of the block did not come back');
+  };
   for (let k = 0; k < 6 && /m1/.test((await where()).title); k++) { await page.keyboard.press('ArrowDown'); await sleep(350); }
   await sleep(800);
   const down = await where();
