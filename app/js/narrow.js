@@ -19,6 +19,36 @@
   Narrow.state = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } };
   Narrow.save = (patch) => { try { localStorage.setItem(KEY, JSON.stringify(Object.assign(Narrow.state(), patch))); } catch (e) { /* this visit only */ } };
 
+  /* On a phone the typing area shows three lines (Editor.view 'lines'): the line being typed, the one above and the
+     one below, each a strip the width of the screen; and the scan about three lines of the page. 'folio' shows the
+     whole folio as on a computer. Chosen with the button in the status bar, kept for the device. */
+  Narrow.view = () => (Narrow.on() ? Narrow.state().view || 'lines' : 'folio');
+  Narrow.setView = function (view) {
+    Narrow.save({ view: view === 'folio' ? 'folio' : 'lines' });
+    if (ME.Editor) ME.Editor.setView(Narrow.view());
+    Narrow.fit();
+    Narrow.viewButton();
+  };
+  Narrow.viewButton = function () {
+    const b = document.getElementById('btn-view');
+    if (!b) return;
+    const lines = Narrow.view() === 'lines';
+    b.textContent = lines ? 'Folio' : '3 lines';
+    b.title = lines ? 'Show the whole folio side' : 'Show three lines: the line being typed, the one above and the one below';
+  };
+
+  /* One line of the scan on the screen, in px, from the calibration and the scan's zoom; null when not known. */
+  Narrow.scanLine = function () {
+    const P = ME.PdfView, A = ME.App, M = ME.Model;
+    if (!P || !A || !A.project || !A.entries || !P.pagePx1) return null;
+    const e = A.entries[A.idx];
+    const rect = e && M.lineRect(A.project, e, 'main', 0);
+    const size = e && ((A.pageSizes && A.pageSizes[e.pdfPage]) || (A.project.pdf && A.project.pdf.size));
+    if (!rect || rect.guessed || !size || !size.width) return null;
+    return rect[3] * P.pagePx1 * P.zoom * (size.height / size.width);
+  };
+  const LINES_OF_SCAN = 3.3; // the line being typed and its neighbours, with a little room
+
   /* The zoom that makes the letters of the typing area legible, from the size they have now. -> zoom, or null */
   Narrow.legible = function () {
     const E = ME.Editor;
@@ -50,18 +80,29 @@
     if (!Narrow.on() || fitting || !ME.App || !ME.App.project) return;
     const E = ME.Editor, P = ME.PdfView;
     const st = Narrow.state();
-    const z = st.ed || Narrow.legible();
+    const lines = Narrow.view() === 'lines';
+    // the line view has readable letters of itself; the folio is enlarged until its letters can be read
+    const z = lines ? st.lv || 1 : st.ed || Narrow.legible();
     if (!z) return;
     fitting = true;
     try {
+      if (E.view !== Narrow.view()) E.setView(Narrow.view());
       if (Math.abs(E.zoom - z) > 0.01) E.setZoom(z);
       label('ed-zoom', E.zoom);
+      Narrow.viewButton();
       if (!P) return;
       const applyPdf = () => {
         const pz = st.pdf || Narrow.letterZoom() || z;
         // (a render begun before is cancelled, and pdf.js says so: not an error)
         if (Math.abs(P.zoom - pz) > 0.01) { P.zoom = pz; if (P.entry) Promise.resolve(P.render()).catch(() => {}); }
         label('pdf-zoom', P.zoom);
+        // in the line view the scan is about three lines tall, unless the bar between the panes has been dragged
+        const pane = document.getElementById('pdf-pane');
+        const lh = lines && !st.split && pane ? Narrow.scanLine() : null;
+        if (lh) {
+          const appH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-h')) || window.innerHeight;
+          pane.style.height = Math.round(Math.min(Math.max(lh * LINES_OF_SCAN + 8, 120), appH * 0.45)) + 'px';
+        } else if (pane && Narrow.on()) pane.style.height = Math.round(Narrow.split() * 100) + '%';
       };
       // the scan's size at zoom 1 is known once it has been drawn
       if (st.pdf || P.pagePx1 || !ME.App.pdfShown) applyPdf();
@@ -108,6 +149,23 @@
     window.addEventListener('resize', seen);
     const b = document.getElementById('btn-tags');
     if (b) b.addEventListener('click', () => Narrow.toggleTags());
+    const v = document.getElementById('btn-view');
+    if (v) { v.addEventListener('click', () => Narrow.setView(Narrow.view() === 'lines' ? 'folio' : 'lines')); Narrow.viewButton(); }
+    // a long press on the text (a finger held still for a moment) opens the tags, for the selection or the caret
+    const pane = document.getElementById('editor-pane');
+    if (pane) {
+      let press = null;
+      const stop = () => { if (press) { clearTimeout(press.t); press = null; } };
+      pane.addEventListener('pointerdown', (e) => {
+        if (!Narrow.on() || e.pointerType !== 'touch' || !e.target.closest || !e.target.closest('.line')) return;
+        stop();
+        press = { x: e.clientX, y: e.clientY, t: setTimeout(() => { press = null; Narrow.toggleTags(true); }, 600) };
+      });
+      pane.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) stop(); });
+      pane.addEventListener('pointerup', stop);
+      pane.addEventListener('pointercancel', stop);
+      pane.addEventListener('contextmenu', (e) => { if (Narrow.on() && e.target.closest && e.target.closest('.line')) e.preventDefault(); });
+    }
     // a tag chosen closes the panel, the cursor still where it was
     const tb = document.getElementById('toolbar');
     if (tb) tb.addEventListener('click', (e) => { if (document.body.classList.contains('tags-open') && e.target.closest('.tb-btn')) setTimeout(() => Narrow.toggleTags(false), 0); });

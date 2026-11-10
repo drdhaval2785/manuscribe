@@ -53,7 +53,7 @@ function scanPdf() {
       const small = [...document.querySelectorAll('#topbar button, #statusbar button, #midbar button, .pdf-tools button')].filter((b) => shown(b)).filter((b) => { const x = b.getBoundingClientRect(); return x.height < 32 || x.width < 28; }).map((b) => b.id || b.className);
       return {
         vw: window.innerWidth, docW: document.documentElement.scrollWidth, font: line ? parseFloat(getComputedStyle(line).fontSize) : 0,
-        edZoom: ME.Editor.zoom, pdfZoom: ME.PdfView.zoom, mid: r('#midbar').height, tags: shown(document.getElementById('btn-tags')), toolbar: shown(document.getElementById('toolbar')),
+        edZoom: ME.Editor.zoom, pdfZoom: ME.PdfView.zoom, lineView: !!document.querySelector('.folio.line-view'), mid: r('#midbar').height, tags: shown(document.getElementById('btn-tags')), toolbar: shown(document.getElementById('toolbar')),
         // (buttons for a finger where the pointer is one: Playwright's Firefox and WebKit here are not touch screens)
         small: matchMedia('(pointer: coarse)').matches ? small : [], projectUi: { ed: ME.App.project.ui.editorZoom || 1, pdf: ME.App.project.ui.pdfZoom || 1 },
       };
@@ -62,7 +62,7 @@ function scanPdf() {
     // a phone
     await open(390, 844, true);
     const phone = await look();
-    T.check('on a phone the letters of the typing area are enlarged until they can be read (' + phone.font.toFixed(1) + ' px), and the scan with them', phone.font >= 15 && phone.edZoom > 1.5 && Math.abs(phone.pdfZoom - phone.edZoom) < 0.05, phone);
+    T.check('on a phone the typing area is the line view, its letters a size that can be read (' + phone.font.toFixed(1) + ' px)', phone.lineView && phone.font >= 15 && phone.edZoom === 1, phone);
     T.check('the folio bar is one row, with a Tags button; buttons are big enough for a finger; no page scrolls sideways', phone.mid <= 56 && phone.tags && !phone.toolbar && !phone.small.length && phone.docW <= phone.vw, phone);
     T.check('the sizes are the device’s own: the project’s stay as they were', phone.projectUi.ed === 1 && phone.projectUi.pdf === 1, phone.projectUi);
     const sheet = await page.evaluate(async () => {
@@ -84,7 +84,7 @@ function scanPdf() {
     T.check('the tags open from the bottom of the screen, as big buttons; one chosen is applied, and the panel closes', sheet.shown && sheet.atBottom && sheet.n > 15 && sheet.big && sheet.closed && sheet.tagged, sheet);
     // zooming on the phone: kept for this device
     const kept = await page.evaluate(() => { document.getElementById('btn-ed-in').click(); return { st: JSON.parse(localStorage.getItem('manuscribe.narrow') || '{}'), project: ME.App.project.ui.editorZoom || 1 }; });
-    T.check('a zoom chosen on the phone is kept for the phone, not written into the project', kept.st.ed > 1.5 && kept.project === 1, kept);
+    T.check('a zoom chosen on the phone is kept for the phone (the line view’s own), not written into the project', kept.st.lv > 1.1 && kept.project === 1, kept);
 
     // calibration by touch: a finger draws, two pinch
     const cal = await page.evaluate(async () => {

@@ -17,6 +17,10 @@
     pageSize: null,
     paper: null,
     zoom: 1,
+    /* 'folio': the replica of the folio side, every line in its place. 'lines' (a phone): three strips the width of
+       the screen - the line being typed, the one above and the one below - each scrolling along its own text, with
+       the notes of the line under it; the whole is Narrow's line view. */
+    view: 'folio',
     hooks: {},
     current: null, // {box, i}
     /* A selection over several lines, through an addition written outside the line, or over several folios (only
@@ -67,6 +71,9 @@
     Editor.rules = ruleXs(g);
     wrap.innerHTML = '';
     folio = Editor.buildFolio(project, entry, g);
+    Editor.view = ME.Narrow && ME.Narrow.view ? ME.Narrow.view() : 'folio';
+    folio.classList.toggle('line-view', Editor.view === 'lines');
+    wrap.classList.toggle('line-view', Editor.view === 'lines');
 
     folio.addEventListener('keydown', onKeyDown);
     folio.addEventListener('beforeinput', onBeforeInput);
@@ -84,9 +91,36 @@
     wrap.appendChild(folio);
     Editor.applyPaper(Editor.paper);
     Editor.relayout();
-    pane.scrollTop = Math.max(0, Math.round(pane.clientHeight / 2) - 30); // top of the folio in view
+    markNear(null);
+    pane.scrollTop = Editor.view === 'lines' ? 0 : Math.max(0, Math.round(pane.clientHeight / 2) - 30); // top of the folio in view
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { Editor.fitAll(); Editor.refreshMargins(); });
   };
+
+  // The folio replica, or the three lines of the line view (see Editor.view).
+  Editor.setView = function (view) {
+    Editor.view = view === 'lines' ? 'lines' : 'folio';
+    if (!folio) return;
+    folio.classList.toggle('line-view', Editor.view === 'lines');
+    wrap.classList.toggle('line-view', Editor.view === 'lines');
+    Editor.relayout();
+    markNear(null);
+    const cur = activeLine();
+    if (cur && Editor.view === 'folio') Editor.centerLine(cur, true);
+  };
+
+  const LINE_VIEW_FS = 19; // px, at zoom 1: letters that can be read on a phone
+  /* In the line view, the lines near the one being typed (the one above and the one below, in its block) are the
+     ones shown, with the notes of the line under it. */
+  function markNear(line) {
+    if (!folio || Editor.view !== 'lines') return;
+    const cur = line || activeLine() || folio.querySelector('.line.current:not(.mline)') || folio.querySelector('.box-main .line:not(.mline)') || folio.querySelector('.line:not(.mline)');
+    if (!cur || isM(cur)) return;
+    const box = cur.closest('.box'), i = +cur.dataset.i;
+    U.$$('.line.near, .mnote.near', folio).forEach((l) => l.classList.remove('near'));
+    if (box) for (const l of U.$$('.line:not(.mline)', box)) if (Math.abs(+l.dataset.i - i) <= 1) l.classList.add('near');
+    for (const m of U.$$('.mnote', folio)) { const chip = m._body && m._body._chip; if (chip && chip.closest('.line') === cur) m.classList.add('near'); }
+  }
+  Editor.markNear = markNear;
 
   // The folio with its lines, not yet on the page (the exported HTML page is made from it too).
   Editor.buildFolio = function (project, entry, g) {
@@ -176,7 +210,7 @@
   // Keeps a line in the vertical middle of the editor pane, so the eyes need not go to the
   // bottom of the screen. The folio has half a pane of room above and below for this.
   Editor.centerLine = function (line, instant) {
-    if (!line || !pane) return;
+    if (!line || !pane || Editor.view === 'lines') return;
     const pr = pane.getBoundingClientRect(), lr = line.getBoundingClientRect();
     const dy = lr.top + lr.height / 2 - (pr.top + pr.height / 2);
     let dx = 0;
@@ -189,12 +223,29 @@
   Editor.relayout = function () {
     if (!folio || !Editor.geom) return;
     const g = Editor.geom;
-    const half = Math.round(pane.clientHeight / 2);
-    wrap.style.paddingTop = half + 'px';
-    wrap.style.paddingBottom = half + 'px';
-    const avail = Math.max(320, pane.clientWidth - 48);
-    const w = avail * Editor.zoom;
-    ME.FolioLayout.size(folio, g, w, Editor.project.settings.textScale || 1);
+    if (Editor.view === 'lines') {
+      // the strips are the width of the pane, their letters a readable size, whatever the folio's proportions
+      wrap.style.padding = '6px 0 12px';
+      folio.style.width = '';
+      folio.style.height = '';
+      const fs = LINE_VIEW_FS * Editor.zoom * (Editor.project.settings.textScale || 1);
+      for (const boxEl of folio.querySelectorAll('.box')) {
+        boxEl.style.setProperty('--fs', fs + 'px');
+        boxEl.style.setProperty('--lh', fs * 1.75 + 'px');
+        boxEl.style.setProperty('--lh-tight', fs * 1.75 + 'px');
+        boxEl.style.setProperty('--fs-gloss', fs * 0.75 + 'px');
+        boxEl.style.setProperty('--lh-gloss', fs * 1.4 + 'px');
+      }
+      folio.style.setProperty('--note-fs', fs * 0.8 + 'px');
+    } else {
+      wrap.style.padding = '';
+      const half = Math.round(pane.clientHeight / 2);
+      wrap.style.paddingTop = half + 'px';
+      wrap.style.paddingBottom = half + 'px';
+      const avail = Math.max(320, pane.clientWidth - 48);
+      const w = avail * Editor.zoom;
+      ME.FolioLayout.size(folio, g, w, Editor.project.settings.textScale || 1);
+    }
     Editor.fitAll();
     const cur = activeLine();
     if (cur) Editor.centerLine(cur, true);
@@ -211,7 +262,7 @@
   // smaller, so that it does not run into the next block or the margin.
   Editor.fitLine = function (line) {
     line.style.removeProperty('--fit');
-    if (!isM(line) && line !== document.activeElement) ME.FolioLayout.fit(line);
+    if (!isM(line) && line !== document.activeElement && Editor.view !== 'lines') ME.FolioLayout.fit(line); // a strip scrolls instead
     placeSignMarks(line);
   };
 
@@ -284,6 +335,7 @@
     const placed = {};
     for (const side of ['top', 'bottom', 'left', 'right']) placed[side] = sides[side].map((it) => ({ chip: it.chip, el: marginNote(it) }));
     ME.FolioLayout.margins(folio, Editor.geom, Editor.rules, placed);
+    if (Editor.view === 'lines') markNear(activeLine());
   };
 
   /* ---------- lookup helpers ---------- */
@@ -357,6 +409,7 @@
   Editor.focusLine = function (box, i, where) {
     const line = Editor.lineEl(box, i);
     if (!line) return null;
+    markNear(line); // in the line view a line not near the one being typed is not drawn: drawn first, then focused
     line.focus({ preventScroll: true });
     if (where === 'end') Editor.setCaret(line, Editor.lineLength(line));
     else if (typeof where === 'number') Editor.setCaret(line, where);
@@ -823,6 +876,7 @@
       const i = dir > 0 ? 0 : lineCount(box) - 1;
       const target = Editor.lineEl(box, i);
       if (!target) return;
+      markNear(target);
       const n = { label, box, i, offset: where(target) };
       Editor.setMulti(a, n);
       // the keys go on working from the folio shown: the caret, with the painted selection, at its focus
@@ -1272,6 +1326,7 @@
     // room around the line and keeping it in the middle of the pane: after a mouse click or drag
     // has ended, so that the text does not move under the pointer
     if (drag) centerAfterDrag = line; else { openRoom(line); Editor.centerLine(line); }
+    markNear(line);
     hook('onLineFocus', Editor.current);
   }
 
@@ -1381,13 +1436,15 @@
     });
   }
 
-  // On a phone the line is wider than the screen: the caret is kept in the middle half of the typing area.
+  // On a phone the line is wider than the screen: the caret is kept in the middle half of the typing area (in the
+  // line view, of its strip, which scrolls along its own text).
   Editor.keepCaretAcross = function (line) {
     const cr = caretRect();
     if (!cr || !pane || !line) return;
-    const pr = pane.getBoundingClientRect();
+    const box = Editor.view === 'lines' && !isM(line) ? line : pane;
+    const pr = box.getBoundingClientRect();
     if (cr.left >= pr.left + pr.width * 0.25 && cr.left <= pr.right - pr.width * 0.25) return;
-    pane.scrollBy({ left: cr.left - (pr.left + pr.width / 2), behavior: 'smooth' });
+    box.scrollBy({ left: cr.left - (pr.left + pr.width / 2), behavior: 'smooth' });
   };
 
   // Tags around the caret/selection, outermost first (a selected chip counts as innermost).

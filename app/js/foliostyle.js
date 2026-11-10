@@ -164,5 +164,23 @@ ME.FOLIO_CSS = String.raw`
 .box.has-current .lines > .line { line-height: var(--lh-tight); }
 .box.has-current .lines > .line.current { flex-grow: 2; line-height: calc(var(--lh-tight) * 2); }
 .box.has-current .lnums span.cur { flex-grow: 2; }
+/* the line view (a phone): three strips the width of the screen - the line being typed, the one above and the one
+   below - each scrolling along its own text, the notes of the line under it; the rest of the folio is not drawn */
+.folio-wrap.line-view { min-width: 0; width: 100%; box-sizing: border-box; }
+.folio.line-view { display: flex; flex-direction: column; width: 100% !important; max-width: 100%; height: auto !important; min-height: 100%; margin: 0; border-radius: 0; box-shadow: none; }
+.folio.line-view .folio-texture, .folio.line-view .rule, .folio.line-view .lnums { display: none; }
+.folio.line-view .box { position: static !important; left: auto !important; top: auto !important; width: auto !important; height: auto !important; order: 1; display: flex; flex-direction: column; }
+.folio.line-view .box:hover { outline: none; }
+.folio.line-view .box .lines { display: block; height: auto; }
+.folio.line-view .row { display: block; }
+.folio.line-view .line:not(.mline) { display: none; }
+.folio.line-view .line.near { display: block; flex: none; width: auto; max-width: 100%; box-sizing: border-box; height: auto; min-height: 1.4em; padding: 4px 50% 4px 10px; overflow-x: auto; overflow-y: hidden; white-space: pre; scrollbar-width: none; box-shadow: inset 0 -1px 0 rgba(110, 70, 30, .18); }
+.folio.line-view .line.near::-webkit-scrollbar { display: none; }
+.folio.line-view .box.has-current .lines > .line, .folio.line-view .box.has-current .lines > .line.current { flex-grow: 0; line-height: var(--lh); }
+.folio.line-view .box-tag { position: static; display: block; order: -1; margin: 6px 10px 2px; font-size: 11px; opacity: .75; align-self: flex-start; }
+.folio.line-view .margin { position: static; order: 2; width: auto; height: auto; }
+.folio.line-view .margin-foot { order: 3; }
+.folio.line-view .mnote { display: none; }
+.folio.line-view .mnote.near, .folio.line-view .margin-foot .mnote { display: block; position: static !important; left: auto !important; top: auto !important; width: auto !important; max-width: none !important; margin: 4px 10px; padding: 2px 6px; border-radius: 4px; background: rgba(255, 255, 255, .35); }
 `;
 document.head.appendChild(Object.assign(document.createElement('style'), { textContent: ME.FOLIO_CSS }));

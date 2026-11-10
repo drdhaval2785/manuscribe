@@ -142,18 +142,21 @@ and offers **Download .xml** and **Download .html**.
 
 ### On a phone or a tablet
 
-- **A phone** (up to 700 px wide) shows a *line view*: the typing area and the scan are enlarged together until
-  the letters can be read, and both follow the line you type: on a calibrated folio the scan keeps the letter you
-  are typing in the middle, reckoned from the letters typed and the usual number in a line (set when the
-  transcription is made, and learnt from the lines you type). The sizes you choose there are kept for that device, so the project keeps the sizes of
-  the computer you mostly type on. The scan shows about 22 letters of a line across the screen, so that they
-  can be read; pinch to show more or fewer. **↑** and **↓** in the status bar go to the line above or below,
-  since a phone's keyboard has no arrows; the letter-size buttons (**A− / A+**) are left out there, the folio's
-  **− / +** enlarging the letters too. While the keyboard is open the top bar steps aside, so that the scan
-  and the line being typed have the room above it. A dialog (New transcription, the settings) is a sheet the height
-  of the screen, its body scrolling between the title and the buttons. Tap the letter size (**100%** under **− / +**) to come back to readable
-  letters. The tags are behind one **Tags** button, which opens them from the bottom of the screen; one
-  chosen is applied to the selected text and the panel closes.
+- **A phone** (up to 700 px wide) shows a *line view*: the typing area has three strips, the line you are
+  typing between the line above and the line below, each the width of the screen and scrolling along its own
+  text, with the notes of the line under it; the scan above shows about three lines of the page, and follows the
+  line you type: on a calibrated folio it keeps the letter you are typing in the middle, reckoned from the letters
+  typed and the usual number in a line (set when the transcription is made, and learnt from the lines you type),
+  and shows about 22 letters of a line across the screen, so that they can be read; pinch to show more or fewer.
+  **Folio** in the status bar shows the whole folio side instead, enlarged until its letters can be read, and
+  **3 lines** brings the strips back; the choice, and the sizes you choose, are kept for that device, so the
+  project keeps the sizes of the computer you mostly type on. **↑** and **↓** in the status bar go to the line
+  above or below, since a phone's keyboard has no arrows; the letter-size buttons (**A− / A+**) are left out
+  there, the folio's **− / +** enlarging the letters too (tap **100%** to come back). While the keyboard is open
+  the top bar steps aside, so that the scan and the line being typed have the room above it. A dialog (New
+  transcription, the settings) is a sheet the height of the screen, its body scrolling between the title and the
+  buttons. The tags are behind one **Tags** button, which opens them from the bottom of the screen, as does a
+  finger held on the text for a moment; one chosen is applied to the selected text and the panel closes.
 - **A tablet held upright** (up to 900 px) keeps the whole folio, with the same **Tags** button.
 - **With a finger:** buttons are big enough to touch; the bar between the scan and the typing area can be
   dragged; two fingers pinch to zoom the scan; while calibrating, one finger draws a box.
@@ -161,8 +164,8 @@ and offers **Download .xml** and **Download .html**.
 - **Memory:** only the part of the page shown is drawn, at most 12 megapixels on a phone (24 on a computer), and two
   drawn pages are kept rather than five, so that a large scan does not exhaust a phone's memory.
 
-On a phone, reading the edition and deciding readings work well; transcribing a whole manuscript is
-better on a tablet or a computer.
+On a phone, reading the edition and deciding readings work well, and the line view is made for typing a
+line at a time; transcribing a whole manuscript is still better on a tablet or a computer.
 
 ## Layouts
 

@@ -814,6 +814,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 #midbar-grip { touch-action: none; }
 .tags-btn { display: none; }
 .line-nav { display: none; }
+#btn-view { display: none; }
 /* a finger: buttons big enough to touch */
 @media (pointer: coarse) {
   .tbtn { min-height: 40px; min-width: 40px; }
@@ -890,6 +891,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   #statusbar .ed-zoom-ctl .sbtn.zoom { min-width: 44px; }
   .line-nav { display: inline-flex; }
   .line-nav .sbtn { font-size: 18px; }
+  #btn-view { display: inline-block; font-size: 12px; }
   .status-pos { font-size: 11px; }
   /* the status bar must never be wider than the phone, or the browser zooms the whole page out to fit it: the
      letter-size buttons go (the folio's − / + enlarge the letters too), and the rest may shrink */

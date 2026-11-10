@@ -1,6 +1,9 @@
-// Typing on a phone (390 px wide): on a calibrated folio the scan shows about 22 letters of a line, unless the device
-// has a zoom of its own; along a long line the caret is kept in the middle of the typing area; ↑ and ↓ go to the line
-// above or below without losing the caret; on a computer the arrows are not shown. Uses linear.pdf.
+// Typing on a phone (390 px wide): the typing area shows three lines - the line being typed, the one above and the
+// one below - each a strip the width of the screen scrolling along its own text, with the notes of the line under it,
+// and the scan about three lines of the page (the whole folio a button away); on a calibrated folio the scan shows
+// about 22 letters of a line, unless the device has a zoom of its own; along a long line the caret is kept in the
+// middle of the strip; a long press opens the tags; ↑ and ↓ go to the line above or below without losing the caret;
+// on a computer the arrows are not shown. Uses linear.pdf.
 const fs = require('fs'), path = require('path');
 const { launch, sleep, checks, ROOT } = require('./h');
 (async () => {
@@ -34,6 +37,38 @@ const { launch, sleep, checks, ROOT } = require('./h');
     T.check('the app is no wider than the phone, so the browser does not zoom the page out (the status bar fits, without the letter-size buttons)', fit.inner === 390 && fit.docW <= 390 && fit.statusW <= 390 && fit.fontBtn === 'none', fit);
     let s = await scan();
     T.check('on a calibrated folio the scan is zoomed to show about 22 letters of a line across the screen (' + s.lettersAcross + ')', s.narrow && s.lettersAcross > 19 && s.lettersAcross < 25.5 && !s.device, s);
+    // the line view: three strips, the scan three lines tall
+    await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
+    await sleep(500);
+    const lv = await page.evaluate(() => {
+      const near = [...document.querySelectorAll('.line.near')].map((l) => ({ i: +l.dataset.i, shown: getComputedStyle(l).display !== 'none', w: Math.round(l.getBoundingClientRect().width) }));
+      const others = [...document.querySelectorAll('.line:not(.mline):not(.near)')].filter((l) => getComputedStyle(l).display !== 'none').length;
+      const pane = document.getElementById('pdf-pane').getBoundingClientRect(), line = ME.Narrow.scanLine();
+      return { view: ME.Editor.view, lineView: document.querySelector('.folio').classList.contains('line-view'), near, others, paneH: Math.round(pane.height), linesOfScan: line ? +(pane.height / line).toFixed(1) : null, fs: parseFloat(getComputedStyle(document.querySelector('.line.near')).fontSize), btn: document.getElementById('btn-view').textContent, edW: document.getElementById('editor-pane').clientWidth, docW: document.documentElement.scrollWidth };
+    });
+    T.check('the typing area shows three strips, the line being typed between the one above and the one below, each the width of the screen, the other lines not drawn', lv.lineView && lv.view === 'lines' && lv.near.map((x) => x.i).join() === '1,2,3' && lv.near.every((x) => x.shown && x.w === lv.edW) && lv.others === 0 && lv.docW <= 390, lv);
+    T.check('the letters are a readable size (' + lv.fs + ' px) and the scan is about three lines tall (' + lv.linesOfScan + ')', lv.fs >= 17 && lv.fs <= 24 && lv.linesOfScan >= 2.8 && lv.linesOfScan <= 4.2 && lv.btn === 'Folio', lv);
+    // the whole folio, a button away, and back
+    await page.click('#btn-view');
+    await sleep(700);
+    const whole = await page.evaluate(() => ({ lineView: document.querySelector('.folio').classList.contains('line-view'), shown: [...document.querySelectorAll('.line:not(.mline)')].filter((l) => getComputedStyle(l).display !== 'none').length, zoom: ME.Editor.zoom, btn: document.getElementById('btn-view').textContent, saved: ME.Narrow.state().view }));
+    await page.click('#btn-view');
+    await sleep(700);
+    const back = await page.evaluate(() => ({ lineView: document.querySelector('.folio').classList.contains('line-view'), near: document.querySelectorAll('.line.near').length, saved: ME.Narrow.state().view }));
+    T.check('Folio shows the whole folio side with its letters enlarged, and 3 lines brings the strips back; the choice is kept for the device', !whole.lineView && whole.shown === 8 && whole.zoom > 1.5 && whole.btn === '3 lines' && whole.saved === 'folio' && back.lineView && back.near === 3 && back.saved === 'lines', { whole, back });
+    // a long press on the text opens the tags
+    const pressed = await page.evaluate(async () => {
+      const l = document.querySelector('.line.near'), r = l.getBoundingClientRect();
+      const ev = (type) => l.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 5, clientX: r.left + 40, clientY: r.top + r.height / 2, bubbles: true }));
+      ev('pointerdown'); await new Promise((res) => setTimeout(res, 300)); ev('pointerup');
+      const quick = document.body.classList.contains('tags-open');
+      ev('pointerdown'); await new Promise((res) => setTimeout(res, 750));
+      const held = document.body.classList.contains('tags-open');
+      ev('pointerup');
+      ME.Narrow.toggleTags(false);
+      return { quick, held };
+    });
+    T.check('a finger held on the text for a moment opens the tags; a tap does not', pressed.held && !pressed.quick, pressed);
     // ↑ and ↓
     const nav = await page.evaluate(() => {
       const shown = (id) => getComputedStyle(document.getElementById(id)).display !== 'none';
@@ -55,11 +90,11 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await page.keyboard.type('धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः मामकाः पाण्डवाश्चैव किमकुर्वत सञ्जय धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः');
     await sleep(900);
     const caret = await page.evaluate(() => {
-      const pane = document.getElementById('editor-pane').getBoundingClientRect(), line = ME.Editor.activeLine().getBoundingClientRect();
+      const pane = document.getElementById('editor-pane').getBoundingClientRect(), el = ME.Editor.activeLine(), line = el.getBoundingClientRect();
       const r = getSelection().getRangeAt(0).cloneRange(); r.collapse(true); const c = r.getClientRects()[0] || { left: 0 };
-      return { caretX: Math.round(c.left - pane.left), paneW: Math.round(pane.width), lineW: Math.round(line.width), scrolled: Math.round(document.getElementById('editor-pane').scrollLeft) };
+      return { caretX: Math.round(c.left - pane.left), paneW: Math.round(pane.width), lineW: Math.round(line.width), textW: el.scrollWidth, scrolled: Math.round(el.scrollLeft) };
     });
-    T.check('along a line wider than the screen (' + caret.lineW + ' px) the caret is kept in the middle half', caret.lineW > caret.paneW && caret.caretX > caret.paneW * 0.2 && caret.caretX < caret.paneW * 0.8 && caret.scrolled > 0, caret);
+    T.check('along a text wider than the screen (' + caret.textW + ' px) the strip scrolls so that the caret is kept in its middle half', caret.textW > caret.paneW && caret.lineW <= caret.paneW && caret.caretX > caret.paneW * 0.2 && caret.caretX < caret.paneW * 0.8 && caret.scrolled > 0, caret);
     // the keyboard: the app is as tall as can be seen, follows the browser's scrolling, and the top bar steps aside
     const kb = await page.evaluate(() => {
       const r1 = ME.Narrow.viewport({ height: 362, offsetTop: 40 });

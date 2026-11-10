@@ -1399,7 +1399,7 @@
       $('pdf-pane').style.height = Math.round(N.split() * 100) + '%';
       const st = N.state();
       if (st.pdf) PdfView.zoom = st.pdf;
-      if (st.ed) Editor.zoom = st.ed;
+      if (N.view() === 'lines') Editor.zoom = st.lv || 1; else if (st.ed) Editor.zoom = st.ed;
       $('pdf-zoom').textContent = Math.round(PdfView.zoom * 100) + '%';
     }
     $('ed-zoom').textContent = Math.round(Editor.zoom * 100) + '%';
@@ -1473,13 +1473,14 @@
     const setEd = (z) => {
       Editor.setZoom(z);
       $('ed-zoom').textContent = Math.round(Editor.zoom * 100) + '%';
-      if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ ed: Editor.zoom }); return; }
+      // a phone keeps its own sizes, the line view's apart from the folio's
+      if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ [Editor.view === 'lines' ? 'lv' : 'ed']: Editor.zoom }); return; }
       App.project.ui.editorZoom = Editor.zoom; App.changed(true);
     };
     $('btn-ed-in').onclick = () => setEd(Editor.zoom * 1.15);
     $('btn-ed-out').onclick = () => setEd(Editor.zoom / 1.15);
     // back to 100%; on a phone, back to letters that can be read
-    $('ed-zoom').onclick = () => { if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ ed: null }); Editor.setZoom(1); ME.Narrow.fit(); } else setEd(1); };
+    $('ed-zoom').onclick = () => { if (ME.Narrow && ME.Narrow.on()) { ME.Narrow.save({ [Editor.view === 'lines' ? 'lv' : 'ed']: null }); Editor.setZoom(1); ME.Narrow.fit(); } else setEd(1); };
 
     // size of the letters in the typing area (the lines and blocks keep their places)
     const setFont = (f) => {
