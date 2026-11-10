@@ -101,7 +101,8 @@
                 const into = lx ? place(ME.LayerIds.workId(lx.code)) : rec;
                 if (/-auto\d+$/.test(id)) into.auto.push({ id, at });
                 if (!into.units.has(id)) { into.units.set(id, []); into.order.push(id); }
-                into.units.get(id).push(at);
+                // with where in the line it starts: several blocks may begin in one line (c1.2-0, b1.2, c1.2-1)
+                into.units.get(id).push(Object.assign({ pos: m.index }, at));
               } else if (kind === 'p-end' || kind === 'lg-end') rec.open[s.key] = false;
             }
             check(line.slice(last));
@@ -178,10 +179,10 @@
         for (const [id, places] of rec.units) {
           if (/-auto\d+$/.test(id)) continue;
           const at = places[0];
-          pos.push({ id, work, k: [labels.indexOf(at.label), Model.LAYOUTS[Model.pageLayout(p, at.label)].boxes.indexOf(at.box), at.i] });
+          pos.push({ id, work, k: [labels.indexOf(at.label), Model.LAYOUTS[Model.pageLayout(p, at.label)].boxes.indexOf(at.box), at.i, at.pos || 0] });
         }
       }
-      pos.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]);
+      pos.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.k[3] - b.k[3]);
       let prev = -1;
       for (const x of pos) {
         let at = order.findIndex((y) => key(y) === key(x));

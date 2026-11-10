@@ -89,7 +89,9 @@ const { launch, sleep, checks } = require('./h');
   const amiss = await page.evaluate(async () => {
     const { Model, Edition } = ME;
     const P = (id) => '<x-marker type="p-start" id="' + id + '"/>', END = '<x-marker type="p-end"/>';
-    const L = [P('b2') + 'मामकाः ' + END, P('c1-1') + 'धर्मक्षेत्र इति ' + END, P('b1') + 'धर्मक्षेत्रे ' + END, P('c2-0') + 'अथ द्वितीयः ' + END, P('c2-2') + 'टीका ' + END, P('c2-1') + 'मामका इति ' + END];
+    // the last line: an avataraṇikā, the verse and its commentary beginning in one line, as a scribe writes them
+    const L = [P('b2') + 'मामकाः ' + END, P('c1-1') + 'धर्मक्षेत्र इति ' + END, P('b1') + 'धर्मक्षेत्रे ' + END, P('c2-0') + 'अथ द्वितीयः ' + END, P('c2-2') + 'टीका ' + END, P('c2-1') + 'मामका इति ' + END,
+      P('c3-0') + 'अथ तृतीयः ' + END + P('b3') + 'सञ्जय उवाच ' + END + P('c3-1') + 'सञ्जय इति ' + END];
     const p = Model.upgrade(Model.newProject({ meta: { title: 'Z', siglum: 'Z', textLang: 'sa-Deva' }, layoutType: 'linear', lines: { main: L.length }, folios: {} }));
     p.pdf = { name: 'z.pdf', pages: 1 }; p.pages = { '1r': { boxes: { main: L } } };
     const ed = Edition.create('Amiss'); ed.witnesses.push({ siglum: 'Z', projectId: p.id, streams: {} });
@@ -97,7 +99,7 @@ const { launch, sleep, checks } = require('./h');
     Edition.syncLayers(ed, list);
     return Edition.manuscriptOrder(ed, list).map((x) => x.id + (x.problem ? ' !! ' + x.problem : ''));
   });
-  T.check('a commentary before its base, a -0 block after its base, a base out of order and a paragraph out of order are each told', amiss.join('\n') === ['b2', 'c1-1 !! c1-1: it stands before its base block b1', 'b1 !! b1: it comes after b2, out of order', 'c2-0 !! c2-0: it stands after its base block b2', 'c2-2', 'c2-1 !! c2-1: it comes after c2-2, out of order'].join('\n'), amiss);
+  T.check('a commentary before its base, a -0 block after its base, a base out of order and a paragraph out of order are each told; three blocks beginning in one line stand in their order there, and are in order', amiss.join('\n') === ['b2', 'c1-1 !! c1-1: it stands before its base block b1', 'b1 !! b1: it comes after b2, out of order', 'c2-0 !! c2-0: it stands after its base block b2', 'c2-2', 'c2-1 !! c2-1: it comes after c2-2, out of order', 'c3-0', 'b3', 'c3-1'].join('\n'), amiss);
   await page.evaluate(() => document.querySelector('[data-action="collate"]').click());
   for (let k = 0; k < 80; k++) { await sleep(250); if (await page.evaluate(() => !ME.CollateView.running && document.querySelector('[data-action="collate"]'))) break; }
   await sleep(800);
