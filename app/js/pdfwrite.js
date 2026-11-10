@@ -140,6 +140,7 @@
             if (o && o.bold) ops.push('Q');
             if (color) ops.push('0 0 0 rg');
             ops.push('EMC');
+            return (pen * size) / fnt.upem; // the width of the run as set, in points
           },
           /* A picture of a word, drawn by the browser: the same picture is kept once and used again. make() ->
              {w, h, alpha: Uint8Array (w*h), color: [r, g, b] 0..1}. Placed in the box x, y (top), width, height. */

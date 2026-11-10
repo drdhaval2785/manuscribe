@@ -111,11 +111,13 @@
             const r = next && next.getClientRects()[0];
             return !!r && r.top > rect.top + rect.height / 2;
           };
-          const hyphenAfter = (rect) => {
+          // right: where the word ends as the PDF set it (its own width, not the browser's measure, which Safari gives
+          // short at the end of a line: the hyphen then sat on the last letter)
+          const hyphenAfter = (rect, right) => {
             const v = fontFor('-');
             if (!v) return;
             const asc = v.font.ascent, desc = -v.font.descent;
-            page.glyphs(v.shaper.shape('-'), (rect.right - pr.left) * k, (rect.top - pr.top) * k + rect.height * k * (asc / (asc + desc)), px * k, '\u00AD', colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1, bold: +st.fontWeight >= 600 });
+            page.glyphs(v.shaper.shape('-'), right, (rect.top - pr.top) * k + rect.height * k * (asc / (asc + desc)), px * k, '\u00AD', colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1, bold: +st.fontWeight >= 600 });
           };
           const place = (word, at, soft) => {
             range.setStart(n, at); range.setEnd(n, at + word.length);
@@ -127,14 +129,15 @@
               for (const g of graphemes.segment(word)) { place1(g.segment, at + g.index, null); off += g.segment.length; }
               return;
             }
-            place1(word, at, rects[0]);
-            if (soft && lineEndsAfter(rects[0])) hyphenAfter(rects[0]);
+            const right = place1(word, at, rects[0]);
+            if (soft && lineEndsAfter(rects[0]) && right !== undefined) hyphenAfter(rects[0], right);
           };
+          // -> where the word ends on the page, in points
           const place1 = (word, at, rect) => {
             if (!rect) {
               range.setStart(n, at); range.setEnd(n, at + word.length);
               rect = range.getBoundingClientRect();
-              if (!rect.width) return;
+              if (!rect.width) return undefined;
             }
             const x = (rect.left - pr.left) * k, top = (rect.top - pr.top) * k, width = rect.width * k, height = rect.height * k;
             const size = px * k;
@@ -149,9 +152,9 @@
                  width a browser reports for a word can be less (Safari's, at the end of a line), and fitting the word
                  to it squeezed it; the place of each word, with the space justification gives, is the browser's. */
               void width;
-              page.glyphs(gl, x, base, size, word, colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1, bold: +st.fontWeight >= 600 });
+              const adv = page.glyphs(gl, x, base, size, word, colour.some((c) => c > 0.01) ? colour : null, { font: v.index, scale: 1, bold: +st.fontWeight >= 600 });
               count.text++;
-              return;
+              return x + (adv || width);
             }
             // drawn by the browser, as on the page, with its letters over it
             const cw = Math.max(1, Math.ceil(rect.width * RES) + 2), ch = Math.max(1, Math.ceil(rect.height * RES) + 2);
@@ -176,6 +179,7 @@
             }, x - k / RES, top - k / RES, (cw / RES) * k, (ch / RES) * k);
             page.hiddenText(word, x, top + height * 0.8, size, width);
             count.pictures++;
+            return x + width;
           };
           for (const s of seg.segment(t)) {
             const soft = s.segment.endsWith('\u00AD'), word = soft ? s.segment.slice(0, -1) : s.segment;

@@ -21,7 +21,8 @@ const words = 'धर्मक्षेत्रे कुरुक्षेत�
       const built = (await ME.Release.works(ed, list))[0].built;
       // what the PDF writes
       const writer = ME.PDFWriter.doc, drawn = [];
-      ME.PDFWriter.doc = (...a) => { const d = writer(...a), np = d.page; d.page = (...b) => { const pg = np(...b), g = pg.glyphs; pg.glyphs = (gl, x, y, s, t, ...r) => { drawn.push(t); return g.call(pg, gl, x, y, s, t, ...r); }; return pg; }; return d; };
+      const runs = [];
+      ME.PDFWriter.doc = (...a) => { const d = writer(...a), np = d.page; d.page = (...b) => { const pg = np(...b), g = pg.glyphs; pg.glyphs = (gl, x, y, s, t, ...r) => { drawn.push(t); const w = g.call(pg, gl, x, y, s, t, ...r); runs.push({ t, x, y, w }); return w; }; return pg; }; return d; };
       const cap = await ME.Capture.pdf(ed, list, built, { keep: true });
       ME.PDFWriter.doc = writer;
       const fr = [...document.querySelectorAll('iframe')].pop(), w = fr.contentWindow, d = fr.contentDocument;
@@ -44,6 +45,9 @@ const words = 'धर्मक्षेत्रे कुरुक्षेत�
       const hyphens = drawn.filter((t) => t === SHY).length;
       ok('and the PDF draws a hyphen at each of them (' + hyphens + ')', hyphens === lineEnds.length && cap.words.text > 0, { hyphens, lines: lineEnds.length });
       ok('the PDF does not write a soft hyphen into a word', !drawn.some((t) => t !== SHY && t.includes(SHY)));
+      // the hyphen stands after the last letter of the word as the PDF set it, never on it
+      const onLetter = runs.filter((r, i) => r.t === SHY && i > 0 && runs[i - 1].t !== SHY && Math.abs(runs[i - 1].y - r.y) < 0.5 && r.x < runs[i - 1].x + runs[i - 1].w - 0.2);
+      ok('each hyphen is set after the end of its word, not over its last letter', runs.some((r) => r.t === SHY) && !onLetter.length, onLetter.slice(0, 3));
       // the spaces, the page's last lines among them, are not stretched
       const gaps = spans.filter((x) => x.textContent && !x.textContent.trim() && x.nextElementSibling && x.getClientRects()[0]).map((x) => x.getClientRects()[0].width);
       ok('the spaces are not stretched wide, even on the last line of a page (' + Math.max(...gaps).toFixed(0) + ' px at the widest)', gaps.length > 20 && Math.max(...gaps) < 30, Math.max(...gaps));
