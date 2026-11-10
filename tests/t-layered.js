@@ -80,6 +80,24 @@ const { launch, sleep, checks } = require('./h');
   const step = await page.evaluate(() => { const sel = document.querySelector('[aria-label="Work to collate"]'); return { value: sel && sel.value, options: sel ? [...sel.options].map((o) => o.textContent) : [], rows: [...document.querySelectorAll('.cv-units tbody tr')].map((r) => r.querySelector('.cv-unit').textContent.trim()) }; });
   T.check('Collate offers All layers, and starts there', step.value === ME_ALL(step) && step.options[0] === 'All layers', step);
   T.check('the table has every layer’s blocks, each commentary with its [abbreviation]', step.rows.includes('b1') && step.rows.includes('[Ś] c1-1') && step.rows.includes('[CA] ca1-1-1') && step.rows.includes('[R] r1-1'), step.rows);
+  // in the order of the manuscript, base and commentaries interleaved, and what is amiss highlighted
+  const seq = step.rows.map((r) => r.replace(/^\[[^\]]+\] /, ""));
+  T.check('the blocks stand as in the manuscript: c1-0, b1, c1-1, ca1-1-1, r1-1, b2, c2-1, ca2-5-1', seq.join() === 'c1-0,b1,c1-1,ca1-1-1,r1-1,b2,c2-1,ca2-5-1', seq);
+  const bad = await page.evaluate(() => [...document.querySelectorAll('.cv-units tbody tr.cv-bad')].map((r) => r.querySelector('.cv-unit').textContent.trim() + ' :: ' + r.title));
+  T.check('the block whose base block no witness has is highlighted, and says so', bad.length === 1 && /ca2-5-1/.test(bad[0]) && /c2-5 is missing/.test(bad[0]) && /highlighted/.test(await page.evaluate(() => (document.querySelector('.cv-units .ed-warn') || {}).textContent || '')), bad);
+  // blocks on the wrong side of their base, and out of order, in a manuscript of their own
+  const amiss = await page.evaluate(async () => {
+    const { Model, Edition } = ME;
+    const P = (id) => '<x-marker type="p-start" id="' + id + '"/>', END = '<x-marker type="p-end"/>';
+    const L = [P('b2') + 'मामकाः ' + END, P('c1-1') + 'धर्मक्षेत्र इति ' + END, P('b1') + 'धर्मक्षेत्रे ' + END, P('c2-0') + 'अथ द्वितीयः ' + END, P('c2-2') + 'टीका ' + END, P('c2-1') + 'मामका इति ' + END];
+    const p = Model.upgrade(Model.newProject({ meta: { title: 'Z', siglum: 'Z', textLang: 'sa-Deva' }, layoutType: 'linear', lines: { main: L.length }, folios: {} }));
+    p.pdf = { name: 'z.pdf', pages: 1 }; p.pages = { '1r': { boxes: { main: L } } };
+    const ed = Edition.create('Amiss'); ed.witnesses.push({ siglum: 'Z', projectId: p.id, streams: {} });
+    const list = [{ w: ed.witnesses[0], p }];
+    Edition.syncLayers(ed, list);
+    return Edition.manuscriptOrder(ed, list).map((x) => x.id + (x.problem ? ' !! ' + x.problem : ''));
+  });
+  T.check('a commentary before its base, a -0 block after its base, a base out of order and a paragraph out of order are each told', amiss.join('\n') === ['b2', 'c1-1 !! c1-1: it stands before its base block b1', 'b1 !! b1: it comes after b2, out of order', 'c2-0 !! c2-0: it stands after its base block b2', 'c2-2', 'c2-1 !! c2-1: it comes after c2-2, out of order'].join('\n'), amiss);
   await page.evaluate(() => document.querySelector('[data-action="collate"]').click());
   for (let k = 0; k < 80; k++) { await sleep(250); if (await page.evaluate(() => !ME.CollateView.running && document.querySelector('[data-action="collate"]'))) break; }
   await sleep(800);

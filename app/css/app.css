@@ -466,6 +466,10 @@ body.no-project #topbar, body.no-project #main { visibility: hidden; }
 .cov-table td.cov { padding: 0; border: 1px solid var(--line); text-align: center; }
 .cov button { width: 40px; height: 24px; border: 0; background: none; cursor: pointer; font: 600 11px var(--ui); color: inherit; }
 .cov.has { background: #eaf6eb; color: #1e6b22; }
+/* a block amiss among its neighbours: a commentary without its base, on the wrong side of it, out of order */
+tr.cov-bad th, tr.cov-bad td, tr.cv-bad td { background: rgba(178, 58, 38, .10); }
+tr.cov-bad th .ly-abbr-tag, tr.cov-bad th, tr.cv-bad .cv-unit { color: #8a2a17; }
+.ed-warn { margin: 4px 0 6px; padding: 4px 8px; font-size: 12.5px; color: #8a2a17; background: rgba(178, 58, 38, .08); border-radius: 6px; }
 .cov.dup { background: #c62828; color: #fff; }
 .cov.gap { background: #fbe3a6; }
 .cov.lacuna, .cov.pending, .cov.outside { background: #efe6d6; color: #6d5a3c; }

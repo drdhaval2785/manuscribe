@@ -155,6 +155,75 @@
     return out;
   };
 
+  /* The blocks of every work in the order they stand in the manuscript: that of the most trusted witness, a block
+     only other witnesses have put after the block before it. The base and the commentaries of a layered edition
+     thus come interleaved, as the scribe wrote them, and what is amiss shows: a commentary block whose base block no
+     witness has, or that stands on the wrong side of it (a -0 block introduces its passage and stands before it,
+     the others follow it), and blocks out of their numerical order. -> [{id, work, problem}] */
+  Edition.manuscriptOrder = function (ed, list, reg) {
+    const LI = ME.LayerIds;
+    const R = reg || Edition.register(ed, list);
+    const layered = LI.layered(ed);
+    const trust = ME.Collate ? ME.Collate.trustOrder(ed) : ed.witnesses.map((w) => w.siglum);
+    const rank = (s) => { const i = trust.indexOf(s); return i < 0 ? trust.length : i; };
+    const byTrust = list.filter((x) => x.p).slice().sort((a, b) => rank(a.w.siglum) - rank(b.w.siglum));
+    const key = (x) => x.work + '\u0000' + x.id;
+    const order = [];
+    for (const { w, p } of byTrust) {
+      const scan = Edition.scanWitness(w, p, layered);
+      const labels = Model.entries(p).map((e) => e.label);
+      const pos = [];
+      for (const [work, rec] of Object.entries(scan)) {
+        if (!R[work]) continue;
+        for (const [id, places] of rec.units) {
+          if (/-auto\d+$/.test(id)) continue;
+          const at = places[0];
+          pos.push({ id, work, k: [labels.indexOf(at.label), Model.LAYOUTS[Model.pageLayout(p, at.label)].boxes.indexOf(at.box), at.i] });
+        }
+      }
+      pos.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]);
+      let prev = -1;
+      for (const x of pos) {
+        let at = order.findIndex((y) => key(y) === key(x));
+        if (at < 0) { at = prev + 1; order.splice(at, 0, { id: x.id, work: x.work }); }
+        prev = at;
+      }
+    }
+    if (!layered) return order;
+    const index = new Map(order.map((x, i) => [key(x), i]));
+    const num = (s) => s.split('.').map(Number);
+    const cmpLoci = (a, b) => { const x = num(a), y = num(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
+    const last = {};
+    for (const x of order) {
+      const lx = LI.parse(x.id);
+      if (!lx) continue;
+      const problems = [];
+      const par = LI.parentOf(lx);
+      if (par) {
+        const pw = LI.workId(par.code);
+        const pids = par.ids || order.filter((y) => y.work === pw && y.id.startsWith(par.prefix)).map((y) => y.id);
+        const there = pids.filter((pid) => index.has(pw + '\u0000' + pid));
+        const lead = /(^|\.)0$/.test(lx.loci[0]) && par.code === LI.BASE;
+        if (!there.length && !lead) problems.push((par.ids ? 'its base block ' + pids.join(', ') + ' is' : 'the blocks of ' + par.code + ' at ' + par.prefix.slice(0, -1) + ' are') + ' missing');
+        else if (there.length) {
+          const i = index.get(key(x)), introduces = lx.own === 0;
+          const wrong = there.filter((pid) => { const j = index.get(pw + '\u0000' + pid); return introduces ? j < i : j > i; });
+          if (wrong.length) problems.push('it stands ' + (introduces ? 'after' : 'before') + ' its base block ' + wrong.join(', '));
+        }
+      }
+      const prev = last[lx.code];
+      if (prev) {
+        const d = cmpLoci(lx.loci[0], prev.loci[0]);
+        const sameLocus = lx.locus === prev.locus && lx.segs.length === prev.segs.length;
+        const earlier = d < 0 || (sameLocus && lx.segs.every((n, i) => (i === lx.segs.length - 1 ? n < prev.segs[i] : n === prev.segs[i])));
+        if (earlier) problems.push('it comes after ' + prev.id + ', out of order');
+      }
+      last[lx.code] = lx;
+      if (problems.length) x.problem = x.id + ': ' + problems.join('; ');
+    }
+    return order;
+  };
+
   /* ---------- package ---------- */
 
   async function sha256(blob) {
@@ -565,7 +634,7 @@ To open it, use Import edition package on Manuscribe's start screen.
   const GRID_LIMIT = 400;
 
   const GRID_ALL = '*all';
-  function coverageGrid(ed, reg, redraw) {
+  function coverageGrid(ed, reg, redraw, list) {
     const works = Object.values(reg).filter((r) => r.order.length);
     if (!works.length) return U.el('p', { class: 'help' }, 'No citation IDs yet. Mark paragraphs and verses in the witnesses, each with the same xml:id across witnesses, and they appear here.');
     // every work, the default, or one
@@ -603,15 +672,29 @@ To open it, use Import edition package on Manuscribe's start screen.
     };
     let left = GRID_LIMIT;
     const body = [];
-    for (const r of shownWorks) {
-      if (left <= 0) break;
-      if (showAll) body.push(U.el('tr', { class: 'cov-work' }, U.el('th', { colspan: sigla.length + 1 }, r.work.title)));
-      for (const id of r.order.slice(0, left)) body.push(U.el('tr', null, U.el('th', { class: 'unit' }, id), sigla.map((sg) => cell(id, r.witnesses.find((y) => y.siglum === sg), r))));
-      left -= r.order.length;
+    let amiss = 0;
+    if (showAll && list) {
+      // every work's blocks as they stand in the manuscript, each with its layer or work; what is amiss highlighted
+      const LI = ME.LayerIds;
+      const seq = Edition.manuscriptOrder(ed, list, reg).filter((x) => reg[x.work] && reg[x.work].order.length);
+      for (const x of seq.slice(0, left)) {
+        const r = reg[x.work], code = LI.codeOf(x.work);
+        const mark = code && code !== LI.BASE ? U.el('span', { class: 'ly-abbr-tag', style: 'margin-inline-start: ' + ((code.length - 1) * 0.9) + 'em', title: LI.name(ed, code) }, '[' + LI.abbr(ed, code) + '] ')
+          : !code && works.length > 1 ? U.el('span', { class: 'ly-abbr-tag', title: r.work.title }, '[' + r.work.title.slice(0, 1).toUpperCase() + '] ') : null;
+        if (x.problem) amiss++;
+        body.push(U.el('tr', { class: x.problem ? 'cov-bad' : '', title: x.problem || null }, U.el('th', { class: 'unit' }, mark, x.id), sigla.map((sg) => cell(x.id, r.witnesses.find((y) => y.siglum === sg), r))));
+      }
+    } else {
+      for (const r of shownWorks) {
+        if (left <= 0) break;
+        for (const id of r.order.slice(0, left)) body.push(U.el('tr', null, U.el('th', { class: 'unit' }, id), sigla.map((sg) => cell(id, r.witnesses.find((y) => y.siglum === sg), r))));
+        left -= r.order.length;
+      }
     }
     return U.el('div', null,
       U.el('div', { class: 'ed-grid-head' }, U.el('label', null, 'Work ', pick),
-        U.el('span', { class: 'help' }, '✓ present · number: times it occurs · empty: missing · click an empty cell to explain it: lac = lacuna, … = not yet transcribed, – = outside its scope')),
+        U.el('span', { class: 'help' }, (showAll && works.length > 1 ? 'in the order of the manuscript · ' : '') + '✓ present · number: times it occurs · empty: missing · click an empty cell to explain it: lac = lacuna, … = not yet transcribed, – = outside its scope')),
+      amiss ? U.el('p', { class: 'ed-warn' }, amiss + ' block(s) highlighted: a commentary block without its base block, on the wrong side of it, or out of order (the pointer on a row says which). Check them in Collate.') : null,
       U.el('div', { class: 'ed-scroll ed-grid' }, U.el('table', { class: 'ed-table cov-table' },
         U.el('thead', null, U.el('tr', null, U.el('th', { class: 'unit' }, 'Citation ID'), sigla.map((sg) => U.el('th', null, sg)))),
         U.el('tbody', null, body))),
@@ -727,7 +810,7 @@ To open it, use Import edition package on Manuscribe's start screen.
       ed.witnesses.length ? witnessTable(ed, list, redraw) : U.el('p', { class: 'help' }, 'An edition brings together the transcriptions of several manuscripts of one text. Add them here: from this browser, or from XML or backup files.'),
       manyStreams ? U.el('details', { class: 'nv-fold', dataset: { fold: 'works' } }, U.el('summary', null, 'Works: ' + ed.works.filter((w) => list.some((x) => x.p && Export.streamsUsed(x.p).some((k) => ((x.w.streams && x.w.streams[k]) || k) === w.id))).map((w) => w.title.toLowerCase()).join(', ') + ', in each witness'), streamTable(ed, list, redraw)) : null,
       ed.witnesses.length ? U.el('details', { class: 'nv-fold', dataset: { fold: 'ids' }, open: nProblems > 0 && nProblems < 8 }, U.el('summary', null, !ids ? 'No citation IDs yet' : nProblems ? 'Citation IDs: ' + nProblems + ' thing(s) to look at' : 'Citation IDs: ' + ids + ' block(s), in every witness'),
-        problems, coverageGrid(ed, reg, redraw)) : null,
+        problems, coverageGrid(ed, reg, redraw, list)) : null,
       ME.LayerIds.layered(ed) ? layersFold(ed, reg, redraw) : null);
   }
 

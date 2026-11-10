@@ -818,6 +818,12 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
   same text. Below it are the IDs to look at: a block whose parent no witness has, a layer whose parent layer is
   missing, two layers with one abbreviation, and IDs that look meant as layer IDs but are not (`c3` without its
   `-1`).
+- **The citation IDs stand as in the manuscript.** With *All* chosen in the Witnesses step, and at *All layers*
+  in Collate, the blocks of the base and of the commentaries come in one list in the order the most trusted
+  witness has them (a block only another witness has follows the block before it), each commentary block with its
+  [abbreviation]. A block amiss among its neighbours is highlighted, and the pointer on its row says what is
+  wrong: a commentary block whose base block no witness has, one on the wrong side of its base (a `-0` block
+  introduces its passage and stands before it; the others follow it), or blocks out of their numerical order.
 - **Collate** in a layered edition starts at **All layers**: one table of every layer's blocks, each commentary
   block with its [abbreviation], and one Collate for all of them. Each layer is still collated on its own, with only
   its own text, so a witness that lacks one commentary is absent from that one only. The work menu also offers each

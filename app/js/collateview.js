@@ -114,10 +114,13 @@
     CollateView.work = works.some((k) => k.id === CollateView.work) ? CollateView.work : (works.find((k) => k.id === CollateView.ALL || blocksOf(k.id).length) || works[0]).id;
     const workId = CollateView.work;
     const all = workId === CollateView.ALL;
-    // the blocks in view: of one work, or of every layer, each with its layer's [abbreviation]
-    const items = (all ? layerWorks.map((k) => k.id) : [workId]).flatMap((wk) => blocksOf(wk).map((id) => ({ work: wk, id })));
-    const ids = items.map((x) => x.id);
+    // the blocks in view: of one work; or of every layer, as they stand in the manuscript, each with its layer's
+    // [abbreviation], and a block without its base block, on the wrong side of it or out of order highlighted
     const workIds = all ? layerWorks.map((k) => k.id) : [workId];
+    const items = all ? Edition.manuscriptOrder(ed, list).filter((x) => workIds.includes(x.work)) : blocksOf(workId).map((id) => ({ work: workId, id }));
+    if (all) for (const wk of workIds) for (const id of blocksOf(wk)) if (!items.some((x) => x.work === wk && x.id === id)) items.push({ work: wk, id });
+    const amiss = items.filter((x) => x.problem).length;
+    const ids = items.map((x) => x.id);
     const kind = Collate.tokenKind(ed);
     const pick = U.el('select', { 'aria-label': 'Work to collate', onchange: () => { CollateView.work = pick.value; redraw(); } }, works.map((k) => U.el('option', { value: k.id, selected: k.id === workId }, k.title)));
     const tok = U.el('select', { 'aria-label': 'Align by', onchange: async () => { ed.collate = Object.assign({}, ed.collate, { tokens: tok.value }); await Edition.save(ed); redraw(); } },
@@ -138,7 +141,7 @@
     const samplesOf = (wk) => new Set((ed.samples && ed.samples[wk]) || []);
     const full = F.on('agreement');
     const num = (v) => U.el('td', { class: 'num' }, v === undefined || v === null || v === '' ? '' : String(v));
-    const rows = items.map(({ work: wk, id }) => {
+    const rows = items.map(({ work: wk, id, problem }) => {
       const s = summaries.get(Collate.keyOf(ed.id, wk, id));
       const st = statusOf(ed, list, s);
       const cb = U.el('input', { type: 'checkbox', checked: samplesOf(wk).has(id), 'aria-label': 'Use ' + id + ' as a sample passage', onchange: async () => {
@@ -153,11 +156,12 @@
       const idCell = U.el('td', { class: 'cv-unit' }, tag, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, wk, id, redraw) }, id) : id);
       const state = U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text));
       const has = s && s.words !== undefined;
-      return U.el('tr', null, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''), U.el('td', { class: 'cv-progress-cell' }, has ? CollateView.progress(s.settled, s.differ) : null), num(s && s.review ? s.review : ''),
+      return U.el('tr', { class: problem ? 'cv-bad' : '', title: problem || null }, full ? U.el('td', null, cb) : null, idCell, state, num(has ? s.words : ''), num(has ? s.differ : ''), U.el('td', { class: 'cv-progress-cell' }, has ? CollateView.progress(s.settled, s.differ) : null), num(s && s.review ? s.review : ''),
         ...(full ? [num(s ? s.labels : ''), num(has ? s.ties : ''), num(s && s.corrections ? s.corrections : ''), num(s && s.accuracy ? (100 * s.accuracy.recall).toFixed(1) + '%' : '')] : []));
     });
     const heads = (full ? ['Sample'] : []).concat(['Block', '', 'Words', 'Words that differ', 'Decided', 'To review'], full ? ['Rows', 'Ties', 'Corrections', 'Aligner against your reading'] : []);
-    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, U.el('table', { class: 'ed-table ed-boxed' + (full ? ' has-sample' : '') },
+    const amissNote = amiss ? U.el('p', { class: 'ed-warn' }, amiss + ' block(s) highlighted: a commentary block without its base block, on the wrong side of it, or out of order; the pointer on a row says which.') : null;
+    const table = ids.length ? U.el('div', { class: 'ed-scroll cv-units' }, amissNote, U.el('table', { class: 'ed-table ed-boxed' + (full ? ' has-sample' : '') },
       U.el('thead', null, U.el('tr', null, heads.map((h) => U.el('th', { title: h === 'Aligner against your reading' ? 'In blocks you have marked as read: of the letters you have in one column, how many the aligner had there too' : h === 'Ties' ? 'Places where witnesses tie, so your trust order decides' : null }, h)))),
       U.el('tbody', null, rows))) : U.el('p', { class: 'help' }, 'This work has no citation IDs yet, so there is nothing to collate. Mark paragraphs and verses in the witnesses, with the same xml:id across witnesses.');
     const anyTable = [...summaries.values()].some((s) => workIds.includes(s.work));
