@@ -76,36 +76,44 @@
       const tierOf = (e) => (e.kind === 'testimonium' ? null : e.kind === 'orthographic' ? (orthographica.includes(e) ? 'D' : null) : singular.includes(e) ? 'C' : 'A');
       const testis = (e) => (e && e.testimonia && e.testimonia.length ? '\\Bfootnote{' + tex(e.testimonia.map(ME.Layers.formatEvidence).join('; ')) + '}' : '');
       const byFrom = new Map(b.entries.map((e) => [e.fromId, e]));
-      const pieces = []; // {text, notes: [tex]}
-      for (const u of b.proposal.units) {
+      const pieces = []; // {text, notes: [tex], qOpen, qClose}
+      // a quotation opens before the first word it covers and closes after the last (whole words), in a shade of blue
+      const quotes = b.quotes || [];
+      let pendOpen = 0;
+      b.proposal.units.forEach((u, ui) => {
         const e = byFrom.get(u.fromId);
         const tier = e && tierOf(e);
         const d = e && e.decision;
+        const qOpen = quotes.filter((q) => q.from.ui === ui).length + pendOpen, qClose = quotes.filter((q) => q.to.ui === ui).length;
+        pendOpen = 0;
         const reason = d && (d.reasons || d.note || d.source) ? '\\Efootnote{' + tex([d.type === 'selectio' ? 'chosen' : d.type, d.source, ...(d.reasons || []), d.note].filter(Boolean).join('; ')) + '}' : '';
         if (e && tier && e.kind === 'addition' && pieces.length) {
           // an addition is noted on the word before it
           const printed = A.format(ed, e);
           const prevWord = (e.prev || '').split(' ').pop();
           pieces[pieces.length - 1].notes.push({ lemma: prevWord, note: '\\' + tier + 'footnote{' + texEntry(printed.replace(/^\S+\s+\S+\s+/, '')) + '}' + reason });
-          continue;
+          pendOpen = qOpen;
+          pieces[pieces.length - 1].qClose += qClose;
+          return;
         }
-        const piece = { text: u.text, notes: [], unsure: d && d.confidence === 'low', crux: d && d.crux };
+        const piece = { text: u.text, notes: [], unsure: d && d.confidence === 'low', crux: d && d.crux, qOpen, qClose };
         if (e && tier) {
           const printed = A.format(ed, e);
           const cut = printed.indexOf(' ]');
           piece.notes.push({ lemma: cut >= 0 ? printed.slice(0, cut) : '', note: '\\' + tier + 'footnote{' + texEntry(cut >= 0 ? printed.slice(cut + 2).trim() : printed) + '}' + reason + testis(e) });
         } else if (testis(e)) piece.notes.push({ lemma: '', note: testis(e) });
         pieces.push(piece);
-      }
+      });
       const body = pieces.map((p) => {
-        if (!p.notes.length && !p.unsure && !p.crux) return tex(p.text);
+        const open = '\\textcolor{quote}{'.repeat(p.qOpen || 0), shut = '}'.repeat(p.qClose || 0);
+        if (!p.notes.length && !p.unsure && !p.crux) return open + tex(p.text) + shut;
         const lead = (p.text.match(/^\s*/) || [''])[0], tail = (p.text.match(/\s*$/) || [''])[0];
         let core = tex(p.text.trim());
         if (p.crux) core = '†' + core + '†';
         if (p.unsure) core = '\\uwave{' + core + '}';
         // reledmac takes one note per series: further ones nest
         for (const n of p.notes) core = '\\edtext{' + core + '}{' + (n.lemma ? '\\lemma{' + texEntry(n.lemma) + '}' : '') + n.note + '}';
-        return tex(lead) + core + tex(tail);
+        return open + tex(lead) + core + tex(tail) + shut;
       }).join('');
       return '\\pstart\n\\noindent\\textbf{' + tex(b.table.unit) + '}\\quad ' + body.trim() + '\n\\pend';
     });
@@ -120,6 +128,7 @@
       // itself, rather than a line off the page
       + '\\emergencystretch=3em\\tolerance=1000\n'
       + '\\usepackage[normalem]{ulem}\n'
+      + '\\usepackage{xcolor}\\definecolor{quote}{RGB}{31,78,140}\n'
       // the edition's version and Manuscribe's at the foot of every page, under the page number
       + (bare ? '' : '\\makeatletter\\def\\@oddfoot{\\hfil\\thepage\\hfil\\llap{\\raisebox{-2.2ex}[0pt][0pt]{\\makebox[\\textwidth][c]{\\scriptsize ' + tex(Publish.versions(ed)) + '}}}}\\let\\@evenfoot\\@oddfoot\\makeatother\n')
       + '\\usepackage{reledmac}\n'
@@ -254,7 +263,7 @@
     const linkOf = (unit) => (layered ? layered.links.find((l) => l.unit === unit) : null);
     return {
       base: layered ? { title: layered.title } : null,
-      indices: ME.Concord ? { words: ME.Concord.wordIndex(built).map((w) => [w.word, w.refs]), padas: ME.Concord.padaIndex(built).map((p) => [p.pada, p.ref]) } : null,
+      indices: ME.Concord ? { words: ME.Concord.wordIndex(built).map((w) => [w.word, w.refs]), padas: ME.Concord.padaIndex(built).map((p) => [p.pada, p.ref]), quotes: ME.Concord.quoteIndex(built).map((q) => [q.text, q.ref, q.work]), byWork: ME.Concord.quotesByWork(built).map((g) => [g.work, g.quotes.map((q) => [q.text, q.ref])]) } : null,
       title: ed.title || 'Edition', citation: Publish.citation(ed), principles: Publish.declaration(ed, built), conspectus: Publish.conspectus(ed, list),
       sigla: ed.witnesses.map((w) => w.siglum),
       blocks: built.map((b) => {
@@ -262,7 +271,8 @@
         const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
         return {
           id: b.table.unit,
-          layer: b.layer && b.layer.depth ? { depth: b.layer.depth, abbr: b.layer.abbr, name: b.layer.name } : null,
+          layer: b.layer && (b.layer.depth || b.layer.abbr) ? { depth: b.layer.depth, abbr: b.layer.abbr || '', name: b.layer.name } : null,
+          quotes: (b.quotes || []).map((q) => ({ from: q.from.ui, to: q.to.ui, work: q.work || '', n: q.n || '' })),
           base: linkOf(b.table.unit) ? linkOf(b.table.unit).base.map((x) => [x, layered.texts[x] || '']).filter((x) => x[1]) : [],
           units: b.proposal.units.map((u) => { const i = byFrom.get(u.fromId); return i === undefined ? [u.text] : [u.text, i]; }),
           entries: b.entries.map((e) => ({
@@ -310,8 +320,12 @@
       let html = '';
       D.blocks.forEach((b, bi) => {
         let text = '';
-        b.units.forEach(([t, i]) => {
-          if (i === undefined) { text += esc(t); return; }
+        // a quotation, in blue, from the first word it covers to the last
+        const qs = b.quotes || [];
+        const qOpen = (ui) => qs.filter((q) => q.from === ui).map((q) => '<span class="quote" title="' + esc(q.work ? 'Quotation from ' + q.work + (q.n ? ' ' + q.n : '') : 'Quotation') + '">').join('');
+        const qClose = (ui) => '</span>'.repeat(qs.filter((q) => q.to === ui).length);
+        b.units.forEach(([t, i], ui) => {
+          if (i === undefined) { text += qOpen(ui) + esc(t) + qClose(ui); return; }
           const e = b.entries[i];
           const lead = (t.match(/^\s*/) || [''])[0], tail = (t.match(/\s*$/) || [''])[0];
           let shown = t.trim();
@@ -320,12 +334,12 @@
           if (state.view !== 'edited') shown = witnessText(e, state.view);
           else if (state.swapped[key] !== undefined) { shown = state.swapped[key]; cls += ' swapped'; }
           const hidden = (e.kind === 'orthographic' && !state.orth) || (e.singular && !state.singular);
-          if (hidden && state.view === 'edited' && state.swapped[key] === undefined) { text += esc(t); return; }
+          if (hidden && state.view === 'edited' && state.swapped[key] === undefined) { text += qOpen(ui) + esc(t) + qClose(ui); return; }
           if (e.decision) cls += ' decided';
           if (e.decision && e.decision.confidence === 'low') cls += ' unsure';
           if (state.heat) cls += ' heat' + Math.min(4, e.readings.length + (e.missing.length ? 1 : 0));
           if (e.decision && e.decision.crux && state.view === 'edited') shown = '†' + shown + '†';
-          text += esc(lead) + '<span class="' + cls + '" data-k="' + key + '">' + (shown ? esc(shown) : '<span class="om">‸</span>') + '</span>' + esc(tail);
+          text += qOpen(ui) + esc(lead) + '<span class="' + cls + '" data-k="' + key + '">' + (shown ? esc(shown) : '<span class="om">‸</span>') + '</span>' + esc(tail) + qClose(ui);
         });
         const items = b.entries.map((e, i) => {
           if ((e.kind === 'orthographic' && !state.orth) || (e.singular && !state.singular)) return '';
@@ -335,9 +349,9 @@
         // a commentary of a layered edition: set in by its depth, with its [abbreviation] first
         const L = b.layer;
         const lay = L ? ' style="margin-inline-start:' + (L.depth * 1.6) + 'em;font-size:' + Math.max(0.78, 1 - L.depth * 0.07).toFixed(2) + 'em"' : '';
-        const abbr = L ? '<b class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</b> ' : '';
+        const abbr = L && L.abbr ? '<b class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</b> ' : '';
         // no internal reference is shown: the block's id is only its anchor
-        html += '<section class="block' + (L ? ' layer' : '') + '" id="b-' + esc(b.id) + '"' + lay + '>' + mula + '<p class="txt">' + abbr + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
+        html += '<section class="block' + (L && L.depth ? ' layer' : '') + '" id="b-' + esc(b.id) + '"' + lay + '>' + mula + '<p class="txt">' + abbr + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
       });
       main.innerHTML = html;
       if (state.open) showPanel(state.open);
@@ -452,6 +466,7 @@ ol.app li { padding: 2px 4px; border-radius: 4px; }
 ol.app li.orth { color: var(--muted); } ol.app li.single { font-style: italic; }
 ol.app li.testis, .testis { color: #5b4a8a; }
 .labl { color: #8c2a17; }
+.quote { color: #1f4e8c; }
 .block.layer { border-inline-start: 2px solid var(--line); padding-inline-start: 10px; }
 blockquote.mula { margin: 4px 0 8px; padding: 4px 12px; border-left: 3px solid var(--line); font-size: 17px; color: #4a3f30; }
 .indices ul { columns: 3 220px; list-style: none; padding: 0; font-size: 15px; } .indices li { break-inside: avoid; }
@@ -507,7 +522,10 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + (stars.length ? '<div class="front"><h2>Additional passages</h2>' + stars.map((x) => '<p><b>' + esc(x.id) + '</b> (' + esc(x.wits.join(' ')) + '): ' + esc(x.text) + '</p>').join('') + '</div>\n' : '')
       + (data.indices && data.indices.words.length ? '<div class="front indices"><details><summary>Indices</summary>'
         + (data.indices.padas.length ? '<h2>Pādas</h2><ul>' + data.indices.padas.map(([p, r]) => '<li>' + esc(p) + ' <span class="ref">' + esc(r) + '</span></li>').join('') + '</ul>' : '')
-        + '<h2>Words</h2><ul>' + data.indices.words.map(([w, r]) => '<li>' + esc(w) + ' <span class="ref">' + esc(r.join(', ')) + '</span></li>').join('') + '</ul></details></div>\n' : '')
+        + '<h2>Words</h2><ul>' + data.indices.words.map(([w, r]) => '<li>' + esc(w) + ' <span class="ref">' + esc(r.join(', ')) + '</span></li>').join('') + '</ul>'
+        + (data.indices.quotes && data.indices.quotes.length ? '<h2>Quotations</h2><ul>' + data.indices.quotes.map(([t, r, w]) => '<li>' + esc(t) + ' <span class="ref">' + esc(r + (w ? ' · ' + w : '')) + '</span></li>').join('') + '</ul>'
+          + '<h2>Quotations by work</h2>' + data.indices.byWork.map(([w, qs]) => '<h3>' + esc(w || 'Work not named') + '</h3><ul>' + qs.map(([t, r]) => '<li>' + esc(t) + ' <span class="ref">' + esc(r) + '</span></li>').join('') + '</ul>').join('') : '')
+        + '</details></div>\n' : '')
       + '<footer class="cite">' + esc(data.citation) + '</footer>\n'
       + '<script type="application/json" id="edition-data">' + json + '</script>\n'
       + '<script>(' + reader.toString().replace(/<\/script/gi, '<\\/script') + ')();</' + 'script>\n</body>\n</html>\n';

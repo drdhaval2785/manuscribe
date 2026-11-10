@@ -151,8 +151,8 @@
         await Edition.save(ed);
         redraw();
       } });
-      const code = LI.codeOf(wk);
-      const tag = code && code !== LI.BASE ? U.el('span', { class: 'ly-abbr-tag', style: 'margin-inline-start: ' + ((code.length - 1) * 0.9) + 'em', title: LI.name(ed, code) }, '[' + LI.abbr(ed, code) + '] ') : null;
+      const code = LI.codeOf(wk), ab = code ? LI.shownAbbr(ed, code) : '';
+      const tag = ab ? U.el('span', { class: 'ly-abbr-tag', style: 'margin-inline-start: ' + (code === LI.BASE ? 0 : (code.length - 1) * 0.9) + 'em', title: LI.name(ed, code) }, '[' + ab + '] ') : null;
       const idCell = U.el('td', { class: 'cv-unit' }, tag, s ? U.el('button', { class: 'link', title: 'Open the block', dataset: { action: 'open-block' }, onclick: () => CollateView.open(ed, list, wk, id, redraw) }, id) : id);
       const state = U.el('td', null, U.el('span', { class: 'ed-tag ' + st.cls }, st.text));
       const has = s && s.words !== undefined;
@@ -710,13 +710,13 @@
   CollateView.layeredView = function (ed, woven) {
     const A = ME.Apparatus, LI = ME.LayerIds;
     const plain = (s) => String(s).replace(/<\/?sup>/g, '');
-    const legend = U.el('p', { class: 'lw-legend' }, LI.legend(ed).filter((l) => l.depth).map((l) => U.el('span', { style: 'margin-inline-start: ' + ((l.depth - 1) * 1.2) + 'em' }, U.el('b', null, '[' + l.abbr + ']'), ' ' + l.name)));
+    const legend = U.el('p', { class: 'lw-legend' }, LI.legend(ed).filter((l) => l.abbr).map((l) => U.el('span', { style: 'margin-inline-start: ' + (Math.max(0, l.depth - 1) * 1.2) + 'em' }, U.el('b', null, '[' + l.abbr + ']'), ' ' + l.name)));
     const blocks = woven.map((b) => {
       const L = b.layer;
       const entries = b.entries.filter((e) => e.kind !== 'orthographic');
       return U.el('section', { class: 'lw-block lw-d' + Math.min(L.depth, 6), dataset: { layer: L.code, unit: b.table.unit }, style: 'margin-inline-start: ' + (L.depth * 1.6) + 'em' },
         U.el('div', { class: 'lw-id' }, b.table.unit),
-        U.el('p', { class: 'lw-text' }, L.depth ? U.el('span', { class: 'lw-abbr', title: L.name }, '[' + L.abbr + ']') : null, L.depth ? ' ' : null, b.text.trim()),
+        U.el('p', { class: 'lw-text' }, L.abbr ? U.el('span', { class: 'lw-abbr', title: L.name }, '[' + L.abbr + ']') : null, L.abbr ? ' ' : null, b.text.trim()),
         entries.length ? U.el('ol', { class: 'lw-app' }, entries.map((e) => U.el('li', null, plain(A.format(ed, e))))) : null);
     });
     return U.el('div', { class: 'lw' }, legend, blocks);

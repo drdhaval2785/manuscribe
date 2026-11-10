@@ -118,7 +118,7 @@
     const emit = (n) => {
       for (const c of sort(n.pre)) emit(c);
       const depth = n.code === LI.BASE ? 0 : n.code.length;
-      out.push(Object.assign({}, n.b, { layer: { code: n.code, depth, abbr: depth ? LI.abbr(ed, n.code) : '', name: LI.name(ed, n.code) } }));
+      out.push(Object.assign({}, n.b, { layer: { code: n.code, depth, abbr: LI.shownAbbr(ed, n.code), name: LI.name(ed, n.code) } }));
       for (const c of sort(n.post)) emit(c);
     };
     for (const b of byCode.get(LI.BASE) || []) emit(nodes.get(key(LI.BASE, b.table.unit)));
@@ -128,13 +128,15 @@
 
   // The layers in the order they are shown, for a legend: [{code, depth, abbr, name}]
   LI.legend = (ed) => ((ed && ed.layers) || []).slice().sort((x, y) => (x.code === LI.BASE ? -1 : y.code === LI.BASE ? 1 : LI.order(ed, x.code, y.code)))
-    .map((l) => ({ code: l.code, depth: l.code === LI.BASE ? 0 : l.code.length, abbr: l.code === LI.BASE ? '' : LI.abbr(ed, l.code), name: LI.name(ed, l.code) }));
+    .map((l) => ({ code: l.code, depth: l.code === LI.BASE ? 0 : l.code.length, abbr: LI.shownAbbr(ed, l.code), name: LI.name(ed, l.code) }));
 
   /* ---------- the register of layers: what each letter stands for ---------- */
 
   LI.layered = (ed) => !!(ed && ed.layers && ed.layers.length);
   LI.layer = (ed, code) => ((ed && ed.layers) || []).find((l) => l.code === code) || null;
   LI.abbr = (ed, code) => { const l = LI.layer(ed, code); return l && l.abbr ? l.abbr : code.toUpperCase().slice(0, 2); };
+  // the letters printed in [ ] before a block of the layer: every commentary has some; the base only if given one
+  LI.shownAbbr = (ed, code) => { if (code !== LI.BASE) return LI.abbr(ed, code); const l = LI.layer(ed, code); return l && l.abbr ? l.abbr : ''; };
   LI.name = (ed, code) => { const l = LI.layer(ed, code); return l && l.name ? l.name : LI.defaultName(code); };
   LI.defaultName = (code) => (code === LI.BASE ? 'Base text' : code.length === 1 ? 'Commentary ' + code : 'Sub-commentary ' + code + ' (on ' + code.slice(0, -1) + ')');
   // the order of the layers: as the editor has them, a new one after its parent's family
@@ -213,7 +215,7 @@
     for (const l of ed.layers) {
       const pc = LI.parentCode(l.code);
       if (pc && !LI.layer(ed, pc)) out.push({ id: l.code, text: 'layer ' + l.code + ' comments on ' + pc + ', which no witness has' });
-      if (l.code !== LI.BASE) { const why = LI.abbrProblem(l.abbr); if (why) out.push({ id: l.code, text: 'layer ' + l.code + ' ' + why }); }
+      if (l.code !== LI.BASE || l.abbr) { const why = LI.abbrProblem(l.abbr); if (why) out.push({ id: l.code, text: 'layer ' + l.code + ' ' + why }); }
     }
     const abbrs = new Map();
     for (const l of ed.layers) if (l.abbr) { if (abbrs.has(l.abbr)) out.push({ id: l.code, text: 'layers ' + abbrs.get(l.abbr) + ' and ' + l.code + ' share the abbreviation [' + l.abbr + ']' }); else abbrs.set(l.abbr, l.code); }

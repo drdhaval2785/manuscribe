@@ -24,18 +24,26 @@
   const builder = () => ({ dip: '', runs: [], gaps: [], lastLine: null });
 
   /* Reads the lines of the given streams. -> {blocks: Map(id or null -> block), account, unreadable}
-     A block: {id, auto, repeated, ac, pc, marginal: [...], editorial: [...], first: {label, box, i}}. */
+     quotes    the quotations marked (<quote>, as q-start / q-end markers): where each begins and ends in the text after
+               correction, and from what work
+     A block: {id, auto, repeated, ac, pc, marginal: [...], editorial: [...], quotes: [...], first: {label, box, i}}. */
   function* readSteps(project, keys, opts) {
     const ignore = new Set((opts && opts.ignoreTags) || Norm.IGNORE_TAGS);
     // notes tied to no place in the text (the name of the work, a folio number: the types listed in the witness's
     // settings) are the scribe's, but belong in no apparatus: marked loose
     const loose = new Set(String((project.settings && project.settings.noAnchorIds) || '').split(/[\s,;]+/).filter(Boolean));
+    // the work a quotation is from, by the ids of the witness's cited works: its title (and author), and its short label
+    const workOf = (ids) => {
+      const ws = String(ids || '').split(/\s+/).filter(Boolean).map((id) => (project.works || []).find((w) => w.id === id)).filter(Boolean);
+      const name = (w) => [w.title && w.title !== 'Unknown' ? w.title : '', w.author && w.author !== 'Unknown' ? w.author : ''].filter(Boolean).join(', ') || w.abbr || '';
+      return { work: ws.map(name).filter(Boolean).join('; '), abbr: ws.map((w) => w.abbr).filter(Boolean).join(' + ') };
+    };
     const blocks = new Map();
     const account = { total: 0, shared: 0, acOnly: 0, pcOnly: 0, marginal: 0, editorial: 0 };
     const unreadable = [];
 
     const blockFor = (id) => {
-      if (!blocks.has(id)) blocks.set(id, { id, auto: !!id && /-auto\d+$/.test(id), repeated: false, ac: builder(), pc: builder(), marginal: [], editorial: [], first: null, lines: 0 });
+      if (!blocks.has(id)) blocks.set(id, { id, auto: !!id && /-auto\d+$/.test(id), repeated: false, ac: builder(), pc: builder(), marginal: [], editorial: [], quotes: [], first: null, lines: 0 });
       return blocks.get(id);
     };
 
@@ -109,6 +117,8 @@
               else if (a.type === 'p-end') { para = null; verse = null; }
               else if (a.type === 'lg-start') verse = a.id || null;
               else if (a.type === 'lg-end') verse = null;
+              else if (a.type === 'q-start') { const blk = current(); blk.quotes.push(Object.assign({ at: blk.pc.dip.length, end: null, source: a.source || '', n: a.n || '' }, workOf(a.source))); }
+              else if (a.type === 'q-end') { const blk = current(); const q = blk.quotes.slice().reverse().find((x) => x.end === null); if (q) q.end = blk.pc.dip.length; }
               else if (a.type === 'l') {
                 // a new verse line is a word break, whatever the spacing around it
                 const blk = current();
@@ -183,6 +193,8 @@
         yield;
       }
     }
+    // a quotation still open at the end of its block ends there (one over a block's end is cut at the export too)
+    for (const b of blocks.values()) for (const q of b.quotes) if (q.end === null) q.end = b.pc.dip.length;
     return { blocks, account, unreadable };
   }
 
@@ -291,7 +303,7 @@
         const unit = units.get(id);
         if (b.repeated) unit.repeatedIn.push(w.siglum);
         const make = (src, layer) => Object.assign(
-          { siglum: w.siglum, layer, label: layer === 'base' ? w.siglum : w.siglum + layer, marginal: b.marginal, editorial: b.editorial },
+          { siglum: w.siglum, layer, label: layer === 'base' ? w.siglum : w.siglum + layer, marginal: b.marginal, editorial: b.editorial, quotes: b.quotes },
           Tokens.state(src, { kind: o.kind, rules, declared: w.declare, prefix: w.siglum + (layer === 'base' ? '' : layer) + '.' + id + '.' }));
         const same = b.ac.dip === b.pc.dip && JSON.stringify(b.ac.gaps.map((g) => g.at)) === JSON.stringify(b.pc.gaps.map((g) => g.at));
         if (same) unit.states.push(make(b.pc, 'base'));

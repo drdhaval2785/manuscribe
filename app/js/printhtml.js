@@ -34,17 +34,19 @@
     const byMarkers = A.settings(ed).keys !== 'lines';
     const blocks = built.map((b) => {
       const markers = A.markers(ed, b);
-      const { text, anchors, unsure } = A.anchors(b);
-      // the text, with an anchor after each lemma
+      const { text, anchors, unsure, quotes } = A.anchors(b);
+      // the text, with an anchor after each lemma, the uncertain words and the quotations marked
       const cuts = [];
       for (const an of anchors) if (markers.has(an.i)) cuts.push({ at: an.empty ? an.start : an.at, k: markers.get(an.i) });
       for (const [f, t] of unsure) { cuts.push({ at: f, open: true }); cuts.push({ at: t, close: true }); }
+      for (const q of quotes || []) { cuts.push({ at: q.from, quote: q }); cuts.push({ at: q.to, close: true }); }
       cuts.sort((x, y) => x.at - y.at || (x.close ? -1 : 0) - (y.close ? -1 : 0));
       let html = '', pos = 0;
       for (const c of cuts) {
         html += esc(text.slice(pos, c.at));
         pos = c.at;
         if (c.open) html += '<span class="unsure">';
+        else if (c.quote) html += '<span class="quote" title="' + esc(c.quote.work ? 'Quotation from ' + c.quote.work + (c.quote.n ? ' ' + c.quote.n : '') : 'Quotation') + '">';
         else if (c.close) html += '</span>';
         else html += '<span class="an" data-k="' + c.k + '">' + (byMarkers ? '<sup>' + c.k + '</sup>' : '') + '</span>';
       }
@@ -64,8 +66,8 @@
       });
       // a layer of a layered edition: set in by its depth, with its [abbreviation] first
       const L = b.layer;
-      const lead = L && L.depth ? '<span class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</span> ' : '';
-      return { id: b.table.unit, html: lead + html.replace(/\s+/g, ' ').trim(), notes, depth: L ? L.depth : 0, layer: L && L.depth ? L.code : '', abbr: L && L.depth ? L.abbr : '' };
+      const lead = L && L.abbr ? '<span class="labl" title="' + esc(L.name) + '">[' + esc(L.abbr) + ']</span> ' : '';
+      return { id: b.table.unit, html: lead + html.replace(/\s+/g, ' ').trim(), notes, depth: L ? L.depth : 0, layer: L && L.depth ? L.code : '', abbr: L ? L.abbr || '' : '' };
     });
     const layered = blocks.some((b) => b.depth);
     const s = P.settings(ed);
@@ -179,10 +181,10 @@
     { const x = el('p', 'cite'); x.textContent = D.citation; front(x); }
     front(el('h2', null, 'Conspectus siglorum'));
     { const t = el('table', 'consp'); for (const r of D.conspectus) { const tr = el('tr'); const a = el('td', 'sig'); a.textContent = r.siglum; const b = el('td'); b.textContent = r.desc; tr.append(a, b); t.appendChild(tr); } front(t); }
-    if (D.layers.some((l) => l.depth)) {
-      front(el('h2', null, 'The commentaries'));
+    if (D.layers.some((l) => l.abbr)) {
+      front(el('h2', null, D.layers.some((l) => !l.depth && l.abbr) ? 'The text and its commentaries' : 'The commentaries'));
       const t = el('table', 'consp');
-      for (const l of D.layers.filter((x) => x.depth)) { const tr = el('tr'); const a = el('td', 'sig'); a.textContent = '[' + l.abbr + ']'; const b = el('td'); b.textContent = l.name; b.style.paddingInlineStart = ((l.depth - 1) * 1.2) + 'em'; tr.append(a, b); t.appendChild(tr); }
+      for (const l of D.layers.filter((x) => x.abbr)) { const tr = el('tr'); const a = el('td', 'sig'); a.textContent = '[' + l.abbr + ']'; const b = el('td'); b.textContent = l.name; b.style.paddingInlineStart = (Math.max(0, l.depth - 1) * 1.2) + 'em'; tr.append(a, b); t.appendChild(tr); }
       front(t);
     }
     front(el('h2', null, 'Editorial principles'));
@@ -393,6 +395,7 @@ body { font-family: var(--font); color: #1d1a16; }
 .d4 { margin-inline-start: calc(var(--size) * 5.4); } .d5 { margin-inline-start: calc(var(--size) * 6.4); } .d6 { margin-inline-start: calc(var(--size) * 7.2); }
 .txt.d1 { font-size: 0.93em; } .txt.d2 { font-size: 0.87em; } .txt.d3 { font-size: 0.82em; } .txt.d4, .txt.d5, .txt.d6 { font-size: 0.78em; }
 .labl { font-weight: 600; color: #8c2a17; }
+.quote { color: #1f4e8c; }
 .ser-layer .labl { margin-inline-end: 0.4em; }
 .an sup, .nk { color: #8c2a17; }
 .an sup a { color: inherit; text-decoration: none; }

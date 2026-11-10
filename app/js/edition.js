@@ -679,8 +679,8 @@ To open it, use Import edition package on Manuscribe's start screen.
       const LI = ME.LayerIds;
       const seq = Edition.manuscriptOrder(ed, list, reg).filter((x) => reg[x.work] && reg[x.work].order.length);
       for (const x of seq.slice(0, left)) {
-        const r = reg[x.work], code = LI.codeOf(x.work);
-        const mark = code && code !== LI.BASE ? U.el('span', { class: 'ly-abbr-tag', style: 'margin-inline-start: ' + ((code.length - 1) * 0.9) + 'em', title: LI.name(ed, code) }, '[' + LI.abbr(ed, code) + '] ')
+        const r = reg[x.work], code = LI.codeOf(x.work), ab = code ? LI.shownAbbr(ed, code) : '';
+        const mark = ab ? U.el('span', { class: 'ly-abbr-tag', style: 'margin-inline-start: ' + (code === LI.BASE ? 0 : (code.length - 1) * 0.9) + 'em', title: LI.name(ed, code) }, '[' + ab + '] ')
           : !code && works.length > 1 ? U.el('span', { class: 'ly-abbr-tag', title: r.work.title }, '[' + r.work.title.slice(0, 1).toUpperCase() + '] ') : null;
         if (x.problem) amiss++;
         body.push(U.el('tr', { class: x.problem ? 'cov-bad' : '', title: x.problem || null }, U.el('th', { class: 'unit' }, mark, x.id), sigla.map((sg) => cell(x.id, r.witnesses.find((y) => y.siglum === sg), r))));
@@ -834,7 +834,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     const rows = ed.layers.slice().sort((x, y) => (x.code === LI.BASE ? -1 : y.code === LI.BASE ? 1 : 0) || LI.order(ed, x.code, y.code)).map((l) => {
       const depth = l.code === LI.BASE ? 0 : l.code.length;
       const name = U.el('input', { type: 'text', value: l.name, 'aria-label': 'Name of layer ' + l.code, onchange: () => { LI.rename(ed, l.code, name.value); save(); } });
-      const abbr = l.code === LI.BASE ? U.el('span', { class: 'help' }, '—') : U.el('input', { type: 'text', class: 'ly-abbr', value: l.abbr || '', maxlength: 8, 'aria-label': 'Abbreviation of layer ' + l.code, onchange: () => { LI.rename(ed, l.code, undefined, abbr.value); save(); } });
+      const abbr = U.el('input', { type: 'text', class: 'ly-abbr', value: l.abbr || '', maxlength: 8, placeholder: l.code === LI.BASE ? 'none' : '', title: l.code === LI.BASE ? 'The base text may have letters of its own before its blocks, or none' : null, 'aria-label': 'Abbreviation of layer ' + l.code, onchange: () => { LI.rename(ed, l.code, undefined, abbr.value); save(); } });
       const sib = siblings(l.code), i = sib.indexOf(l);
       return U.el('tr', null,
         U.el('td', { class: 'ly-code', style: 'padding-inline-start: ' + (0.4 + depth * 1.1) + 'em' }, U.el('code', null, l.code)),
@@ -847,7 +847,7 @@ To open it, use Import edition package on Manuscribe's start screen.
     });
     return U.el('details', { class: 'nv-fold ly-fold', dataset: { fold: 'layers' }, open: problems.length > 0 && problems.length < 12 },
       U.el('summary', null, 'Layers: ' + ed.layers.length + (problems.length ? ' · ' + problems.length + ' thing(s) to look at' : '')),
-      U.el('p', { class: 'help' }, 'The IDs say which layer each block is in and what it comments on: b2.47 is the base, c2.47-1 a commentary on it, ca2.47-1-1 a commentary on c2.47-1. Name each layer here, and give it the one or two letters printed in [ ] before its blocks.'),
+      U.el('p', { class: 'help' }, 'The IDs say which layer each block is in and what it comments on: b2.47 is the base, c2.47-1 a commentary on it, ca2.47-1-1 a commentary on c2.47-1. Name each layer here, and give it the one or two letters printed in [ ] before its blocks; the base text may have some too, or none.'),
       U.el('div', { class: 'ed-scroll' }, U.el('table', { class: 'ed-table ed-boxed ly-table' },
         U.el('thead', null, U.el('tr', null, ['Letters', 'Layer', 'In [ ]', 'Blocks', 'Comments on', ''].map((h) => U.el('th', null, h)))),
         U.el('tbody', null, rows))),

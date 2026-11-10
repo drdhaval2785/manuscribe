@@ -130,8 +130,41 @@
       if (lemma) prevText = lemma;
     });
     if (oneWitness) mergeSole(entries);
-    return { entries, stars, text: P.text, proposal: P };
+    return { entries, stars, text: P.text, proposal: P, quotes: quotesOf(table, P) };
   };
+
+  /* The quotations marked in the witnesses, as stretches of the edited text: from the word (unit) a quotation begins
+     in to the word it ends in, with where in those words where the printed word is that witness's own (else the
+     whole word). One for each place a quotation begins, whichever witnesses mark it. -> [{source, n, work, abbr,
+     from: {ui, off}, to: {ui, off|null}}] */
+  function quotesOf(table, P) {
+    const out = [], seen = new Set();
+    const rangeOf = (st, m) => [st.from[m.k1], m.k2 + 1 < st.from.length ? st.from[m.k2 + 1] : st.dip.length];
+    const own = (u, label) => !!(u.winner && u.winner.form && u.winner.form.label === label);
+    P.units.forEach((u, ui) => {
+      for (const m of u.groups.flatMap((g) => g.members)) {
+        const st = table.states[m.label];
+        if (!m.votes || !st.quotes || !st.quotes.length || m.k1 > m.k2) continue;
+        const [from, to] = rangeOf(st, m);
+        for (const q of st.quotes) {
+          if (!(q.at >= from && q.at < to)) continue;
+          const k = q.source + '\u0000' + q.n + '\u0000' + ui;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          let eu = ui, eo = null;
+          for (let j = ui; j < P.units.length; j++) {
+            const mm = P.units[j].groups.flatMap((g) => g.members).find((x) => x.label === m.label);
+            if (!mm || mm.k1 > mm.k2) continue;
+            const [f2, t2] = rangeOf(st, mm);
+            eu = j;
+            if (q.end <= t2) { eo = own(P.units[j], m.label) ? q.end - f2 : null; break; }
+          }
+          out.push({ source: q.source, n: q.n, work: q.work || '', abbr: q.abbr || '', from: { ui, off: own(u, m.label) ? Math.max(0, q.at - from) : 0 }, to: { ui: eu, off: eo } });
+        }
+      }
+    });
+    return out;
+  }
 
   /* Words added, deleted or set aside together are one note, not one a word: entries of one witness on adjacent
      words, of the same kind and with nothing else to them, are joined (the note is then anchored after the last). */
@@ -330,7 +363,7 @@
   App_.anchors = function (b) {
     const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
     let text = '';
-    const anchors = [], crux = [], unsure = [];
+    const anchors = [], crux = [], unsure = [], starts = [];
     let open = null; // an entry over several words (joined): anchored after its last
     for (const u of b.proposal.units) {
       const i = byFrom.get(u.fromId);
@@ -344,9 +377,16 @@
       else if (e) anchors.push({ i, at: text.length + lead + core, start: text.length + lead, empty: !core });
       else if (open && open.toId === u.toId) { anchors.push({ i: open.i, at: text.length + lead + core, start: open.start, empty: open.empty && !core }); open = null; }
       if (d && d.confidence === 'low' && core) unsure.push([text.length + lead, text.length + lead + core]);
+      starts.push({ at: text.length + lead, core });
       text += t;
     }
-    return { text, anchors, crux, unsure };
+    // the quotations as stretches of the text: [from, to), the work quoted
+    const quotes = (b.quotes || []).map((q) => {
+      const s = starts[q.from.ui], e = starts[q.to.ui];
+      if (!s || !e) return null;
+      return { source: q.source, n: q.n, work: q.work, abbr: q.abbr, from: s.at + Math.min(q.from.off || 0, s.core), to: e.at + (q.to.off === null || q.to.off === undefined ? e.core : Math.min(Math.max(0, q.to.off), e.core)) };
+    }).filter((q) => q && q.to > q.from);
+    return { text, anchors, crux, unsure, quotes };
   };
 
   /* ---------- checks ---------- */

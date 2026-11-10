@@ -58,10 +58,10 @@
       out.push('## Conspectus siglorum', '', '| Siglum | Manuscript |', '|---|---|');
       for (const r of D.conspectus) out.push('| ' + cell(r.siglum) + ' | ' + cell(r.desc || '—') + ' |');
       out.push('');
-      const layers = (D.layers || []).filter((l) => l.depth);
+      const layers = (D.layers || []).filter((l) => l.abbr);
       if (layers.length) {
-        out.push('## The commentaries', '');
-        for (const l of layers) out.push('  '.repeat(l.depth - 1) + '- **[' + esc(l.abbr) + ']** ' + esc(l.name));
+        out.push(layers.some((l) => !l.depth) ? '## The text and its commentaries' : '## The commentaries', '');
+        for (const l of layers) out.push('  '.repeat(Math.max(0, l.depth - 1)) + '- **[' + esc(l.abbr) + ']** ' + esc(l.name));
         out.push('');
       }
       out.push('## Editorial principles', '');

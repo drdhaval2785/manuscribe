@@ -99,6 +99,30 @@
     return [...map].map(([word, refs]) => ({ word, refs })).sort((a, b) => collator.compare(a.word, b.word));
   };
 
+  /* Every quotation marked in the text, in the order of the alphabet by its words, with its place (block and word)
+     and the work it is from. built: as from Apparatus.entries. -> [{text, ref, work, abbr, n}] */
+  Concord.quoteIndex = function (built) {
+    const out = [];
+    for (const b of built) {
+      const { text, quotes } = ME.Apparatus.anchors(b);
+      for (const q of quotes || []) {
+        const t = text.slice(q.from, q.to).replace(/\s+/g, ' ').trim();
+        if (!t) continue;
+        const word = text.slice(0, q.from).split(/\s+/).filter(Boolean).length + 1;
+        out.push({ text: t, ref: b.table.unit + '.' + word, work: q.work || '', abbr: q.abbr || '', n: q.n || '' });
+      }
+    }
+    return out.sort((a, b) => collator.compare(a.text, b.text));
+  };
+
+  /* The same by the work quoted: the works in the order of the alphabet, the quotations of each likewise, those from
+     no named work last. -> [{work, quotes: [{text, ref, n}]}] */
+  Concord.quotesByWork = function (built) {
+    const by = new Map();
+    for (const q of Concord.quoteIndex(built)) { if (!by.has(q.work)) by.set(q.work, []); by.get(q.work).push(q); }
+    return [...by].map(([work, quotes]) => ({ work, quotes })).sort((a, b) => (a.work ? 0 : 1) - (b.work ? 0 : 1) || collator.compare(a.work, b.work));
+  };
+
   /* The pādas of the blocks that are verse, alphabetically, each with its verse and letter. -> [{pada, ref, metre}] */
   Concord.padaIndex = function (built) {
     const out = [];

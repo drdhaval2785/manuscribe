@@ -428,6 +428,11 @@ A quotation may run across lines and folios. Choose the work from the list, or t
   and press `+` to add the highlighted work (`nand` `+` `mala` Enter).
 - Each work's `xml:id` is its short label, made unique if needed.
 
+In an edition the quotations are kept: each is a stretch of the edited text, set in a shade of blue on the print
+page (and so in its PDF), in the reader and in the LaTeX (`\textcolor{quote}{…}`, the colour defined in the
+preamble), named for its work when the pointer rests on it; and they are indexed (see Indices). The work's title and
+author come from the cited works of the witness the quotation was marked in.
+
 ```xml
 <quote source="#NAND #MALA">…</quote>
 ```
@@ -817,8 +822,8 @@ the boxes of a tripāṭha or pañcapāṭha page: the ID says which layer a blo
 layered as soon as a witness has a commentary block by such an ID; IDs like `b1` alone are ordinary ones.
 
 - **Layers,** in the Witnesses step, lists the layers the witnesses use, each after its parent. Name each one, and
-  give it the one or two letters printed in [ ] before its blocks, such as [Ś]; ↑ and ↓ order commentaries on the
-  same text. Below it are the IDs to look at: a block whose parent no witness has, a layer whose parent layer is
+  give it the one or two letters printed in [ ] before its blocks, such as [Ś]; the base text may have some too
+  (one reader wants [M] before each verse), or none; ↑ and ↓ order commentaries on the same text. Below it are the IDs to look at: a block whose parent no witness has, a layer whose parent layer is
   missing, two layers with one abbreviation, and IDs that look meant as layer IDs but are not (`c3` without its
   `-1`).
 - **The citation IDs stand as in the manuscript.** With *All* chosen in the Witnesses step, and at *All layers*
@@ -886,7 +891,9 @@ carry both texts. Where blocks are linked, the apparatus window and the reader s
   or JSON (`[{"ref": …, "text": …}]`), and give its licence, which is shown with every passage found in it. A passage
   found can be added to the parallels. Texts brought in stay in this browser and are not put in the edition package.
 - **Indices:** every word of the edited text and every pāda of its verses, in the order of the Sanskrit alphabet, with
-  block and word or verse and pāda. They save as text and are in the reader.
+  block and word or verse and pāda; and the quotations, in the order of the alphabet with their place and the work
+  each is from, and again under the works quoted. They save as text and are in the reader. **Export › Index of
+  quotations** and **Quotations by cited work** give the two lists of quotations on their own.
 
 #### Correcting the letters
 

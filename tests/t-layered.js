@@ -234,6 +234,24 @@ const { launch, sleep, checks } = require('./h');
   T.check('each block names its layer; a commentary block points to the block it comments on', tei.c11 && tei.c11[0] === '#layer-c' && tei.c11[1] === '#w-b1' && tei.ca === '#w-c1-1' && tei.b1[0] === '#layer-b' && tei.b1[1] === null, tei);
   T.check('the header has the layers nested as they comment on one another, with their abbreviations', tei.nested && tei.abbr === 'Ś' && tei.titles.includes('commentary:Śaṅkara, Bhāṣya') && tei.titles.some((t) => /^base-text:/.test(t)), tei);
   T.check('and standOff has the same links, one for each commentary block that has a parent here (not ca2-5-1)', tei.links === 5 && tei.back === 3, tei);
+  // the base text may have letters of its own before its blocks, or none
+  const baseAbbr = await page.evaluate(async () => {
+    const ed = ME.Edition.current, LI = ME.LayerIds;
+    const reg = ME.Edition.register(ed, window.__list);
+    const none = { shown: LI.shownAbbr(ed, 'b'), legend: LI.legend(ed)[0].abbr, problems: LI.check(ed, reg).filter((x) => /layer b /.test(x.text)).length };
+    LI.rename(ed, 'b', undefined, 'M');
+    const works = (await ME.Release.works(ed, window.__list)).filter((w) => LI.codeOf(w.work.id));
+    const woven = LI.weave(ed, works);
+    const D = ME.PrintHTML.data(ed, window.__list, woven);
+    const some = { shown: LI.shownAbbr(ed, 'b'), legend: LI.legend(ed)[0].abbr, woven: woven.find((b) => b.table.unit === 'b1').layer.abbr, print: D.blocks.find((b) => b.id === 'b1').html.slice(0, 40), legendPrint: D.layers.map((l) => l.abbr + ' ' + l.name)[0], problems: LI.check(ed, reg).filter((x) => /layer b /.test(x.text)).length };
+    LI.rename(ed, 'b', undefined, 'MMM');
+    const long = LI.check(ed, reg).filter((x) => /layer b /.test(x.text)).map((x) => x.text);
+    LI.rename(ed, 'b', undefined, '');
+    return { none, some, long };
+  });
+  T.check('the base text has no letters before its blocks unless given some', baseAbbr.none.shown === '' && baseAbbr.none.legend === '' && baseAbbr.none.problems === 0, baseAbbr.none);
+  T.check('given [M], its blocks carry it in the woven text, the print page and the legend', baseAbbr.some.shown === 'M' && baseAbbr.some.legend === 'M' && baseAbbr.some.woven === 'M' && /^<span class="labl" title="Base text">\[M\]/.test(baseAbbr.some.print) && baseAbbr.some.legendPrint === 'M Base text' && baseAbbr.some.problems === 0, baseAbbr.some);
+  T.check('and three letters are told to be too many, as for a commentary', baseAbbr.long.length === 1 && /one or two letters/.test(baseAbbr.long[0]), baseAbbr.long);
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

@@ -153,7 +153,13 @@
   LayersView.indicesText = function (ed, built) {
     const words = ME.Concord.wordIndex(built), padas = ME.Concord.padaIndex(built);
     return ME.Publish.citation(ed) + '\n\nIndex of words\n' + words.map((w) => w.word + '  ' + w.refs.join(', ')).join('\n')
-      + (padas.length ? '\n\nIndex of pādas\n' + padas.map((p) => p.pada + '  ' + p.ref).join('\n') : '') + '\n';
+      + (padas.length ? '\n\nIndex of pādas\n' + padas.map((p) => p.pada + '  ' + p.ref).join('\n') : '')
+      + (ME.Concord.quoteIndex(built).length ? '\n\n' + LayersView.quotesText(ed, built, false) + '\n\n' + LayersView.quotesText(ed, built, true) : '') + '\n';
+  };
+  /* The quotations as text: in the order of the alphabet, each with its place and work; or by the work quoted. */
+  LayersView.quotesText = function (ed, built, byWork) {
+    if (!byWork) return 'Index of quotations\n' + ME.Concord.quoteIndex(built).map((q) => q.text + '  ' + q.ref + (q.work ? '  (' + q.work + (q.n ? ' ' + q.n : '') + ')' : '')).join('\n');
+    return 'Quotations by work\n' + ME.Concord.quotesByWork(built).map((g) => (g.work || 'Work not named') + '\n' + g.quotes.map((q) => '  ' + q.text + '  ' + q.ref + (q.n ? '  ' + q.n : '')).join('\n')).join('\n');
   };
 
   function indices(ed, built) {

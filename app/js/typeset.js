@@ -93,7 +93,7 @@
   /* The block's text as words. Each entry is anchored after its lemma (an omission or addition, after the word
      before it), and the word there carries the entry and, if notes are keyed by markers, its number. */
   function blockWords(ed, b, size, L, markers) {
-    const { text: raw, anchors, unsure } = ME.Apparatus.anchors(b);
+    const { text: raw, anchors, unsure, quotes } = ME.Apparatus.anchors(b);
     const text = raw.replace(/\s/g, ' ');
     const atoms = [];
     const re = /\S+/g;
@@ -108,7 +108,7 @@
       // the number is given on its page (1 on); two digits are kept for it meanwhile, so that lines do not grow
       if (markers && markers.has(an.i)) a.sup = (a.sup ? a.sup + ',' : '') + '88';
     }
-    for (const a of atoms) a.unsure = unsure.some(([f, t]) => f < a.to && t > a.from);
+    for (const a of atoms) { a.unsure = unsure.some(([f, t]) => f < a.to && t > a.from); a.quote = quotes.some((q) => q.from < a.to && q.to > a.from); }
     return atoms;
   }
 
@@ -119,7 +119,7 @@
   const seriesOf = (ed, b, e) => ME.Apparatus.series(ed, b, e);
 
   // colours of the print page: the block's reference, and the accent of markers, note numbers and [abbreviations]
-  const MUTED = [0.42, 0.35, 0.24], ACCENT = [0.55, 0.16, 0.09];
+  const MUTED = [0.42, 0.35, 0.24], ACCENT = [0.55, 0.16, 0.09], QUOTE = [0.12, 0.31, 0.55]; // quotations in a shade of blue
 
   // the atoms of one note, as on the print page: its number on the page (or its line), lemma ] readings
   function noteAtoms(ed, note, s, L, size) {
@@ -162,7 +162,7 @@
     let page = null, y = 0, pageNo = 0, overfull = 0, missing = 0;
     const layout = []; // for each page of the edition: its lines and its notes, to check that notes stay with their lines
     const left = () => o.inner;
-    const colourOf = (a) => (a.mark === 'unit' || a.mark === 'num' ? MUTED : a.mark === 'accent' ? ACCENT : null);
+    const colourOf = (a) => (a.mark === 'unit' || a.mark === 'num' ? MUTED : a.mark === 'accent' ? ACCENT : a.quote ? QUOTE : null);
     // where each note's number and each marker is drawn on this page, to link them both ways
     let marks = [], noteAt = new Map(), wordAt = new Map();
     const draw = (atoms, x0, base, unit) => {
@@ -231,10 +231,10 @@
       const desc = [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, r.script].filter(Boolean).join('; ') || '—';
       para(L.words(desc, cs), cs * 1.55, { ragged: true, tab: cs * 3.4, label: L.words(r.siglum + (r.group ? ' (' + r.group + ')' : ''), cs) });
     }
-    const legend = built.some((b) => b.layer && b.layer.depth) ? ME.LayerIds.legend(ed).filter((l) => l.depth) : [];
+    const legend = built.some((b) => b.layer && (b.layer.depth || b.layer.abbr)) ? ME.LayerIds.legend(ed).filter((l) => l.abbr) : [];
     if (legend.length) {
-      heading('The commentaries');
-      for (const l of legend) para(L.words(l.name, cs), cs * 1.55, { ragged: true, tab: cs * 3.4 + (l.depth - 1) * cs * 1.2, label: L.words('[' + l.abbr + ']', cs, { mark: 'accent' }) });
+      heading(legend.some((l) => !l.depth) ? 'The text and its commentaries' : 'The commentaries');
+      for (const l of legend) para(L.words(l.name, cs), cs * 1.55, { ragged: true, tab: cs * 3.4 + Math.max(0, l.depth - 1) * cs * 1.2, label: L.words('[' + l.abbr + ']', cs, { mark: 'accent' }) });
     }
     heading('Editorial principles');
     for (const p of ME.Publish.declaration(ed, built)) { para(L.words(p, cs), cs * 1.5, { running: ed.title }); gapY(mm(2)); }
@@ -321,8 +321,8 @@
       const bsize = size * SCALE[depth], blead = bsize * 1.55, indent = size * INDENT[depth];
       const markers = byMarkers ? ME.Apparatus.markers(ed, b) : null;
       const atoms = blockWords(ed, b, bsize, L, markers);
-      if (depth && b.layer.abbr) { if (atoms.length) atoms[0].gap = L.space(bsize); atoms.unshift({ t: '[' + b.layer.abbr + ']', size: bsize, rise: 0, gap: 0, mark: 'accent', entries: [] }); }
-      const abbr = depth ? b.layer.abbr : '';
+      if (b.layer && b.layer.abbr) { if (atoms.length) atoms[0].gap = L.space(bsize); atoms.unshift({ t: '[' + b.layer.abbr + ']', size: bsize, rise: 0, gap: 0, mark: 'accent', entries: [] }); }
+      const abbr = b.layer ? b.layer.abbr || '' : '';
       const note = (ei, bline, line) => ({ e: b.entries[ei], ei, line, bline, marker: markers ? markers.get(ei) : null, unit: b.table.unit, abbr, series: seriesOf(ed, b, b.entries[ei]) });
       const lines = L.lines(atoms, bodyW - indent, true);
       // the block's reference, kept with its first two lines
