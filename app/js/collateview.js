@@ -547,6 +547,12 @@
     ['secl', 'seclusit: excluded (one witness)', 'The witness has the word, and you have set it aside as surplus.', (a) => a.post + ' देव ] अधिक A (' + a.secl + ')'],
     ['unclear', 'ut videtur: as it seems (one witness)', 'You could not read the word with certainty.', (a) => 'चन्द्र ] A (' + a.unclear + ')'],
     ['sic', 'sic: thus (one witness)', 'The word is as found in the witness, left uncorrected.', (a) => 'गगन ] A (' + a.sic + ')'],
+    // the notes of the witnesses, and the editor's, at their place
+    ['noteMarg', 'adnotatio in margine: a note in the margin', 'The scribe, or a later hand, wrote a note in the margin by this word; its text follows.', (a) => 'राम ] ' + a.noteMarg + ' A: टिप्पणी'],
+    ['noteAbove', 'adnotatio supra lineam: a note above the line', 'The same, written above the line.', (a) => 'राम ] ' + a.noteAbove + ' A: टिप्पणी'],
+    ['noteBelow', 'adnotatio infra lineam: a note below the line', 'The same, written below the line.', (a) => 'राम ] ' + a.noteBelow + ' A: टिप्पणी'],
+    ['noteInline', 'adnotatio in linea: a note in the line', 'The same, written in the line itself.', (a) => 'राम ] ' + a.noteInline + ' A: टिप्पणी'],
+    ['noteEd', 'adnotatio editoris: the editor’s note', 'A note of yours in the transcription (resp="editorial", or in English): printed at its place.', (a) => 'राम ] ' + a.noteEd + ': see v. 12'],
   ];
 
   CollateView.apparatusSettings = function (ed, redraw, open) {

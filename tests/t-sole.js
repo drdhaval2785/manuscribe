@@ -19,6 +19,10 @@ const lines = [
   P('v10') + 'राम लक्ष\u0964\u094D', 'मण सीता \u0964\u094D हरि' + END,
   P('v11') + 'सूर्य चन्द<del rend="crossed out">\u0964\u094D</del>', ' र तारा' + END,
   P('v12') + 'अग्नि शोके <surplus>\u0964\u094D</surplus>', 'वायु' + END,
+  // the scribe's note by a word, the editor's note, and a note tied to no place (its type listed in the settings)
+  P('v13') + 'राम <note place="left-margin">टिप्पणी</note> सीता' + END,
+  P('v14') + 'हरि <note resp="editorial" xml:lang="en">see v. 12</note> शिव' + END,
+  P('v15') + 'कृष्ण <note place="top-margin" type="FR">folio 3</note> अर्जुन' + END,
 ];
 (async () => {
   const { browser, page } = await launch('sole', { fonts: true });
@@ -30,7 +34,7 @@ const lines = [
         const ed = Edition.create('t'), list = [];
         for (const s of sigla) {
           const p = Model.upgrade(Model.newProject({ meta: { title: s, siglum: s, textLang: 'sa-Deva' }, layoutType: 'linear', lines: { main: lines.length }, folios: {} }));
-          p.pdf = { name: 'x.pdf', pages: 1 }; p.pages = { '1r': { boxes: { main: lines.slice() } } };
+          p.pdf = { name: 'x.pdf', pages: 1 }; p.pages = { '1r': { boxes: { main: lines.slice() } } }; p.settings.noAnchorIds = 'FR';
           await Store.putProject(p);
           const w = { siglum: s, projectId: p.id, streams: {} }; ed.witnesses.push(w); list.push({ w, p });
         }
@@ -80,6 +84,9 @@ const lines = [
     T.check('the sign at the end of a line is dropped, and the word joined over the line', w.v10.text === 'राम लक्षमण सीता \u0964\u094D हरि', say(w.v10));
     T.check('in a tag too, and it makes no note', w.v11.text === 'सूर्य चन्दर तारा' && !w.v11.notes.length, say(w.v11));
     T.check('a space before the sign: the word had ended, and the two stay apart', w.v12.text === 'अग्नि शोके वायु' && !w.v12.notes.length, say(w.v12));
+    T.check('the scribe’s note by a word is in the apparatus, at that word, with where it was written', w.v13.text === 'राम सीता' && w.v13.notes.join() === 'राम ] adn. in marg. A: टिप्पणी', say(w.v13));
+    T.check('the editor’s note too, as the editor’s', w.v14.text === 'हरि शिव' && w.v14.notes.join() === 'हरि ] adn. ed.: see v. 12', say(w.v14));
+    T.check('a note tied to no place in the text (a type listed in the settings) is left out', w.v15.text === 'कृष्ण अर्जुन' && !w.v15.notes.length, say(w.v15));
     const l = out.letter.rows;
     T.check('collated by letters, the text is the same', Object.keys(w).every((k) => l[k].text === w[k].text), say(l));
     T.check('and the same blocks have their notes', Object.keys(w).every((k) => !!l[k].notes.length === !!w[k].notes.length) && l.v4.notes.every((n) => /em\./.test(n)), say([l.v2, l.v4]));
@@ -88,6 +95,7 @@ const lines = [
     const t = out.two.rows;
     T.check('with two witnesses, the scribes’ words are compared, and agreeing corrections are not noted', t.v4.text === 'हरि गगन शिव' && !t.v4.notes.length && t.v7.text === 'नर नारी' && !t.v2.notes.length, say([t.v4, t.v7, t.v2]));
     T.check('and the same with several witnesses', out.two.rows.v10.text === 'राम लक्षमण सीता \u0964\u094D हरि', say(out.two.rows.v10));
+    T.check('with several witnesses the notes are in the apparatus too, each witness’s own', /राम \] adn\. in marg\. A: टिप्पणी; adn\. in marg\. B: टिप्पणी/.test(out.two.rows.v13.notes.join()) && out.two.rows.v14.notes.join() === 'हरि ] adn. ed.: see v. 12; adn. ed.: see v. 12', say([out.two.rows.v13, out.two.rows.v14]));
     T.done(page);
   } finally { await browser.close(); }
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

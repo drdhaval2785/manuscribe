@@ -15,9 +15,11 @@
   // The last nine are for an edition of one witness, where the apparatus says what the scribe and the editor each did.
   App_.ABBREVIATIONS = {
     latin: { name: 'Latin', om: 'om.', add: 'add.', post: 'post', ante: 'ante', transp: 'transp.', lac: 'lac.', illeg: 'illeg.', ac: 'a.c.', pc: 'p.c.', em: 'em.', conj: 'conj.', omnes: 'omnes', rell: 'rell.', deest: 'deest', crux: '†',
-      addAbove: 'add. supra lin.', addBelow: 'add. infra lin.', addMarg: 'add. in marg.', addInline: 'add. in lin.', del: 'del.', suppl: 'suppl.', secl: 'secl.', unclear: 'ut vid.', sic: 'sic' },
+      addAbove: 'add. supra lin.', addBelow: 'add. infra lin.', addMarg: 'add. in marg.', addInline: 'add. in lin.', del: 'del.', suppl: 'suppl.', secl: 'secl.', unclear: 'ut vid.', sic: 'sic',
+      noteAbove: 'adn. supra lin.', noteBelow: 'adn. infra lin.', noteMarg: 'adn. in marg.', noteInline: 'adn. in lin.', noteEd: 'adn. ed.' },
     english: { name: 'English', om: 'omits', add: 'adds', post: 'after', ante: 'before', transp: 'transposes', lac: 'lost in', illeg: 'illegible in', ac: 'before correction', pc: 'after correction', em: 'emended', conj: 'conjectured', omnes: 'all', rell: 'the rest', deest: 'lacking', crux: '†',
-      addAbove: 'added above the line', addBelow: 'added below the line', addMarg: 'added in the margin', addInline: 'added in the line', del: 'deleted', suppl: 'supplied', secl: 'excluded', unclear: 'unclear', sic: 'sic' },
+      addAbove: 'added above the line', addBelow: 'added below the line', addMarg: 'added in the margin', addInline: 'added in the line', del: 'deleted', suppl: 'supplied', secl: 'excluded', unclear: 'unclear', sic: 'sic',
+      noteAbove: 'note above the line', noteBelow: 'note below the line', noteMarg: 'note in the margin', noteInline: 'note in the line', noteEd: 'editor’s note' },
   };
   App_.DEFAULTS = { polarity: 'auto', abbr: 'latin', groups: true, deest: true, orthographica: false, singular: false, star: 60, custom: null, keys: 'markers' };
   App_.settings = (ed) => Object.assign({}, App_.DEFAULTS, ed.apparatus || {});
@@ -62,6 +64,15 @@
       // spellings that differ where the witnesses agree: kept, for the TEI and an orthographica tier
       const spelled = !differs && !u.missing.length && u.groups.some((g) => new Set(g.members.filter((m) => m.votes).map((m) => letters(m.text))).size > 1);
       const hasEvidence = ME.Layers && ME.Layers.evidenceAt(ed, table.work, table.unit, u.key).length > 0;
+      /* The notes the witnesses have at this place - the scribe's in the margin or between the lines, and the
+         editor's - belong to the word they stand after (a note before the first word, to it). */
+      const notes = [];
+      for (const m of u.groups.flatMap((g) => g.members)) {
+        const st = table.states[m.label];
+        if (!m.votes || !st.notes || !st.notes.length || m.k1 > m.k2) continue;
+        const from = st.from[m.k1], to = m.k2 + 1 < st.from.length ? st.from[m.k2 + 1] : st.dip.length;
+        for (const n of st.notes) if ((n.at > from && n.at <= to) || (ui === 0 && n.at <= from)) notes.push({ wit: m.siglum, text: n.text, place: n.place || '', kind: n.kind });
+      }
       let sole = null;
       if (oneWitness && u.winner) {
         const pcM = u.winner.members.find((m) => m.votes) || null;
@@ -71,7 +82,7 @@
         const note = !differs && lemma ? ['unclear', 'sic'].find((f) => pcF.has(f)) : null;
         if (differs || note) sole = { pc: [...pcF], ac: [...acF], place: place ? place.slice(4) : null, note: note || null, added: pcM ? partOf(pcM, 'add') : null, deleted: acM ? partOf(acM, 'del') : null, ui };
       }
-      if (!differs && !u.missing.length && !spelled && !hasEvidence && !(sole && sole.note)) { prevText = lemma || prevText; return; }
+      if (!differs && !u.missing.length && !spelled && !hasEvidence && !(sole && sole.note) && !notes.length) { prevText = lemma || prevText; return; }
       const sig = (m) => m.siglum;
       const lemGroup = u.winner;
       const lemWits = lemGroup ? [...new Set(lemGroup.members.filter((m) => m.votes).map(sig))] : [];
@@ -96,13 +107,13 @@
         if (forms.size > 1) for (const [k, f] of forms) if (k !== letters(g.form.text)) orth.push({ text: f.text, wits: f.wits, of: trim(g.form.text) });
       }
       const missing = u.missing.filter((m) => m.layer !== 'ac').map((m) => ({ wit: m.siglum, why: WHY[m.why] || m.why, label: m.label, text: trim(m.text) })).filter((m, i, arr) => arr.findIndex((x) => x.wit === m.wit) === i);
-      const kind = sole && sole.note ? 'variant' : spelled && !hasEvidence ? 'orthographic' : !differs && !spelled && !u.missing.length ? 'testimonium' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
+      const kind = (sole && sole.note) || (notes.length && !differs && !spelled && !u.missing.length) ? 'variant' : spelled && !hasEvidence ? 'orthographic' : !differs && !spelled && !u.missing.length ? 'testimonium' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
       // inside a word: printed with hyphens, as -यांशज्या-
       // in a script written without spaces (Japanese, Chinese, Thai…) every place is between words: no hyphens
       const unspaced = Norm.UNSPACED.test(u.text + before);
       const inside = unspaced ? { left: false, right: false } : { left: ui > 0 && !ends(before), right: after && !ends(u.text) };
       const testimonia = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
-      const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId, sole };
+      const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, notes, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId, sole };
       // an addition before the first word of a block is placed by the word after it
       if (kind === 'addition' && !prevText) { const nx = P.units.slice(ui + 1).find((x) => trim(x.text)); entry.next = nx ? trim(nx.text) : ''; }
       // a long addition in few witnesses goes to an appendix, as a starred passage
@@ -184,6 +195,15 @@
 
   /* One entry, printed. -> string */
   App_.format = function (ed, e, opts) {
+    const main = formatMain(ed, e, opts);
+    if (!e.notes || !e.notes.length) return main;
+    const ab = App_.abbr(ed);
+    const key = { above: 'noteAbove', below: 'noteBelow', inline: 'noteInline' };
+    const notes = e.notes.map((n) => (n.kind === 'editorial' ? ab.noteEd + ': ' + trim(n.text) : ab[key[ME.TEI.placeOf('note', { place: n.place })] || 'noteMarg'] + ' ' + n.wit + ': ' + trim(n.text)));
+    // "lemma ] adn. in marg. A: …", not "lemma ]; adn. …"
+    return !main ? notes.join('; ') : /\]$/.test(main) ? main + ' ' + notes.join('; ') : main + '; ' + notes.join('; ');
+  };
+  function formatMain(ed, e, opts) {
     const s = Object.assign({}, App_.settings(ed), opts);
     const ab = App_.abbr(ed);
     const extant = ed.witnesses.map((w) => w.siglum).filter((x) => !e.missing.some((m) => m.wit === x));
@@ -243,7 +263,7 @@
     if (bits.length > 1 && /\]$/.test(bits[0])) { const first = bits.shift(); bits[0] = first + ' ' + bits[0]; }
     if (e.missing.some((m) => m.why === 'transp')) bits.push(ab.transp + ' ' + e.missing.filter((m) => m.why === 'transp').map((m) => m.wit).join(' '));
     return bits.join('; ');
-  };
+  }
 
   /* An entry of one witness, printed: what the scribe did is reported as the scribe's (an addition and where it was
      written, a deletion, a correction as before correction), and what the editor did as the editor's (emended,
@@ -456,6 +476,7 @@
         for (const m of lost) if (m.text) app += '<rdg wit="#' + a(idOf(m.wit)) + '" type="lacunose">' + x(m.text).replace(/‡/g, '<gap reason="lost"/>') + '</rdg>';
         if (lost.length) app += '<witDetail wit="' + wit(lost.map((m) => m.wit)) + '" type="' + (lost[0].why === 'illeg' ? 'illegible' : 'lacuna') + '"/>';
         for (const t of e.testimonia || []) app += '<note type="testimonium" subtype="' + a(t.type) + '">' + x(ME.Layers.formatEvidence(t)) + '</note>';
+        for (const n of e.notes || []) app += n.kind === 'editorial' ? '<note type="editorial">' + x(n.text) + '</note>' : '<note type="marginal" resp="#' + a(idOf(n.wit)) + '"' + (n.place ? ' place="' + a(n.place) + '"' : '') + '>' + x(n.text) + '</note>';
         if (d && (d.reasons || d.note)) app += '<note type="reason">' + x([...(d.reasons || []), d.note].filter(Boolean).join('; ')) + '</note>';
         app += '</app>';
         body += app + tail;

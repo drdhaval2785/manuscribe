@@ -250,6 +250,11 @@
   // Tokens with no normalised form cannot be aligned; a state has one only if all of it was ignored.
   const alignable = (st) => st.tokens.some((t) => t.n !== '');
 
+  // The notes a witness has in a block, each at its place in the text (an offset of the dip): the scribe's that are
+  // tied to a place (not a folio number or the like), and the editor's. On the text after correction.
+  const notesOf = (st) => (st.layer === 'ac' ? [] : [].concat(
+    (st.marginal || []).filter((m) => !m.loose && m.dip.trim()).map((m) => ({ at: m.anchor, text: m.dip.trim(), place: m.place || '', type: m.type || '', kind: 'scribal' })),
+    (st.editorial || []).filter((m) => m.dip.trim()).map((m) => ({ at: m.anchor, text: m.dip.trim(), kind: 'editorial' }))).sort((a, b) => a.at - b.at));
   const stateRecord = (st) => {
     const rules = {}, flags = {};
     st.tokens.forEach((t, k) => {
@@ -261,7 +266,7 @@
       ignored: st.runs.filter((r) => r.ignored && r.to > r.from).map((r) => [r.from, r.to]),
       gaps: (st.gaps || []).map((g) => ({ at: g.at, quantity: g.quantity })),
       runs: st.runs.filter((r) => r.to > r.from).map((r) => (r.sep ? { from: r.from, to: r.to, sep: true } : Object.assign({ from: r.from, to: r.to, folio: r.label, box: r.box, line: r.i, offs: r.offs }, r.flags && r.flags.length ? { flags: r.flags } : {}))),
-      from: st.tokens.map((t) => t.from), n: st.tokens.map((t) => t.n), rules, flags,
+      from: st.tokens.map((t) => t.from), n: st.tokens.map((t) => t.n), rules, flags, notes: notesOf(st),
     };
   };
 
@@ -403,8 +408,8 @@
       const old = m.has(key) ? await Store.getCollation(key) : null;
       const same = old && !o.force && !old.table.imported && old.paramsKey === paramsKey && JSON.stringify(sortKeys(old.table.inputs)) === JSON.stringify(sortKeys(inputs));
       if (same) {
-        // the same text: only what the editor says about absent witnesses, and the folio names, can have changed
-        for (const st of states) if (old.table.states[st.label]) old.table.states[st.label].runs = stateRecord(st).runs;
+        // the same text: only what the editor says about absent witnesses, the folio names and the notes can have changed
+        for (const st of states) if (old.table.states[st.label]) { const rec = stateRecord(st); Object.assign(old.table.states[st.label], { runs: rec.runs, notes: rec.notes }); }
         old.seen = seen;
         old.table.absent = absent;
         await save(ed.id, old);

@@ -651,6 +651,11 @@ the edition screen shows the whole work.
   `<supplied>` as `पूर्ण ] suppl.; om. A`, `<surplus>` as `post देव ] अधिक A (secl.)`, and `<reg>` plainly as
   `जलं ] जल A`. A word in `<unclear>` is noted `चन्द्र ] A (ut vid.)`, one in `<sic>` as `गगन ] A (sic)`. Words
   added or deleted together are one note. The abbreviations are in the table with the others.
+- **Notes are in the apparatus** at the word they stand by: a note of the scribe or a later hand as
+  `राम ] adn. in marg. A: टिप्पणी` (`adn. supra lin.`, `adn. infra lin.`, `adn. in lin.` likewise), an editorial
+  note (`resp="editorial"`, or in English) as `हरि ] adn. ed.: see v. 12`. Notes tied to no place in the text,
+  whose types are listed in Settings as having no mark in the line (a folio number, the name of the work), stay
+  out. In the TEI they are `<note>`s inside the `<app>`.
 - **Checks:** each witness cited once in each entry, no unknown siglum, group sigla that stand for exactly their
   witnesses, each lemma the edited text and with a witness unless emended, no witness cited where its text is lost,
   and decisions waiting for review. Ties settled only by your trust order are listed to look at.

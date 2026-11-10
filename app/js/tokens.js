@@ -5,7 +5,8 @@
    A line's text is read, never changed. What a layer takes:
      ac        the text as first written: with <del>, without <add>
      pc        the text as corrected: without <del>, with <add>
-     marginal  <note>s of the manuscript, kept apart from the running text
+     marginal  <note>s of the manuscript, kept apart from the running text, each at its place in it
+     editorial the editor's notes, likewise at their place
    and what neither takes, because the editor wrote it and the witness did not: <supplied>, <corr>,
    <reg>, <expan>, <ex> and editorial notes. Tags in Norm.IGNORE_TAGS stay in the layer's text but are
    not compared. A witness with no corrections in a block has just one state there, "base".
@@ -23,15 +24,18 @@
   const builder = () => ({ dip: '', runs: [], gaps: [], lastLine: null });
 
   /* Reads the lines of the given streams. -> {blocks: Map(id or null -> block), account, unreadable}
-     A block: {id, auto, repeated, ac, pc, marginal: [...], first: {label, box, i}}. */
+     A block: {id, auto, repeated, ac, pc, marginal: [...], editorial: [...], first: {label, box, i}}. */
   function* readSteps(project, keys, opts) {
     const ignore = new Set((opts && opts.ignoreTags) || Norm.IGNORE_TAGS);
+    // notes tied to no place in the text (the name of the work, a folio number: the types listed in the witness's
+    // settings) are the scribe's, but belong in no apparatus: marked loose
+    const loose = new Set(String((project.settings && project.settings.noAnchorIds) || '').split(/[\s,;]+/).filter(Boolean));
     const blocks = new Map();
     const account = { total: 0, shared: 0, acOnly: 0, pcOnly: 0, marginal: 0, editorial: 0 };
     const unreadable = [];
 
     const blockFor = (id) => {
-      if (!blocks.has(id)) blocks.set(id, { id, auto: !!id && /-auto\d+$/.test(id), repeated: false, ac: builder(), pc: builder(), marginal: [], first: null, lines: 0 });
+      if (!blocks.has(id)) blocks.set(id, { id, auto: !!id && /-auto\d+$/.test(id), repeated: false, ac: builder(), pc: builder(), marginal: [], editorial: [], first: null, lines: 0 });
       return blocks.get(id);
     };
 
@@ -84,7 +88,7 @@
               if (c === startsCarried) { const t = text.replace(/^\s+/, ''); from += text.length - t.length; text = t; }
               if (!text) continue;
               if (ctx.into === 'editorial') { account.editorial += text.length; continue; }
-              if (ctx.into) { put(ctx.into, text, from, ctx.flags, ctx.ignored); account.marginal += text.length; continue; }
+              if (ctx.into) { put(ctx.into, text, from, ctx.flags, ctx.ignored); account[ctx.into.editorial ? 'editorial' : 'marginal'] += text.length; continue; }
               const blk = current();
               if (text.trim()) seen(blk);
               if (ctx.layer !== 'pc') put(blk.ac, text, from, ctx.flags, ctx.ignored);
@@ -126,10 +130,15 @@
             }
             if (name === 'note') {
               if (ctx.into) { walk(c, ctx); continue; }
-              if (a.resp === 'editorial' || a['xml:lang'] === 'en') { walk(c, Object.assign({}, ctx, { into: 'editorial' })); continue; }
               const m = builder();
               const blk = current();
-              blk.marginal.push(Object.assign(m, { place: a.place || '', type: a.type || '', anchor: blk.pc.dip.length, label, box, i }));
+              if (a.resp === 'editorial' || a['xml:lang'] === 'en') {
+                blk.editorial.push(Object.assign(m, { editorial: true, anchor: blk.pc.dip.length, label, box, i }));
+              } else {
+                const place = TEI.placeOf('note', a);
+                const isLoose = !['above', 'below', 'inline'].includes(place) && [a.type, a['xml:id'], a.id].some((v) => v && loose.has(v));
+                blk.marginal.push(Object.assign(m, { place: a.place || '', type: a.type || '', loose: isLoose, anchor: blk.pc.dip.length, label, box, i }));
+              }
               walk(c, Object.assign({}, ctx, { into: m, flags: ctx.flags, ignored: null }));
               continue;
             }
@@ -282,7 +291,7 @@
         const unit = units.get(id);
         if (b.repeated) unit.repeatedIn.push(w.siglum);
         const make = (src, layer) => Object.assign(
-          { siglum: w.siglum, layer, label: layer === 'base' ? w.siglum : w.siglum + layer, marginal: b.marginal },
+          { siglum: w.siglum, layer, label: layer === 'base' ? w.siglum : w.siglum + layer, marginal: b.marginal, editorial: b.editorial },
           Tokens.state(src, { kind: o.kind, rules, declared: w.declare, prefix: w.siglum + (layer === 'base' ? '' : layer) + '.' + id + '.' }));
         const same = b.ac.dip === b.pc.dip && JSON.stringify(b.ac.gaps.map((g) => g.at)) === JSON.stringify(b.pc.gaps.map((g) => g.at));
         if (same) unit.states.push(make(b.pc, 'base'));
