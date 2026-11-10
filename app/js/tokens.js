@@ -8,7 +8,10 @@
      marginal  <note>s of the manuscript, kept apart from the running text
    and what neither takes, because the editor wrote it and the witness did not: <supplied>, <corr>,
    <reg>, <expan>, <ex> and editorial notes. Tags in Norm.IGNORE_TAGS stay in the layer's text but are
-   not compared. A witness with no corrections in a block has just one state there, "base". */
+   not compared. A witness with no corrections in a block has just one state there, "base".
+   Every run of text carries the names of the tags it is in (flags), so that an apparatus can say what
+   a difference between the layers is: the scribe's own doing (add, del) or the editor's (corr, reg,
+   supplied, surplus), and where an addition was written (add:above, add:below, add:margin, add:inline). */
 (function (ME) {
   const { TEI, Model, Spans, Export, Norm } = ME;
   const Tokens = {};
@@ -135,14 +138,19 @@
                <choice>) the text before it. With more witnesses they stay out, and the scribes' own words are compared. */
             if (EDITORIAL.has(name)) {
               // inside what was deleted there is no text after correction for it to belong to
-              if (opts && opts.editorial && !ctx.into && ctx.layer !== 'ac') walk(c, Object.assign({}, ctx, { layer: 'pc' }));
+              if (opts && opts.editorial && !ctx.into && ctx.layer !== 'ac') walk(c, Object.assign({}, ctx, { layer: 'pc', flags: ctx.flags.concat(name) }));
               else walk(c, Object.assign({}, ctx, { into: 'editorial' }));
               continue;
             }
             if (opts && opts.editorial && !ctx.into && (name === 'orig' || name === 'sic' || name === 'abbr') && c.parentNode && c.parentNode.nodeName === 'choice' && Array.from(c.parentNode.children).some((x) => EDITORIAL.has(x.nodeName))) {
               // and inside what was added, none before it: only the correction stands there
               if (ctx.layer === 'pc') walk(c, Object.assign({}, ctx, { into: 'editorial' }));
-              else walk(c, Object.assign({}, ctx, { layer: 'ac', flags: FLAGGED.has(name) ? ctx.flags.concat(name) : ctx.flags }));
+              else walk(c, Object.assign({}, ctx, { layer: 'ac', flags: ctx.flags.concat(name) }));
+              continue;
+            }
+            // with one witness, what the editor sets aside as surplus is the text before the editor's correction
+            if (opts && opts.editorial && !ctx.into && name === 'surplus') {
+              if (ctx.layer !== 'pc') walk(c, Object.assign({}, ctx, { layer: 'ac', flags: ctx.flags.concat(name) }));
               continue;
             }
             if (name === 'del') {
@@ -152,7 +160,8 @@
             }
             if (name === 'add') {
               const place = TEI.placeOf('add', a);
-              const fl = ['add'].concat(['top', 'bottom', 'left', 'right'].includes(place) ? 'margin' : []);
+              const margin = ['top', 'bottom', 'left', 'right'].includes(place);
+              const fl = ['add'].concat(margin ? ['margin', 'add:margin'] : ['add:' + place]);
               if (ctx.into) walk(c, Object.assign({}, ctx, { flags: ctx.flags.concat(fl) }));
               else walk(c, Object.assign({}, ctx, { layer: 'pc', flags: ctx.flags.concat(fl) }));
               continue;

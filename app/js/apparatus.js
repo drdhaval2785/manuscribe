@@ -12,9 +12,12 @@
 
   // Conventions, per edition, as editable strings. The Latin set follows the Helsinki stemmatology glossary;
   // the English one is plain words. Other conventions, Devanagari ones included, can be written in.
+  // The last nine are for an edition of one witness, where the apparatus says what the scribe and the editor each did.
   App_.ABBREVIATIONS = {
-    latin: { name: 'Latin', om: 'om.', add: 'add.', post: 'post', ante: 'ante', transp: 'transp.', lac: 'lac.', illeg: 'illeg.', ac: 'a.c.', pc: 'p.c.', em: 'em.', conj: 'conj.', omnes: 'omnes', rell: 'rell.', deest: 'deest', crux: '†' },
-    english: { name: 'English', om: 'omits', add: 'adds', post: 'after', ante: 'before', transp: 'transposes', lac: 'lost in', illeg: 'illegible in', ac: 'before correction', pc: 'after correction', em: 'emended', conj: 'conjectured', omnes: 'all', rell: 'the rest', deest: 'lacking', crux: '†' },
+    latin: { name: 'Latin', om: 'om.', add: 'add.', post: 'post', ante: 'ante', transp: 'transp.', lac: 'lac.', illeg: 'illeg.', ac: 'a.c.', pc: 'p.c.', em: 'em.', conj: 'conj.', omnes: 'omnes', rell: 'rell.', deest: 'deest', crux: '†',
+      addAbove: 'add. supra lin.', addBelow: 'add. infra lin.', addMarg: 'add. in marg.', addInline: 'add. in lin.', del: 'del.', suppl: 'suppl.', secl: 'secl.', unclear: 'ut vid.', sic: 'sic' },
+    english: { name: 'English', om: 'omits', add: 'adds', post: 'after', ante: 'before', transp: 'transposes', lac: 'lost in', illeg: 'illegible in', ac: 'before correction', pc: 'after correction', em: 'emended', conj: 'conjectured', omnes: 'all', rell: 'the rest', deest: 'lacking', crux: '†',
+      addAbove: 'added above the line', addBelow: 'added below the line', addMarg: 'added in the margin', addInline: 'added in the line', del: 'deleted', suppl: 'supplied', secl: 'excluded', unclear: 'unclear', sic: 'sic' },
   };
   App_.DEFAULTS = { polarity: 'auto', abbr: 'latin', groups: true, deest: true, orthographica: false, singular: false, star: 60, custom: null, keys: 'markers' };
   App_.settings = (ed) => Object.assign({}, App_.DEFAULTS, ed.apparatus || {});
@@ -35,8 +38,20 @@
     let word = 0;
     let prevText = '';
     const ends = (t) => !t || /[\s।॥|་།༎]$/.test(t);
-    // a witness on its own: its corrections are all the apparatus there is, wherever they fall
+    /* A witness on its own: its corrections are all the apparatus there is, wherever they fall. What each is, the
+       tags say (the flags of the tokens): the scribe's addition or deletion, or the editor's correction, regularisation,
+       supplied or excluded text; and a word the editor could not read for certain is noted as such. */
     const oneWitness = new Set(table.order.map((l) => table.states[l].siglum)).size === 1;
+    const flagsOf = (m) => { const out = new Set(); const st = table.states[m.label]; for (let k = m.k1; k <= m.k2; k++) for (const f of st.flags[k] || []) out.add(f); return out; };
+    // the letters of a member's text that are in the tag, where the table knows its runs' tags (older ones do not)
+    const partOf = (m, flag) => {
+      const st = table.states[m.label];
+      if (!st.runs || !st.runs.some((r) => r.flags)) return null;
+      const from = st.from[m.k1], to = m.k2 + 1 < st.from.length ? st.from[m.k2 + 1] : st.dip.length;
+      let t = '';
+      for (const r of st.runs) if (r.to > from && r.from < to && r.flags && r.flags.includes(flag)) t += st.dip.slice(Math.max(from, r.from), Math.min(to, r.to));
+      return trim(t);
+    };
     P.units.forEach((u, ui) => {
       const before = ui > 0 ? P.units[ui - 1].text : '';
       const after = ui + 1 < P.units.length;
@@ -47,7 +62,16 @@
       // spellings that differ where the witnesses agree: kept, for the TEI and an orthographica tier
       const spelled = !differs && !u.missing.length && u.groups.some((g) => new Set(g.members.filter((m) => m.votes).map((m) => letters(m.text))).size > 1);
       const hasEvidence = ME.Layers && ME.Layers.evidenceAt(ed, table.work, table.unit, u.key).length > 0;
-      if (!differs && !u.missing.length && !spelled && !hasEvidence) { prevText = lemma || prevText; return; }
+      let sole = null;
+      if (oneWitness && u.winner) {
+        const pcM = u.winner.members.find((m) => m.votes) || null;
+        const acM = u.groups.flatMap((g) => g.members).find((m) => !m.votes && !u.winner.members.includes(m)) || null;
+        const pcF = pcM ? flagsOf(pcM) : new Set(), acF = acM ? flagsOf(acM) : new Set();
+        const place = [...pcF].find((f) => f.startsWith('add:'));
+        const note = !differs && lemma ? ['unclear', 'sic'].find((f) => pcF.has(f)) : null;
+        if (differs || note) sole = { pc: [...pcF], ac: [...acF], place: place ? place.slice(4) : null, note: note || null, added: pcM ? partOf(pcM, 'add') : null, deleted: acM ? partOf(acM, 'del') : null, ui };
+      }
+      if (!differs && !u.missing.length && !spelled && !hasEvidence && !(sole && sole.note)) { prevText = lemma || prevText; return; }
       const sig = (m) => m.siglum;
       const lemGroup = u.winner;
       const lemWits = lemGroup ? [...new Set(lemGroup.members.filter((m) => m.votes).map(sig))] : [];
@@ -72,13 +96,13 @@
         if (forms.size > 1) for (const [k, f] of forms) if (k !== letters(g.form.text)) orth.push({ text: f.text, wits: f.wits, of: trim(g.form.text) });
       }
       const missing = u.missing.filter((m) => m.layer !== 'ac').map((m) => ({ wit: m.siglum, why: WHY[m.why] || m.why, label: m.label, text: trim(m.text) })).filter((m, i, arr) => arr.findIndex((x) => x.wit === m.wit) === i);
-      const kind = spelled && !hasEvidence ? 'orthographic' : !differs && !spelled && !u.missing.length ? 'testimonium' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
+      const kind = sole && sole.note ? 'variant' : spelled && !hasEvidence ? 'orthographic' : !differs && !spelled && !u.missing.length ? 'testimonium' : !lemma && readings.some((r) => r.text) ? 'addition' : 'variant';
       // inside a word: printed with hyphens, as -यांशज्या-
       // in a script written without spaces (Japanese, Chinese, Thai…) every place is between words: no hyphens
       const unspaced = Norm.UNSPACED.test(u.text + before);
       const inside = unspaced ? { left: false, right: false } : { left: ui > 0 && !ends(before), right: after && !ends(u.text) };
       const testimonia = ME.Layers ? ME.Layers.evidenceAt(ed, table.work, table.unit, u.key) : [];
-      const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId };
+      const entry = { unit: table.unit, ref, lemma, lemWits, inside, testimonia, readings, ac, missing, orth, decision: u.decision || null, review: u.review || null, kind, prev: prevText, decided: u.decided, fromId: u.fromId, toId: u.toId, sole };
       // an addition before the first word of a block is placed by the word after it
       if (kind === 'addition' && !prevText) { const nx = P.units.slice(ui + 1).find((x) => trim(x.text)); entry.next = nx ? trim(nx.text) : ''; }
       // a long addition in few witnesses goes to an appendix, as a starred passage
@@ -94,8 +118,34 @@
       entries.push(entry);
       if (lemma) prevText = lemma;
     });
+    if (oneWitness) mergeSole(entries);
     return { entries, stars, text: P.text, proposal: P };
   };
+
+  /* Words added, deleted or set aside together are one note, not one a word: entries of one witness on adjacent
+     words, of the same kind and with nothing else to them, are joined (the note is then anchored after the last). */
+  const soleKind = (e) => {
+    const S = e.sole;
+    if (!S || S.note || e.missing.length || e.decision) return null;
+    const acText = e.ac.length ? e.ac[0].text : '';
+    if (S.pc.includes('add') && !S.ac.includes('del') && !acText) return 'add:' + S.place;
+    if (!e.lemma && S.ac.includes('del') && !S.pc.includes('add')) return 'del';
+    if (!e.lemma && S.ac.includes('surplus')) return 'surplus';
+    return null;
+  };
+  function mergeSole(entries) {
+    for (let i = 0; i + 1 < entries.length;) {
+      const e = entries[i], n = entries[i + 1], kind = soleKind(e);
+      if (!kind || kind !== soleKind(n) || n.sole.ui !== e.sole.ui + 1) { i++; continue; }
+      e.lemma = trim(e.lemma + ' ' + n.lemma);
+      if (e.ac.length && n.ac.length) e.ac[0].text = trim(e.ac[0].text + ' ' + n.ac[0].text);
+      for (const k of ['added', 'deleted']) if (e.sole[k] !== null && n.sole[k] !== null) e.sole[k] = trim(e.sole[k] + ' ' + n.sole[k]);
+      e.toId = n.toId;
+      e.sole.ui = n.sole.ui;
+      e.inside.right = n.inside.right;
+      entries.splice(i + 1, 1);
+    }
+  }
 
   /* ---------- printing an entry ---------- */
 
@@ -157,6 +207,10 @@
     };
     let lem = hy(shorten(pr(e.lemma)));
     if (d && d.crux) lem = ab.crux + lem + ab.crux;
+    if (e.sole && !d) {
+      const one = soleNote(ed, e, lem, hy, ab);
+      if (one) return one;
+    }
     const lemWho = d && (d.type === 'emendatio' || d.type === 'conjecture') ? (d.type === 'conjecture' ? ab.conj : ab.em) + (d.source ? ' ' + d.source : '') : sig(e.lemWits);
     // negative leaves out who reads the lemma, unless few do
     const negative = s.polarity === 'negative' || (s.polarity === 'auto' && e.lemWits.length * 2 > present.length && !(d && (d.type === 'emendatio' || d.type === 'conjecture')));
@@ -190,6 +244,31 @@
     if (e.missing.some((m) => m.why === 'transp')) bits.push(ab.transp + ' ' + e.missing.filter((m) => m.why === 'transp').map((m) => m.wit).join(' '));
     return bits.join('; ');
   };
+
+  /* An entry of one witness, printed: what the scribe did is reported as the scribe's (an addition and where it was
+     written, a deletion, a correction as before correction), and what the editor did as the editor's (emended,
+     supplied, excluded, regularised), and a word read as it seems or as found is marked. -> string, or null */
+  function soleNote(ed, e, lem, hy, ab) {
+    const S = e.sole, wit = e.lemWits[0] || (ed.witnesses[0] && ed.witnesses[0].siglum) || '';
+    const acText = e.ac.length ? trim(e.ac[0].text) : '';
+    const pc = (f) => S.pc.includes(f), ac = (f) => S.ac.includes(f);
+    const lastWord = bare(shorten(e.prev || '').split(' ').pop() || '');
+    const at = lem || (lastWord ? ab.post + ' ' + lastWord : '—');
+    const placeKey = { above: 'addAbove', below: 'addBelow', margin: 'addMarg', inline: 'addInline' }[S.place] || 'addInline';
+    const wasOm = acText ? hy(acText) : ab.om;
+    let note = null;
+    if (S.note) note = lem + ' ] ' + wit + ' (' + ab[S.note] + ')';
+    else if (pc('add') && ac('del')) note = at + ' ] ' + wasOm + ' ' + wit + '<sup>' + ab.ac + '</sup>';
+    else if (pc('add')) note = at + ' ] ' + (S.added && S.added !== bare(trim(e.lemma)) && S.added !== trim(e.lemma) ? hy(S.added) + ' ' : '') + ab[placeKey] + ' ' + wit;
+    else if (ac('del')) note = at + ' ] ' + hy(S.deleted || acText) + ' ' + ab.del + ' ' + wit;
+    else if (ac('surplus')) note = at + ' ] ' + hy(acText) + ' ' + wit + ' (' + ab.secl + ')';
+    else if (pc('supplied')) note = at + ' ] ' + ab.suppl + '; ' + wasOm + ' ' + wit;
+    else if (pc('corr')) note = at + ' ] ' + ab.em + '; ' + wasOm + ' ' + wit;
+    else if (pc('reg') || pc('expan') || pc('ex')) note = at + ' ] ' + wasOm + ' ' + wit;
+    if (!note) return null;
+    const lost = e.missing.filter((m) => m.why !== 'transp');
+    return [note].concat(lost.map((m) => (ab[m.why] || m.why) + ' ' + m.wit)).join('; ');
+  }
 
   /* The apparatus of a work, as tiers: variants, and optionally singular readings and orthographica. */
   App_.tiers = function (ed, entries) {
@@ -232,6 +311,7 @@
     const byFrom = new Map(b.entries.map((e, i) => [e.fromId, i]));
     let text = '';
     const anchors = [], crux = [], unsure = [];
+    let open = null; // an entry over several words (joined): anchored after its last
     for (const u of b.proposal.units) {
       const i = byFrom.get(u.fromId);
       const e = i === undefined ? null : b.entries[i];
@@ -240,7 +320,9 @@
       if (d && d.crux) t = t.replace(/^(\s*)(.*?)(\s*)$/, '$1†$2†$3');
       const lead = (t.match(/^\s*/) || [''])[0].length;
       const core = t.trim().length;
-      if (e) anchors.push({ i, at: text.length + lead + core, start: text.length + lead, empty: !core });
+      if (e && e.toId !== u.toId) open = { i, start: text.length + lead, empty: !core, toId: e.toId };
+      else if (e) anchors.push({ i, at: text.length + lead + core, start: text.length + lead, empty: !core });
+      else if (open && open.toId === u.toId) { anchors.push({ i: open.i, at: text.length + lead + core, start: open.start, empty: open.empty && !core }); open = null; }
       if (d && d.confidence === 'low' && core) unsure.push([text.length + lead, text.length + lead + core]);
       text += t;
     }

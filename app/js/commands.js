@@ -110,10 +110,23 @@
   const withSpan = (attrs, id, suffix) => (id ? Object.assign({}, attrs, { 'x-span': id + (suffix || '') }) : attrs);
   const simpleBuild = (name, attrs) => (id) => ({ make: () => { const s = TEI.makeWrap(name, withSpan(attrs, id)); return { outer: s, inner: s }; } });
 
-  function spanMarkers(rng, startType, startAttrs, endType) {
-    if (!beginSpan(rng)) return;
+  /* A marker falling inside a tag cuts the tag in two (Spans.markerPlace): asked first. cuts: [{what, tag: {name, attrs}}] */
+  async function okToCut(cuts) {
+    if (!cuts.length) return true;
+    const tag = (t) => { const def = ELEMENTS[t.name]; return '<' + t.name + '>' + (def ? ' (' + def.label.toLowerCase() + (t.attrs.rend ? ', ' + t.attrs.rend : '') + ')' : ''); };
+    const which = cuts.map((c) => 'the ' + c.what + ' falls inside a ' + tag(c.tag) + ' tag').join(', and ');
+    const first = which.charAt(0).toUpperCase() + which.slice(1);
+    return UI.confirm(first + '. Putting the marker there cuts the tag in two: one tag before the marker and one after it, each with the same attributes.', { title: cuts.length > 1 ? 'Cut the tags in two?' : 'Cut the tag in two?', ok: cuts.length > 1 ? 'Cut them' : 'Cut the tag' });
+  }
+
+  async function spanMarkers(rng, startType, startAttrs, endType, noun) {
+    if (rng.error) { U.toast(rng.error, 'warn'); return; }
     const b = Spans.between(project(), rng.start, rng.end);
     if (b.error) { U.toast(b.error, 'warn'); return; }
+    const cuts = [];
+    for (const [pos, what] of [[b.start, 'start of the ' + noun], [b.end, 'end of the ' + noun]]) { const t = Spans.markerCuts(project(), pos); if (t) cuts.push({ what, tag: t }); }
+    if (!(await okToCut(cuts))) return;
+    if (!beginSpan(rng)) return;
     // the end first, so that the start position is not shifted
     const ce = Spans.insertMarker(project(), b.end, endType, {});
     const cs = Spans.insertMarker(project(), b.start, startType, startAttrs);
@@ -396,24 +409,19 @@
 
   /* ---------- structural markers ---------- */
 
-  // Insert a marker at a range boundary, moving it outside any inline element.
-  function markerAt(c, range, atEnd, type, attrs) {
-    const r = range.cloneRange();
-    r.collapse(!atEnd);
-    let outer = null;
-    let n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
-    while (n && n !== c.line) { if (n.classList.contains('t') && !n.classList.contains('chip')) outer = n; n = n.parentElement; }
-    const m = TEI.makeMarker(type, attrs);
-    if (outer) {
-      const pre = document.createRange();
-      pre.setStart(outer, 0);
-      pre.setEnd(r.startContainer, r.startOffset);
-      const empty = !pre.toString().replace(/​/g, '') && !pre.cloneContents().querySelector('.chip');
-      outer.parentNode.insertBefore(m, empty ? outer : outer.nextSibling);
-    } else {
-      r.insertNode(m);
-    }
-    return m;
+  /* Markers at the ends of the selection in the line: each {atEnd, type, attrs, what}. A marker falling at the edge of a
+     tag goes just outside it; one falling inside a tag cuts it in two, which is asked first (one question for all). The
+     markers are put in last to first, so that the earlier places are not shifted. -> the markers put in, or null if
+     not confirmed */
+  async function placeMarkers(c, list) {
+    const point = (atEnd) => { const r = c.range.cloneRange(); r.collapse(!atEnd); return { node: r.startContainer, offset: r.startOffset }; };
+    const places = list.map((m) => Spans.markerPlace(c.line, point(m.atEnd)));
+    const cuts = list.map((m, k) => (places[k].where === 'split' ? { what: m.what, tag: { name: places[k].outer.dataset.t, attrs: JSON.parse(places[k].outer.dataset.a || '{}') } } : null)).filter(Boolean);
+    if (cuts.length) { const ok = await okToCut(cuts); restore(c); if (!ok) return null; }
+    Editor.capture('command');
+    const out = [];
+    for (let k = list.length - 1; k >= 0; k--) out[k] = Spans.placeMarker(c.line, point(list[k].atEnd), TEI.makeMarker(list[k].type, list[k].attrs), places[k]);
+    return out;
   }
 
   function stateAtCaret(c) {
@@ -463,39 +471,40 @@
       start: { label: Editor.entry.label, box: c.box, i: c.i, offset: Spans.offsetOf(c.line, c.range.startContainer, c.range.startOffset) },
       end: { label: Editor.entry.label, box: c.box, i: c.i, offset: Spans.offsetOf(c.line, c.range.endContainer, c.range.endOffset) },
     });
+    const noun = kind === 'p' ? 'paragraph' : 'verse';
     const id = await UI.prompt(kind === 'p' ? 'New paragraph <p>' : 'New verse <lg>', 'xml:id', suggestion, {
       validate: idValidator(),
-      help: 'Unique identifier used by Saktumiva to collate this ' + (kind === 'p' ? 'paragraph' : 'verse') + ' with other witnesses, e.g. ' + (kind === 'p' ? '“p12” or “1.2.3”' : '“v1.12”') + '. ' +
+      help: 'Unique identifier used by Saktumiva to collate this ' + noun + ' with other witnesses, e.g. ' + (kind === 'p' ? '“p12” or “1.2.3”' : '“v1.12”') + '. ' +
         (kind === 'p' && st.p ? 'The open paragraph ' + (st.p.id || '') + ' is closed automatically.' : '') + (kind === 'lg' && st.lg ? 'The open verse ' + (st.lg.id || '') + ' is closed automatically.' : ''),
     });
     restore(c);
     if (!id) return;
-    if (rng) { spanMarkers(rng, kind === 'p' ? 'p-start' : 'lg-start', { id }, kind === 'p' ? 'p-end' : 'lg-end'); return; }
-    Editor.capture('command');
-    const m = markerAt(c, c.range, false, kind === 'p' ? 'p-start' : 'lg-start', { id });
-    Editor.caretAfter(m);
+    if (rng) { await spanMarkers(rng, kind === 'p' ? 'p-start' : 'lg-start', { id }, kind === 'p' ? 'p-end' : 'lg-end', noun); return; }
+    const ms = await placeMarkers(c, [{ atEnd: false, type: kind === 'p' ? 'p-start' : 'lg-start', attrs: { id }, what: 'start of the ' + noun }]);
+    if (!ms) return;
+    Editor.caretAfter(ms[0]);
     done(c.line);
   }
 
-  function structEnd(kind) {
+  async function structEnd(kind) {
     const c = ctx();
     if (!c || !notInNote(c)) return;
     const st = stateAtCaret(c);
     if (kind === 'p' && !st.p) { U.toast('No paragraph is open here', 'warn'); return; }
     if (kind === 'lg' && !st.lg) { U.toast('No verse is open here', 'warn'); return; }
-    Editor.capture('command');
-    const m = markerAt(c, c.range, true, kind === 'p' ? 'p-end' : 'lg-end', {});
-    Editor.caretAfter(m);
+    const ms = await placeMarkers(c, [{ atEnd: true, type: kind === 'p' ? 'p-end' : 'lg-end', attrs: {}, what: 'end of the ' + (kind === 'p' ? 'paragraph' : 'verse') }]);
+    if (!ms) return;
+    Editor.caretAfter(ms[0]);
     done(c.line);
   }
 
-  function verseLine() {
+  async function verseLine() {
     const c = ctx();
     if (!c || !notInNote(c)) return;
     if (!stateAtCaret(c).lg) { U.toast('Not inside a verse — start one first with ' + keyLabel('V'), 'warn'); return; }
-    Editor.capture('command');
-    const m = markerAt(c, c.range, false, 'l', {});
-    Editor.caretAfter(m);
+    const ms = await placeMarkers(c, [{ atEnd: false, type: 'l', attrs: {}, what: 'verse line marker' }]);
+    if (!ms) return;
+    Editor.caretAfter(ms[0]);
     done(c.line);
   }
 
@@ -672,7 +681,7 @@
     const rng = Editor.spanRange();
     if (rng) {
       const res = await quoteDialog();
-      if (res) spanMarkers(rng, 'q-start', clean({ source: res.source, n: res.n }), 'q-end');
+      if (res) await spanMarkers(rng, 'q-start', clean({ source: res.source, n: res.n }), 'q-end', 'quotation');
       return;
     }
     const c = ctx();
@@ -695,9 +704,9 @@
     if (c.range.collapsed) {
       const st = stateAtCaret(c);
       if (st.quote) {
-        Editor.capture('command');
-        const m = markerAt(c, c.range, false, 'q-end', {});
-        Editor.caretAfter(m);
+        const ms = await placeMarkers(c, [{ atEnd: false, type: 'q-end', attrs: {}, what: 'end of the quotation' }]);
+        if (!ms) return;
+        Editor.caretAfter(ms[0]);
         done(c.line);
         U.toast('Quotation from ' + (Commands.workLabel(st.quote.source, true) || 'unknown work') + ' closed');
         return;
@@ -706,15 +715,15 @@
     const res = await quoteDialog();
     restore(c);
     if (!res) return;
-    Editor.capture('command');
     const attrs = clean({ source: res.source, n: res.n });
     if (!c.range.collapsed) {
-      const end = markerAt(c, c.range, true, 'q-end', {});
-      markerAt(c, c.range, false, 'q-start', attrs);
-      Editor.caretAfter(end);
+      const ms = await placeMarkers(c, [{ atEnd: false, type: 'q-start', attrs, what: 'start of the quotation' }, { atEnd: true, type: 'q-end', attrs: {}, what: 'end of the quotation' }]);
+      if (!ms) return;
+      Editor.caretAfter(ms[1]);
     } else {
-      const m = markerAt(c, c.range, false, 'q-start', attrs);
-      Editor.caretAfter(m);
+      const ms = await placeMarkers(c, [{ atEnd: false, type: 'q-start', attrs, what: 'start of the quotation' }]);
+      if (!ms) return;
+      Editor.caretAfter(ms[0]);
       U.toast('Quotation started — press ' + keyLabel('Q') + ' again where it ends (it may run over lines and folios)', 'info', 4000);
     }
     done(c.line);

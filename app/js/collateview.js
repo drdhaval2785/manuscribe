@@ -537,6 +537,16 @@
     ['conj', 'coniecit: conjectured', 'A bolder correction where the text is corrupt, or one proposed by another scholar, whose name follows.', (a) => 'कुरुक्षेत्रे ] ' + a.conj + ' Kielhorn; कुरुक्षेत्र A B C'],
     ['deest', 'deest: is lacking', 'Inside a group siglum: which members of the group do not have the passage.', (a) => 'धर्मक्षेत्रे ] धर्मक्षेत्र β (' + a.deest + ' C)'],
     ['crux', 'crux: the dagger', 'The passage is corrupt in every witness and you cannot mend it: printed between two of these.', (a) => a.crux + 'धर्मक्षेत्रे' + a.crux],
+    // an edition of one witness: what the scribe did, and what the editor did
+    ['addAbove', 'addidit supra lineam: added above the line (one witness)', 'The scribe, or a later hand, wrote the word above the line; it is in the text.', (a) => 'युद्ध ] ' + a.addAbove + ' A'],
+    ['addBelow', 'addidit infra lineam: added below the line (one witness)', 'The same, written below the line.', (a) => 'युद्ध ] ' + a.addBelow + ' A'],
+    ['addMarg', 'addidit in margine: added in the margin (one witness)', 'The same, written in a margin.', (a) => 'युद्ध ] ' + a.addMarg + ' A'],
+    ['addInline', 'addidit in linea: added in the line (one witness)', 'The same, written in the line itself, in a space left for it.', (a) => 'युद्ध ] ' + a.addInline + ' A'],
+    ['del', 'delevit: deleted (one witness)', 'The scribe struck the word out; it is not in the text.', (a) => a.post + ' कुरु ] भीम ' + a.del + ' A'],
+    ['suppl', 'supplevit: supplied (one witness)', 'You supplied the word; the witness does not have it.', (a) => 'पूर्ण ] ' + a.suppl + '; ' + a.om + ' A'],
+    ['secl', 'seclusit: excluded (one witness)', 'The witness has the word, and you have set it aside as surplus.', (a) => a.post + ' देव ] अधिक A (' + a.secl + ')'],
+    ['unclear', 'ut videtur: as it seems (one witness)', 'You could not read the word with certainty.', (a) => 'चन्द्र ] A (' + a.unclear + ')'],
+    ['sic', 'sic: thus (one witness)', 'The word is as found in the witness, left uncorrected.', (a) => 'गगन ] A (' + a.sic + ')'],
   ];
 
   CollateView.apparatusSettings = function (ed, redraw, open) {

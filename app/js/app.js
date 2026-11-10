@@ -47,6 +47,13 @@
       onGrowLines: (box, n, focus) => { const pg = Model.page(App.project, entry().label); pg.lines = Object.assign(pg.lines || {}, { [box === 'gloss' ? 'main' : box]: n }); App.changed(); rerender(focus); },
       onRerender: (focus) => rerender(focus),
       onMulti: () => updateStatus(Editor.current),
+      // a selection running on to the next folio side (or back): shown, the selection kept. -> its label, or null
+      onCrossFolio: async (dir) => {
+        const idx = App.idx + dir;
+        if (idx < 0 || idx >= App.entries.length) return null;
+        await App.go(idx, { noFocus: true, keepMulti: true });
+        return entry().label;
+      },
       onEditChip: (el) => Commands.editTag(el),
     });
     Commands.buildToolbar($('toolbar'));
@@ -576,7 +583,7 @@
     fillFolioSelect();
     const g = Model.geometry(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size));
     App.pdfShown = PdfView.doc ? PdfView.show(e, g.leaf).catch((err) => console.warn(err)) : Promise.resolve();
-    Editor.render(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size));
+    Editor.render(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size), { keepMulti: !!(opts && opts.keepMulti) });
     if (ME.Narrow) ME.Narrow.fit();
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
     // once a folio side is calibrated, Calibrate is in the Folio tab
@@ -686,7 +693,10 @@
     }
     const ak = Editor.insideAksara();
     if (ak) parts.push(U.el('span', { class: 'pending-status', title: 'The cursor stands inside an akṣara' }, '  ·  inside akṣara: ' + ak));
-    if (Editor.multi) parts.push(U.el('span', { class: 'pending-status' }, '  ·  selection over several lines — press a tag shortcut'));
+    if (Editor.multi) {
+      const m = Editor.multi, from = m.a.label !== e.label ? m.a : m.f.label !== e.label ? m.f : null;
+      parts.push(U.el('span', { class: 'pending-status' }, '  ·  ' + (from ? 'selection from folio ' + from.label + ' (' + Model.BOX_LABEL[from.box].toLowerCase() + ' line ' + (from.i + 1) + ')' : 'selection over several lines') + ' — press a tag shortcut'));
+    }
     const pd = Editor.pending;
     if (pd) {
       parts.push(U.el('span', { class: 'pending-status' }, '  ·  ↦ tag starts at ' + pd.label + ', ' + Model.BOX_LABEL[pd.box].toLowerCase() + ' line ' + (pd.i + 1) + ' — put the cursor at its end and press the tag’s shortcut ',

@@ -136,7 +136,7 @@ const { launch, sleep, checks } = require('./h');
     el.remove();
     return out;
   });
-  T.check('How the apparatus is written has a table: printed as, stands for, meaning, example', abbr.rows === 11 && abbr.heads.join() === 'Printed as,Stands for,Meaning,Example' && /omittit/.test(abbr.om) && /does not have the words/.test(abbr.om) && /\] om\. B/.test(abbr.ex), abbr);
+  T.check('How the apparatus is written has a table: printed as, stands for, meaning, example', abbr.rows === 20 && abbr.heads.join() === 'Printed as,Stands for,Meaning,Example' && /omittit/.test(abbr.om) && /does not have the words/.test(abbr.om) && /\] om\. B/.test(abbr.ex), abbr);
   T.check('writing another abbreviation shows it in the example at once, and the apparatus uses it', /\] deest in B/.test(abbr.live) && abbr.saved === 'deest in', abbr);
   const back = await page.evaluate(async () => {
     const el = await ME.Steps.publish(window.ed, window.list, () => {});

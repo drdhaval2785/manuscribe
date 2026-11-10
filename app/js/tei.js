@@ -314,7 +314,7 @@
     return TEI.makeChip('x-marker', Object.assign({ type }, attrs || {}));
   };
 
-  function renderNode(node, out) {
+  function renderNode(node, out, opts) {
     if (node.nodeType === 3) { out.appendChild(document.createTextNode(node.nodeValue)); return; }
     if (node.nodeType !== 1) return;
     const name = node.nodeName;
@@ -323,27 +323,28 @@
     let span;
     if (name === 'x-marker') {
       span = TEI.makeChip('x-marker', attrs);
-    } else if (name === 'add' && (TEI.placeOf(name, attrs) === 'inline' || attrs['x-span'])) {
+    } else if (name === 'add' && ((opts && opts.addsInline) || TEI.placeOf(name, attrs) === 'inline' || attrs['x-span'])) {
       span = TEI.makeWrap('add', attrs);
-      for (const c of Array.from(node.childNodes)) renderNode(c, span);
+      for (const c of Array.from(node.childNodes)) renderNode(c, span, opts);
     } else if (name === 'add' || name === 'corr' || (def && def.kind === 'chip') || (!def && !node.childNodes.length && name !== 'subst' && name !== 'choice')) {
       // an empty tag we have no special use for (e.g. a <lb/> inside a line) is kept and shown as a mark
       span = TEI.makeChip(name, attrs, TEI.innerXml(node));
     } else {
       // wrap, subst, choice, orig and unknown elements: keep the children editable
       span = TEI.makeWrap(name, attrs);
-      for (const c of Array.from(node.childNodes)) renderNode(c, span);
+      for (const c of Array.from(node.childNodes)) renderNode(c, span, opts);
     }
     out.appendChild(span);
   }
 
-  // Returns a DocumentFragment of HTML for a stored line.
-  TEI.toHtml = function (str) {
+  // Returns a DocumentFragment of HTML for a stored line. opts.addsInline: every addition as a wrapper with its text
+  // in it (as the operations on stored lines see it), not a mark whose text is edited in the margin.
+  TEI.toHtml = function (str, opts) {
     const frag = document.createDocumentFragment();
     if (!str) return frag;
     const r = TEI.parse(str);
     if (!r) { frag.appendChild(document.createTextNode(String(str))); return frag; }
-    for (const c of Array.from(r.childNodes)) renderNode(c, frag);
+    for (const c of Array.from(r.childNodes)) renderNode(c, frag, opts);
     TEI.decorateSigns(frag);
     return frag;
   };

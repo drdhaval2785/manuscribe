@@ -1,6 +1,8 @@
 // An edition of one witness: the text printed is the corrected one (<add>, <del>, <subst>, and the editor's <corr>,
-// <reg>, <supplied>), and the apparatus gives each reading before correction, in the print edition and the HTML reader.
-// With two witnesses nothing of this applies: the scribes' own words are compared.
+// <reg>, <supplied>), and the apparatus says what each correction is: the scribe's (added, and where; deleted; a
+// substitution as before correction) or the editor's (emended, supplied, excluded, regularised), and marks a word
+// unclear or sic; in the print edition and the HTML reader. With two witnesses nothing of this applies: the scribes'
+// own words are compared.
 const { launch, checks } = require('./h');
 const P = (id) => '<x-marker type="p-start" id="' + id + '"/>', END = '<x-marker type="p-end"/>';
 const lines = [
@@ -67,20 +69,20 @@ const lines = [
     T.check('a block of 500,000 tokens, its versions ' + out.long.drift + ' apart: every shared token lined up (' + out.long.seconds.toFixed(1) + ' s)', out.long.right / out.long.total > 0.999 && out.long.drift > 1000, out.long);
     const w = out.word.rows;
     const say = (o) => JSON.stringify(o);
-    T.check('an addition is in the text, and its absence before correction is noted', w.v1.text === 'धर्म युद्ध क्षेत्रे' && w.v1.notes.join() === 'युद्ध ] om. Aa.c.', say(w.v1));
-    T.check('a deletion is out of the text, and noted', w.v2.text === 'कुरु पाण्डु' && w.v2.notes.length === 1 && /भीम A/.test(w.v2.notes[0]) && /a\.c\./.test(w.v2.notes[0]), say(w.v2));
-    T.check('a substitution prints what replaced, and notes what was replaced', w.v3.text === 'राम गोविन्द सीता' && w.v3.notes.join() === 'गोविन्द ] कृष्ण Aa.c.', say(w.v3));
-    T.check('<choice>: the correction is printed, the original noted', w.v4.text === 'हरि गगने शिव' && w.v4.notes.join() === 'गगने ] गगन Aa.c.', say(w.v4));
-    T.check('<choice> with <orig> and <reg>', w.v5.text === 'गंगा जलं यमुना' && w.v5.notes.join() === 'जलं ] जल Aa.c.', say(w.v5));
-    T.check('<supplied> is in the text', w.v7.text === 'नर पूर्ण नारी' && w.v7.notes.length === 1, say(w.v7));
-    T.check('<surplus> stays out, and unclear text is as it is, with no note', w.v6.text === 'देव मुनि' && !w.v6.notes.length && w.v8.text === 'सूर्य चन्द्र तारा' && !w.v8.notes.length, say([w.v6, w.v8]));
-    T.check('a correction inside an addition: only the corrected form is printed, and nothing of it before correction', w.v9.text === 'अग्नि मालाशिलोञ्छं जल वायु' && !/च्छं/.test(w.v9.notes.join()) && w.v9.notes.length >= 1, say(w.v9));
+    T.check('an addition is in the text, noted as the scribe’s, and where it was written (not as omitted)', w.v1.text === 'धर्म युद्ध क्षेत्रे' && w.v1.notes.join() === 'युद्ध ] add. supra lin. A', say(w.v1));
+    T.check('a deletion is out of the text, and noted as the scribe’s', w.v2.text === 'कुरु पाण्डु' && w.v2.notes.join() === 'post कुरु ] भीम del. A', say(w.v2));
+    T.check('a substitution prints what replaced, and notes what was replaced as before correction', w.v3.text === 'राम गोविन्द सीता' && w.v3.notes.join() === 'गोविन्द ] कृष्ण Aa.c.', say(w.v3));
+    T.check('<choice>: the correction is printed as the editor’s emendation, the witness’s reading after it', w.v4.text === 'हरि गगने शिव' && w.v4.notes.join() === 'गगने ] em.; गगन A', say(w.v4));
+    T.check('<choice> with <orig> and <reg>: the witness’s spelling, with nothing of “before correction”', w.v5.text === 'गंगा जलं यमुना' && w.v5.notes.join() === 'जलं ] जल A', say(w.v5));
+    T.check('<supplied> is in the text, noted as supplied and omitted by the witness', w.v7.text === 'नर पूर्ण नारी' && w.v7.notes.join() === 'पूर्ण ] suppl.; om. A', say(w.v7));
+    T.check('<surplus> stays out, noted as the witness’s and excluded; unclear text is as it is, and noted as it seems', w.v6.text === 'देव मुनि' && w.v6.notes.join() === 'post देव ] अधिक A (secl.)' && w.v8.text === 'सूर्य चन्द्र तारा' && w.v8.notes.join() === 'चन्द्र ] A (ut vid.)', say([w.v6, w.v8]));
+    T.check('a correction inside an addition in the margin: the corrected form printed, the two words one note, in the margin', w.v9.text === 'अग्नि मालाशिलोञ्छं जल वायु' && w.v9.notes.join() === 'मालाशिलोञ्छं जल ] add. in marg. A', say(w.v9));
     T.check('the sign at the end of a line is dropped, and the word joined over the line', w.v10.text === 'राम लक्षमण सीता \u0964\u094D हरि', say(w.v10));
     T.check('in a tag too, and it makes no note', w.v11.text === 'सूर्य चन्दर तारा' && !w.v11.notes.length, say(w.v11));
     T.check('a space before the sign: the word had ended, and the two stay apart', w.v12.text === 'अग्नि शोके वायु' && !w.v12.notes.length, say(w.v12));
     const l = out.letter.rows;
     T.check('collated by letters, the text is the same', Object.keys(w).every((k) => l[k].text === w[k].text), say(l));
-    T.check('and the same blocks have their notes', Object.keys(w).every((k) => !!l[k].notes.length === !!w[k].notes.length) && l.v4.notes.every((n) => /a\.c\./.test(n)), say([l.v2, l.v4]));
+    T.check('and the same blocks have their notes', Object.keys(w).every((k) => !!l[k].notes.length === !!w[k].notes.length) && l.v4.notes.every((n) => /em\./.test(n)), say([l.v2, l.v4]));
     T.check('the principles say the text is the corrected one', /corrected one/.test(out.word.principles) && !/lined up by computer/.test(out.word.principles), out.word.principles.slice(0, 200));
     T.check('the HTML reader carries the readings before correction, and the switch for them', out.word.reader.includes('गगन') && out.word.reader.includes('a.c.') && out.word.reader.includes('before correction'), out.word.reader.length);
     const t = out.two.rows;

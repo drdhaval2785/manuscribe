@@ -45,6 +45,27 @@
     return n;
   }
 
+  /* A marker (a paragraph, verse or quotation starting or ending) inside a tag - a verse beginning in an addition in
+     the margin, say - cuts the tag in two for the export, since the structure it opens or closes cannot begin inside
+     the tag: the tag before the marker, the marker, the tag again after it, each part with the tag's attributes. */
+  const hasMarker = (n) => typeof n !== 'string' && (n.name === 'x-marker' || n.children.some(hasMarker));
+  function atMarkers(nd) {
+    if (typeof nd === 'string' || nd.name === 'x-marker' || !hasMarker(nd)) return [nd];
+    const out = [];
+    let cur = node(nd.name, nd.attrs);
+    for (const c of nd.children) {
+      if (!hasMarker(c)) { cur.children.push(c); continue; }
+      for (const part of atMarkers(c)) {
+        if (part.name !== 'x-marker') { cur.children.push(part); continue; }
+        if (cur.children.length) out.push(cur);
+        out.push(part);
+        cur = node(nd.name, nd.attrs);
+      }
+    }
+    if (cur.children.length) out.push(cur);
+    return out;
+  }
+
   /* ---------- token streams ---------- */
 
   /* Does a line end a word? A line ending in a space (or a daṇḍa) does; otherwise its last word
@@ -119,9 +140,10 @@
           const r = TEI.parse(arr[i]);
           if (!r) { ctx.warn('Could not read the markup of ' + where + ' — exported as plain text', where); pageTokens.push({ t: 'node', n: arr[i].replace(/<[^>]*>/g, ''), where }); continue; }
           for (const c of Array.from(r.childNodes)) {
-            const nd = fromXml(c);
-            if (nd.name !== 'x-marker') mapNestedQuotes(nd, ctx);
-            pageTokens.push({ t: 'node', n: nd, where });
+            for (const nd of atMarkers(fromXml(c))) {
+              if (nd.name !== 'x-marker') mapNestedQuotes(nd, ctx);
+              pageTokens.push({ t: 'node', n: nd, where });
+            }
           }
         }
       }

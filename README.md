@@ -251,7 +251,10 @@ little smaller. The line you are typing gets an extra line of room around it.
 
 The folio list in the middle bar goes to any folio. Drag the scan to move it within its pane.
 
-**Shift + arrows** select, and run on over line ends and from one block into the next. Shift+click
+**Shift + arrows** select, and run on over line ends, from one block into the next, and from the last
+line of a folio side on to the next folio (which is shown, the selection kept; Shift+← or Shift+↑ at
+the start of a folio goes back the same way). Through an addition written in the margin they go
+letter by letter of its text, and a tag over such a selection goes into the addition. Shift+click
 works too.
 
 ## Tags
@@ -269,7 +272,8 @@ works too.
 ### Over several lines or folios
 
 Select across the lines and press the shortcut; `<p>` and `<lg>` then open at the start of the selection and close at
-its end. For a tag that ends on another folio:
+its end. A selection runs on to the next folio with Shift+→ or Shift+↓ (see Moving around). For a tag that ends
+far away, on another folio, without selecting all the way:
 
 1. press `.` (⌃⌥. on a Mac) where it starts; a flag (↦) marks the place;
 2. go to where it ends, and press the tag's shortcut.
@@ -279,6 +283,10 @@ somewhere else moves it.
 
 The parts stay together. On export they become one element containing the `<lb/>` or `<pb/>`, and
 editing or removing the tag changes every part.
+
+A paragraph, verse, verse-line or quotation marker that would fall inside a tag such as `<hi>` or
+`<unclear>` cuts the tag in two, one tag before the marker and one after it with the same
+attributes; Manuscribe asks first. At the edge of a tag the marker simply goes just outside it.
 
 ```xml
 <del rend="crossed out">chinna
@@ -292,6 +300,10 @@ below the text for the top and bottom margins. The line keeps a small numbered m
 
 - Click into a note to type in it. The same tag shortcuts work there; paragraph and verse markers
   are refused.
+- An addition in the margin is part of the line: Shift+→ along the line runs on through its text
+  and out again, and a tag over the selection goes into the addition, which stays one. A verse or
+  paragraph may begin or end inside it (select to the place and press the shortcut); at export the
+  addition is cut at the marker, so that the verse begins where the scribe began it.
 - Enter or Esc returns to the line.
 - The note's number opens its dialog.
 - Text in a margin has the colour of the main text, unless a tag inside it says otherwise, such as
@@ -632,6 +644,13 @@ the edition screen shows the whole work.
 - **Entries** read `lemma ] reading witnesses`: `om.` for an omission, `post X add. Y` for an addition, `a.c.` for a
   text before correction, `lac. X (what survives)` for a lost passage, `em.` and `conj.` with their source, and hyphens
   for part of a word. Long additions go to an appendix of additional passages, numbered as `c2.1*1`.
+- **One witness:** the text printed is the corrected one, and the apparatus says what each correction is. What the
+  scribe did is reported as the scribe's: `युद्ध ] add. supra lin. A` (added above the line; `add. infra lin.`,
+  `add. in marg.`, `add. in lin.` likewise), `post कुरु ] भीम del. A` (deleted), and a substitution as
+  `गोविन्द ] कृष्ण Aa.c.`. What you did is reported as yours: a `<choice>` with `<corr>` as `गगने ] em.; गगन A`,
+  `<supplied>` as `पूर्ण ] suppl.; om. A`, `<surplus>` as `post देव ] अधिक A (secl.)`, and `<reg>` plainly as
+  `जलं ] जल A`. A word in `<unclear>` is noted `चन्द्र ] A (ut vid.)`, one in `<sic>` as `गगन ] A (sic)`. Words
+  added or deleted together are one note. The abbreviations are in the table with the others.
 - **Checks:** each witness cited once in each entry, no unknown siglum, group sigla that stand for exactly their
   witnesses, each lemma the edited text and with a witness unless emended, no witness cited where its text is lost,
   and decisions waiting for review. Ties settled only by your trust order are listed to look at.

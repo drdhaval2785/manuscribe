@@ -461,9 +461,11 @@
 
   Edit.cutMap = function (t) {
     const starts = new Int32Array(t.ncols), have = new Int32Array(t.ncols);
+    // with one witness, its text before correction counts too: a word the scribe deleted is a place of its own
+    const one = new Set(t.order.map((l) => t.states[l].siglum)).size === 1;
     for (const l of t.order) {
       const st = t.states[l];
-      if (st.layer === 'ac') continue;
+      if (st.layer === 'ac' && !one) continue;
       const segs = wordStartsOf(st);
       st.cols.forEach((c, k) => {
         have[c]++;

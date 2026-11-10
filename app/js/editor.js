@@ -19,12 +19,15 @@
     zoom: 1,
     hooks: {},
     current: null, // {box, i}
-    multi: null, // selection over several lines of this folio: {a, f} = {box, i, offset}
+    /* A selection over several lines, through an addition written outside the line, or over several folios (only
+       the part on this folio is painted): {a: anchor, f: focus}, each {label, box, i, offset}. */
+    multi: null,
     pending: null, // start of a tag that will end elsewhere: {label, box, i, offset}
   };
 
   let pane, wrap, folio;
   let drag = null;
+  let folioIdx = new Map(); // label -> its place among the folios
 
   Editor.init = function (paneEl, hooks) {
     pane = paneEl;
@@ -49,13 +52,15 @@
 
   /* ---------- rendering ---------- */
 
-  Editor.render = function (project, entry, pageSize) {
+  // opts.keepMulti: the selection stays (it runs on to this folio); the caller paints it again
+  Editor.render = function (project, entry, pageSize, opts) {
     Editor.project = project;
     Editor.entry = entry;
     if (pageSize) Editor.pageSize = pageSize;
     Editor.current = null;
-    Editor.multi = null;
+    if (!(opts && opts.keepMulti)) Editor.multi = null;
     paintMulti([]);
+    folioIdx = new Map(Model.entries(project).map((e, k) => [e.label, k]));
     tlReset();
     const g = Editor.typingGeom(project, entry, Editor.pageSize || (project.pdf && project.pdf.size));
     Editor.geom = g;
@@ -323,6 +328,9 @@
 
   Editor.setCaret = function (line, offset) {
     const p = Spans.pointAt(line, Math.max(0, offset));
+    // inside an addition whose text is edited in the margin: the caret goes there
+    const where = lineOf(p.node);
+    if (where && where !== line && isM(where) && document.activeElement !== where) where.focus({ preventScroll: true });
     const r = document.createRange();
     r.setStart(p.node, p.offset);
     r.collapse(true);
@@ -330,6 +338,16 @@
     sel.removeAllRanges();
     sel.addRange(r);
   };
+
+  // The mark of an addition (or any chip) whose text starts (end: ends) `off` units into the line, or null.
+  function chipAt(line, off, end) {
+    for (const c of U.$$('.chip', line)) {
+      if (c.closest('.mline') || c.classList.contains('no-anchor')) continue;
+      const start = Spans.offsetOf(line, c.parentNode, Array.prototype.indexOf.call(c.parentNode.childNodes, c));
+      if ((end ? start + Spans.units(c) : start) === off) return c;
+    }
+    return null;
+  }
 
   function selectWithin(line, from, to) {
     const a = Spans.pointAt(line, from), b = Spans.pointAt(line, to);
@@ -657,13 +675,14 @@
   }
   Editor.nextAksaraEnd = nextAksaraEnd;
 
-  // The text of a line as the caret counts it: characters, and one placeholder per chip.
+  // The text of a line as the caret counts it: characters, and a placeholder per chip (as many as the chip has units:
+  // one, or the length of an addition's text).
   function unitText(line) {
     let s = '';
     const walk = (n) => {
       for (const c of n.childNodes) {
         if (c.nodeType === 3) s += c.nodeValue.replace(/\u200B/g, '');
-        else if (c.nodeType === 1) { if (c.classList.contains('chip')) { if (!c.classList.contains('no-anchor')) s += '\uFFFC'; } else walk(c); }
+        else if (c.nodeType === 1) { if (c.classList.contains('chip')) s += '\uFFFC'.repeat(Spans.units(c)); else walk(c); }
       }
     };
     walk(line);
@@ -684,37 +703,45 @@
 
   /* ---------- selection over several lines ---------- */
 
+  const withLabel = (p) => (p.label ? p : Object.assign({ label: Editor.entry.label }, p));
+  const streamKeyOf = (p) => Model.streamOfBox(Model.pageLayout(Editor.project, p.label), p.box).key;
   function streamOrder(p) {
-    const s = Model.streamOfBox(Editor.geom.type, p.box);
-    return [s.boxes.indexOf(p.box), p.i, p.offset];
+    const s = Model.streamOfBox(Model.pageLayout(Editor.project, p.label), p.box);
+    return [folioIdx.get(p.label) || 0, s.boxes.indexOf(p.box), p.i, p.offset];
   }
   function before(a, b) {
     const x = streamOrder(a), y = streamOrder(b);
-    for (let k = 0; k < 3; k++) if (x[k] !== y[k]) return x[k] < y[k];
+    for (let k = 0; k < 4; k++) if (x[k] !== y[k]) return x[k] < y[k];
     return false;
   }
+  const sameLine = (p, q) => p.label === q.label && p.box === q.box && p.i === q.i;
 
+  // The selection as ranges on this folio's lines, one for each stretch of a line's own text or of an addition's.
   function multiRanges() {
     if (!Editor.multi) return [];
     let { a, f } = Editor.multi;
     if (before(f, a)) [a, f] = [f, a];
-    const s = Model.streamOfBox(Editor.geom.type, a.box);
+    const label = Editor.entry.label;
+    const s = Model.LAYOUTS[Editor.geom.type].streams.find((x) => x.key === streamKeyOf(a));
+    if (!s) return [];
     const ranges = [];
     for (const b of s.boxes) {
       for (let i = 0; i < lineCount(b); i++) {
-        const p = { box: b, i };
-        const ia = before({ box: b, i, offset: Infinity }, a), ib = before(f, { box: b, i, offset: -1 });
+        const p = { label, box: b, i };
+        const ia = before({ label, box: b, i, offset: Infinity }, a), ib = before(f, { label, box: b, i, offset: -1 });
         if (ia || ib) continue;
         const line = Editor.lineEl(b, i);
         if (!line) continue;
-        const from = p.box === a.box && p.i === a.i ? a.offset : 0;
-        const to = p.box === f.box && p.i === f.i ? f.offset : Spans.units(line);
+        const from = sameLine(p, a) ? a.offset : 0;
+        const to = sameLine(p, f) ? f.offset : Spans.units(line);
         if (to <= from) continue;
-        const x = Spans.pointAt(line, from), y = Spans.pointAt(line, to);
-        const r = document.createRange();
-        r.setStart(x.node, x.offset);
-        r.setEnd(y.node, y.offset);
-        ranges.push(r);
+        for (const seg of Spans.segments(line, from, to, Spans.addBody)) {
+          const x = Spans.pointAt(seg.container, seg.from), y = Spans.pointAt(seg.container, seg.to);
+          const r = document.createRange();
+          r.setStart(x.node, x.offset);
+          r.setEnd(y.node, y.offset);
+          ranges.push(r);
+        }
       }
     }
     return ranges;
@@ -731,14 +758,18 @@
   }
 
   Editor.setMulti = function (a, f) {
-    const g = Editor.geom;
-    if (Model.streamOfBox(g.type, a.box).key !== Model.streamOfBox(g.type, f.box).key) return false;
-    if (a.box === f.box && a.i === f.i) {
-      Editor.clearMulti();
+    a = withLabel(a); f = withLabel(f);
+    if (streamKeyOf(a) !== streamKeyOf(f)) return false;
+    if (sameLine(a, f) && a.label === Editor.entry.label) {
       const line = Editor.lineEl(a.box, a.i);
-      if (line) Editor.current = posOf(line);
-      if (line) { if (document.activeElement !== line) line.focus({ preventScroll: true }); selectWithin(line, a.offset, f.offset); }
-      return false;
+      const lo = Math.min(a.offset, f.offset), hi = Math.max(a.offset, f.offset);
+      // within the line's own text, the browser's selection; through an addition, painted as over lines
+      if (!line || !Spans.segments(line, lo, hi, Spans.addBody).some((s) => s.container !== line)) {
+        Editor.clearMulti();
+        if (line) Editor.current = posOf(line);
+        if (line) { if (document.activeElement !== line) line.focus({ preventScroll: true }); selectWithin(line, a.offset, f.offset); }
+        return false;
+      }
     }
     Editor.multi = { a, f };
     paintMulti(multiRanges());
@@ -768,11 +799,38 @@
     if (Editor.multi) return Editor.multi;
     const sel = getSelection();
     const has = sel.rangeCount && line.contains(sel.anchorNode);
-    const pos = posOf(line);
+    const pos = Object.assign({ label: Editor.entry.label }, posOf(line));
     return {
       a: Object.assign({}, pos, { offset: has ? Spans.offsetOf(line, sel.anchorNode, sel.anchorOffset) : 0 }),
       f: Object.assign({}, pos, { offset: has ? Spans.offsetOf(line, sel.focusNode, sel.focusOffset) : 0 }),
     };
+  }
+
+  /* The selection running on to the next folio side (dir 1) or back to the one before (-1): the app shows that folio,
+     the selection kept, and the focus goes to the first (last) line of the same text there, `where` giving its offset
+     from the line. Only one at a time: the folio takes a moment to show. */
+  let crossing = false;
+  async function crossFolio(a, f, dir, where) {
+    if (crossing) return;
+    const key = streamKeyOf(f);
+    crossing = true;
+    try {
+      const label = await hook('onCrossFolio', dir);
+      if (!label) return;
+      const s = Model.LAYOUTS[Editor.geom.type].streams.find((x) => x.key === key);
+      if (!s) { U.toast('Folio ' + label + ' has no ' + Model.STREAMS[key].label.toLowerCase(), 'warn'); return; }
+      const box = dir > 0 ? s.boxes[0] : s.boxes[s.boxes.length - 1];
+      const i = dir > 0 ? 0 : lineCount(box) - 1;
+      const target = Editor.lineEl(box, i);
+      if (!target) return;
+      const n = { label, box, i, offset: where(target) };
+      Editor.setMulti(a, n);
+      // the keys go on working from the folio shown: the caret, with the painted selection, at its focus
+      if (document.activeElement !== target) target.focus({ preventScroll: true });
+      const p = Spans.pointAt(target, n.offset);
+      getSelection().collapse(p.node, p.offset);
+      scrollToSee(target);
+    } finally { crossing = false; }
   }
 
   function pointX(line, off) {
@@ -798,31 +856,34 @@
     else if (lr.bottom > pr.bottom - 8) pane.scrollBy({ top: lr.bottom - pr.bottom + 8 });
   }
 
-  // Shift + ↑/↓: to the same place in the line above / below
+  // Shift + ↑/↓: to the same place in the line above / below; past the folio's last (first) line, on to the next folio
   function extendVertical(line, dir) {
     const { a, f } = selectionEnds(line);
+    if (f.label !== Editor.entry.label) return;
+    const x = pointX(Editor.lineEl(f.box, f.i), f.offset);
+    const under = (target) => { const r = target.getBoundingClientRect(); return offsetAtPoint(target, U.clamp(x, r.left + 1, r.right - 1), r.top + r.height / 2); };
     const n = streamNeighbour(f, dir);
-    if (!n) return;
+    if (!n) { crossFolio(a, f, dir, under); return; }
     const target = Editor.lineEl(n.box, n.i);
     if (!target) return;
-    const x = pointX(Editor.lineEl(f.box, f.i), f.offset);
     scrollToSee(target);
-    const r = target.getBoundingClientRect();
-    Editor.setMulti(a, Object.assign(n, { offset: offsetAtPoint(target, U.clamp(x, r.left + 1, r.right - 1), r.top + r.height / 2) }));
+    Editor.setMulti(a, Object.assign({ label: f.label }, n, { offset: under(target) }));
   }
 
-  // Shift + ←/→: one character; at the end of a line, on to the next line
+  // Shift + ←/→: one character (through an addition written outside the line, letter by letter of its text); at the
+  // end of a line, on to the next line; at the end of the folio, on to the next folio
   function extendHorizontal(line, dir) {
     const { a, f } = selectionEnds(line);
+    if (f.label !== Editor.entry.label) return;
     const fl = Editor.lineEl(f.box, f.i);
     const off = f.offset + dir;
     if (off >= 0 && off <= Spans.units(fl)) { Editor.setMulti(a, Object.assign({}, f, { offset: off })); return; }
     const n = streamNeighbour(f, dir);
-    if (!n) return;
+    if (!n) { crossFolio(a, f, dir, (target) => (dir > 0 ? 0 : Spans.units(target))); return; }
     const target = Editor.lineEl(n.box, n.i);
     if (!target) return;
     scrollToSee(target);
-    Editor.setMulti(a, Object.assign(n, { offset: dir > 0 ? 0 : Spans.units(target) }));
+    Editor.setMulti(a, Object.assign({ label: f.label }, n, { offset: dir > 0 ? 0 : Spans.units(target) }));
   }
 
   // Backspace/Delete on a selection over several lines: ask twice (a dialog whose Delete
@@ -834,12 +895,13 @@
     const parts = Spans.preview(Editor.project, a, b);
     if (parts.error || !parts.length) { Editor.clearMulti(); return; }
     const n = parts.length;
-    const where = (p) => Model.BOX_LABEL[p.box].toLowerCase() + ' line ' + (p.i + 1);
+    const folios = [...new Set(parts.map((p) => p.label))];
+    const where = (p) => (folios.length > 1 ? p.label + ' ' : '') + Model.BOX_LABEL[p.box].toLowerCase() + ' line ' + (p.i + 1);
     const shown = parts.slice(0, 12).map((p) => where(p).padEnd(18) + '│ ' + (p.text.length > 90 ? p.text.slice(0, 88) + '…' : p.text || '(marks only)'));
     if (parts.length > 12) shown.push('… and ' + (parts.length - 12) + ' more line(s)');
     const sure = U.el('input', { type: 'checkbox' });
     const body = U.el('div', { class: 'bulk-delete' },
-      U.el('p', null, 'This deletes the selected text on ', U.el('b', null, n + ' lines'), ' of folio ' + label + ', from ' + where(parts[0]) + ' to ' + where(parts[n - 1]) + '. The lines themselves stay; lines that were selected completely become empty.'),
+      U.el('p', null, 'This deletes the selected text on ', U.el('b', null, n + ' lines'), (folios.length > 1 ? ' of folios ' + folios.join(', ') : ' of folio ' + label) + ', from ' + where(parts[0]) + ' to ' + where(parts[n - 1]) + '. The lines themselves stay; lines that were selected completely become empty.'),
       U.el('pre', { class: 'bulk-preview' }, shown.join('\n')),
       U.el('label', { class: 'field check bulk-sure' }, sure, U.el('span', null, 'Yes, I am sure: delete the text on these ' + n + ' lines')),
       U.el('p', { class: 'help' }, 'You can still undo it afterwards with ' + (U.isMac ? '⌘Z' : 'Ctrl+Z') + '.'));
@@ -1018,7 +1080,9 @@
         if (!plain || e.shiftKey || !collapsed) return;
         e.preventDefault();
         const off = Editor.caretOffset(line);
-        if (off === 0) Editor.prevLineEnd(line); else Editor.setCaret(line, off - 1); // one sign, even inside an akṣara
+        // one sign, even inside an akṣara; over the mark of an addition at one go, whatever its text's length
+        const chip = off > 0 ? chipAt(line, off, true) : null;
+        if (off === 0) Editor.prevLineEnd(line); else Editor.setCaret(line, off - (chip ? Math.max(1, Spans.units(chip)) : 1));
         break;
       }
       case 'ArrowRight': {
@@ -1027,9 +1091,10 @@
         const w = wrapperEndingAtCaret(line);
         if (w) { Editor.caretAfter(w); break; }
         const off = Editor.caretOffset(line);
-        // → jumps over a whole akṣara (conjuncts included); ← and Backspace go sign by sign
+        // → jumps over a whole akṣara (conjuncts included), and over the mark of an addition; ← and Backspace go sign by sign
         const text = unitText(line);
-        if (off < text.length) { Editor.setCaret(line, nextAksaraEnd(text, off)); break; }
+        const chip = off < text.length ? chipAt(line, off, false) : null;
+        if (off < text.length) { Editor.setCaret(line, chip ? off + Math.max(1, Spans.units(chip)) : nextAksaraEnd(text, off)); break; }
         const { box, i } = posOf(line);
         if (i + 1 < lineCount(box)) Editor.focusLine(box, i + 1, 'start');
         break;
@@ -1241,7 +1306,7 @@
       // shift+click on another line extends the selection over several lines
       e.preventDefault();
       const sel = getSelection();
-      const a = Editor.multi ? Editor.multi.a : Object.assign(posOf(active), { offset: sel.rangeCount && active.contains(sel.anchorNode) ? Spans.offsetOf(active, sel.anchorNode, sel.anchorOffset) : 0 });
+      const a = Editor.multi ? Editor.multi.a : Object.assign({ label: Editor.entry.label }, posOf(active), { offset: sel.rangeCount && active.contains(sel.anchorNode) ? Spans.offsetOf(active, sel.anchorNode, sel.anchorOffset) : 0 });
       Editor.setMulti(a, Object.assign(posOf(line), { offset: offsetAtPoint(line, e.clientX, e.clientY) }));
       return;
     }
@@ -1351,22 +1416,17 @@
      one line to a line, and, for pasting back into Manuscribe, as the TEI of each line. A tag that runs over
      several lines comes out as one piece on each line. */
   function copyMulti(e, cut) {
-    const ranges = multiRanges();
-    if (!ranges.length) return false;
+    const label = Editor.entry.label;
+    const parts = Spans.preview(Editor.project, Object.assign({ label }, Editor.multi.a), Object.assign({ label }, Editor.multi.f));
+    if (parts.error || !parts.length) return false;
     e.preventDefault();
-    const texts = [], teis = [];
-    for (const r of ranges) {
-      const tmp = document.createElement('div');
-      tmp.appendChild(r.cloneContents());
-      texts.push(tmp.textContent.replace(/\u200B/g, ''));
-      teis.push(TEI.fromHtml(tmp).replace(/ x-span="[^"]*"/g, ''));
-    }
+    const texts = parts.map((p) => p.text), teis = parts.map((p) => p.tei.replace(/ x-span="[^"]*"/g, ''));
     // a line that does not end a word continues on the next, as <lb break="no"/> says in the export
     const brk = texts.map((t, k) => k > 0 && !/[\s|।॥]$/.test(texts[k - 1]) && texts[k - 1] !== '');
     e.clipboardData.setData('text/plain', texts.join('\n'));
     e.clipboardData.setData('application/x-manuscribe-lines', JSON.stringify({ lines: teis, brk }));
     if (cut) Editor.deleteMulti();
-    else U.toast('Copied ' + ranges.length + ' lines');
+    else U.toast('Copied ' + parts.length + (parts.length === 1 ? ' line' : ' lines'));
     return true;
   }
 

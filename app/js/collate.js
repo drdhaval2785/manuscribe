@@ -260,7 +260,7 @@
       siglum: st.siglum, layer: st.layer, dip: st.dip,
       ignored: st.runs.filter((r) => r.ignored && r.to > r.from).map((r) => [r.from, r.to]),
       gaps: (st.gaps || []).map((g) => ({ at: g.at, quantity: g.quantity })),
-      runs: st.runs.filter((r) => r.to > r.from).map((r) => (r.sep ? { from: r.from, to: r.to, sep: true } : { from: r.from, to: r.to, folio: r.label, box: r.box, line: r.i, offs: r.offs })),
+      runs: st.runs.filter((r) => r.to > r.from).map((r) => (r.sep ? { from: r.from, to: r.to, sep: true } : Object.assign({ from: r.from, to: r.to, folio: r.label, box: r.box, line: r.i, offs: r.offs }, r.flags && r.flags.length ? { flags: r.flags } : {}))),
       from: st.tokens.map((t) => t.from), n: st.tokens.map((t) => t.n), rules, flags,
     };
   };
