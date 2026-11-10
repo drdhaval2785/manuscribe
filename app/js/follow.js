@@ -37,9 +37,14 @@
   };
 
   /* Where the caret is along its line, 0..1. before: akṣaras before the caret; total: in the line; atEnd: nothing
-     after the caret but spaces; above: the counts of the lines above on this side; perLine: the figure given. */
-  Follow.fraction = function ({ before, total, atEnd, above, perLine }) {
-    let expected = !atEnd && total > 0 ? total : Follow.expected(above, perLine);
+     after the caret but spaces; above: the counts of the lines above on this side; perLine: the figure given;
+     complete: the line has been typed to its end (there is text on a line below it). A line's own length counts
+     only once it is complete, or about as long as the lines above: in a line typed halfway, a click on its third
+     word is a third of the way along the typed part, not of the line. */
+  Follow.fraction = function ({ before, total, atEnd, above, perLine, complete }) {
+    const usual = Follow.expected(above, perLine);
+    const own = !atEnd && total > 0 && (complete || total >= 0.75 * usual);
+    let expected = own ? total : usual;
     if (expected < before + 1) expected = before + 1; // never past the end of the line
     return Math.max(0, Math.min(1, before / expected));
   };
@@ -56,7 +61,10 @@
       const el = E.lineEl(pos.box, k);
       if (el) above.push(Follow.count(E.unitText(el)));
     }
-    return Follow.fraction({ before: Follow.count(text.slice(0, off)), total: Follow.count(text), atEnd: off >= text.replace(/\s+$/, '').length, above, perLine: project && project.layout && project.layout.lettersPerLine });
+    // typed on below this line: the line is complete, and its own length is the measure
+    let complete = false;
+    for (let k = pos.i + 1, el = E.lineEl(pos.box, k); el && !complete; k++, el = E.lineEl(pos.box, k)) complete = /\S/.test(E.unitText(el));
+    return Follow.fraction({ before: Follow.count(text.slice(0, off)), total: Follow.count(text), atEnd: off >= text.replace(/\s+$/, '').length, above, perLine: project && project.layout && project.layout.lettersPerLine, complete });
   };
 
   ME.Follow = Follow;

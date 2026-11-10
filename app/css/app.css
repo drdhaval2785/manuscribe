@@ -381,6 +381,7 @@ body.no-project #topbar, body.no-project #main { visibility: hidden; }
 .pending-flag .pf-x:hover { opacity: 1; background: #a61e1e; }
 .pending-status { color: var(--teal); font-weight: 600; }
 .pending-status button { border: 0; background: transparent; color: var(--teal); cursor: pointer; font-weight: 700; }
+.calib-touch { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
 .calib-lines { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; white-space: nowrap; }
 .calib-lines input { width: 52px; padding: 3px 6px; }
 
@@ -881,6 +882,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .calib-bar { height: auto; min-height: 48px; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; }
   .calib-label { flex-basis: 100%; order: 3; font-size: 12.5px; }
   #pdf-view.calibrating .pdf-scroller { top: 112px; }
+  .calib-touch { order: 4; }
   #statusbar .ed-zoom-ctl .sbtn.zoom { min-width: 44px; }
   .line-nav { display: inline-flex; }
   .line-nav .sbtn { font-size: 18px; }

@@ -87,16 +87,23 @@
           const ax = p.at.x - box.left, ay = p.at.y - box.top;
           const fx = (scroller.scrollLeft + ax) / Math.max(1, scroller.scrollWidth), fy = (scroller.scrollTop + ay) / Math.max(1, scroller.scrollHeight);
           pauseFollow();
-          PdfView.setZoom(p.z * p.f).then(() => { auto(100); scroller.scrollLeft = fx * scroller.scrollWidth - ax; scroller.scrollTop = fy * scroller.scrollHeight - ay; });
+          PdfView.setZoom(p.z * p.f).then(() => { scroller.scrollLeft = fx * scroller.scrollWidth - ax; scroller.scrollTop = fy * scroller.scrollHeight - ay; });
         }
       }
       pan = null; stage.classList.remove('panning');
     };
     stage.addEventListener('pointerup', endPan);
     stage.addEventListener('pointercancel', endPan);
-    // a scroll the app did not ask for is the editor's own: the scan stops following until the next line, or Follow
-    scroller.addEventListener('scroll', () => { if (!autoUntil || performance.now() > autoUntil) pauseFollow(); });
-    if ('onscrollend' in scroller) scroller.addEventListener('scrollend', () => { autoUntil = 0; });
+    /* A scroll by hand - a finger or the mouse on the pane, or the wheel turned - stops the scan following, until
+       the next line or Follow. A scroll by nothing of the kind is not the editor's: the app's own smooth scroll (its
+       events can come late, after a long way on a phone), or the browser settling the pane after its size changed
+       (the keyboard opening). Those must not stop it: the scan would stay put while the typing went on. */
+    let handOn = false, wheelUntil = 0;
+    scroller.addEventListener('pointerdown', () => { handOn = true; });
+    window.addEventListener('pointerup', () => { handOn = false; });
+    window.addEventListener('pointercancel', () => { handOn = false; });
+    scroller.addEventListener('wheel', (e) => { if (!(e.ctrlKey || e.metaKey)) wheelUntil = performance.now() + 400; }, { passive: true });
+    scroller.addEventListener('scroll', () => { if (handOn || performance.now() < wheelUntil) pauseFollow(); });
 
     scroller.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey) || !PdfView.doc) return;
@@ -278,7 +285,6 @@
     clip.style.marginTop = pad + 'px';
     clip.style.marginBottom = pad + 'px';
     clip.style.marginLeft = clip.style.marginRight = padX === null ? 'auto' : padX + 'px';
-    auto(150);
     if (newPage || (PdfView.calibrating && PdfView.calibScale === 1) || !PdfView.guide.rect) scroller.scrollTop = Math.max(0, pad - 14);
     pageInfo.textContent = 'PDF page ' + entry.pdfPage + ' / ' + PdfView.doc.numPages + (entry.half !== null && entry.half !== undefined ? (entry.half ? ' · lower half' : ' · upper half') : '');
     if (PdfView.cb.onPageSize) PdfView.cb.onPageSize(entry, { width: vp1.width, height: vp1.height });
@@ -367,8 +373,6 @@
   /* The scan follows the line being typed, and the letter along it. A pan or a pinch by hand stops it following (so
      that a marginal note can be read), until the typing moves to another line, or Follow is pressed. */
   PdfView.following = true;
-  let autoUntil = 0; // until when a scroll is the app's own, not the editor's
-  function auto(ms) { autoUntil = performance.now() + ms; }
   function pauseFollow() {
     if (!PdfView.following || !PdfView.guide.rect) return;
     PdfView.following = false;
@@ -427,7 +431,7 @@
       const left = U.clamp(x - vw / 2, 0, scroller.scrollWidth - vw);
       if (Math.abs(left - vl) > 12) to.left = left;
     }
-    if ('top' in to || 'left' in to) { auto(instant ? 150 : 900); scroller.scrollTo(Object.assign(to, { behavior: instant ? 'auto' : 'smooth' })); }
+    if ('top' in to || 'left' in to) scroller.scrollTo(Object.assign(to, { behavior: instant ? 'auto' : 'smooth' }));
   }
 
   /* ---------- calibration ---------- */
@@ -503,11 +507,14 @@
           U.el('button', { class: 'btn small' + (rects[st.key] ? ' primary' : ''), onclick: () => { i++; showStep(); } }, rects[st.key] ? (i === steps.length - 1 ? 'Finish' : 'Next') : 'Skip'),
           i > 0 ? U.el('button', { class: 'btn small', onclick: () => { i--; showStep(); } }, 'Back') : null,
           U.el('button', { class: 'btn small ghost', onclick: () => finish(false) }, 'Cancel'),
+          // on a touch screen, how to get about: one finger draws
+          window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? U.el('span', { class: 'calib-touch' }, 'One finger draws a box; two fingers zoom the page and move it.') : null,
         ].filter(Boolean));
       };
 
       let drag = null;
-      // two fingers: a pinch zooms, and draws nothing
+      // two fingers: a pinch zooms, moving them together pans (one finger draws, so on a phone this is the way to
+      // reach the rest of a page zoomed in on), and neither draws anything
       const touches = new Map();
       let pinch = null;
       const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
@@ -515,7 +522,14 @@
       const onTouchMove = (ev) => {
         if (!touches.has(ev.pointerId)) return;
         touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-        if (pinch && touches.size === 2) { const d = spread(); if (Math.abs(d / pinch.d - 1) > 0.08) { PdfView.calibZoom(pinch.z * (d / pinch.d), mid()); } }
+        if (pinch && touches.size === 2) {
+          const m = mid();
+          scroller.scrollLeft -= m.clientX - pinch.m.clientX;
+          scroller.scrollTop -= m.clientY - pinch.m.clientY;
+          pinch.m = m;
+          const d = spread();
+          if (Math.abs(d / pinch.d - 1) > 0.08) PdfView.calibZoom(pinch.z * (d / pinch.d), m);
+        }
       };
       const onTouchEnd = (ev) => { touches.delete(ev.pointerId); if (touches.size < 2) pinch = null; };
       function onDown(e) {
@@ -524,7 +538,7 @@
           if (touches.size === 2) {
             // the rectangle begun by the first finger is let go
             if (drag) { drawShape(drag.st, rects[drag.st.key]); drag.cancelled = true; }
-            pinch = { d: spread(), z: PdfView.calibScale };
+            pinch = { d: spread(), z: PdfView.calibScale, m: mid() };
             return;
           }
         }

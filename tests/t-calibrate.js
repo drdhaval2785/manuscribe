@@ -1,6 +1,7 @@
 // Calibration in one pane: while the leaf and the blocks are drawn, the PDF takes the whole window (the typing area,
 // which has nothing to show meanwhile, steps aside); it can be zoomed in to draw closely, and a box drawn when zoomed
-// in is where it was drawn on the page; after it, the typing area is back as it was.
+// in is where it was drawn on the page; on a touch screen two fingers move the page zoomed in on (one finger draws);
+// after it, the typing area is back as it was.
 const fs = require('fs'), path = require('path');
 const { launch, sleep, checks, ROOT } = require('./h');
 
@@ -48,6 +49,18 @@ const { launch, sleep, checks, ROOT } = require('./h');
   const drawn = await page.evaluate(() => { const r = document.querySelector('.calib-rect'); return r ? [r.style.left, r.style.top, r.style.width, r.style.height].map(parseFloat) : null; });
   const want = [((x0 - box.x) / box.w) * 100, ((y0 - box.y) / box.h) * 100, (200 / box.w) * 100, (150 / box.h) * 100];
   T.check('a box drawn when zoomed in is where it was drawn on the page', drawn && drawn.every((v, i) => Math.abs(v - want[i]) < 0.6), { drawn, want });
+  // two fingers moving together: the page moves with them, and no box is drawn
+  const panned = await page.evaluate(() => {
+    const ov = document.querySelector('.pdf-overlay'), s = document.querySelector('.pdf-scroller');
+    const b = s.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+    const ev = (el, type, id, x, y) => el.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: id === 1, clientX: x, clientY: y, button: 0, bubbles: true }));
+    const was = { x: s.scrollLeft, y: s.scrollTop, boxes: document.querySelectorAll('.calib-rect').length };
+    ev(ov, 'pointerdown', 1, cx - 30, cy); ev(ov, 'pointerdown', 2, cx + 30, cy);
+    for (let k = 1; k <= 4; k++) { ev(window, 'pointermove', 1, cx - 30 - 20 * k, cy - 10 * k); ev(window, 'pointermove', 2, cx + 30 - 20 * k, cy - 10 * k); }
+    ev(window, 'pointerup', 1, cx - 110, cy - 40); ev(window, 'pointerup', 2, cx - 50, cy - 40);
+    return { was, x: s.scrollLeft, y: s.scrollTop, boxes: document.querySelectorAll('.calib-rect').length, zoom: document.querySelector('.calib-fit').textContent };
+  });
+  T.check('two fingers moving together move the page with them (by 80, 40), and draw nothing', panned.x - panned.was.x === 80 && panned.y - panned.was.y === 40 && panned.boxes === panned.was.boxes && panned.zoom === '156%', panned);
   // cancel: back as before
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.calib);

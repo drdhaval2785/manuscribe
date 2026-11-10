@@ -1,7 +1,9 @@
 // The scan follows the letter being typed: akṣaras counted as a reader of the page counts them, the line's expected
 // length learnt from the lines above, the letter kept in the middle of the pane (the first and the last of a line too),
-// a pan by hand that stops the following until Follow or the next line, a pinch that zooms; and the figure of letters
-// per line, given at setup and kept for old projects. Uses linear.pdf from the repository folder.
+// a click inside a line typed halfway reckoned over the whole line, a pan by hand that stops the following until
+// Follow or the next line (and a scroll by nothing of the kind, such as a late event of the app's own scroll, that does
+// not), a pinch that zooms; and the figure of letters per line, given at setup and kept for old projects. Uses
+// linear.pdf from the repository folder.
 const fs = require('fs'), path = require('path');
 const { launch, sleep, checks, ROOT } = require('./h');
 (async () => {
@@ -23,6 +25,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
       ok('typing on at the end, with no line above: over the figure given', Math.abs(f({ before: 13, total: 13, atEnd: true, above: [], perLine: 65 }) - 13 / 65) < 1e-9 && Math.abs(f({ before: 13, total: 13, atEnd: true, above: [] }) - 13 / 65) < 1e-9);
       ok('with lines above: over their average, a short last line of a paragraph left out', Math.abs(Follow.expected([64, 66, 12, 68, 65], 65) - (64 + 66 + 68 + 65) / 4) < 1e-9 && Math.abs(Follow.expected([30, 32, 31], 65) - 31) < 1e-9);
       ok('never past the end of the line', f({ before: 80, total: 80, atEnd: true, above: [], perLine: 65 }) < 1 && f({ before: 80, total: 80, atEnd: true, above: [], perLine: 65 }) > 0.98);
+      ok('inside a line typed halfway (20 of 65), the caret at its 10th letter is 10/65 along, not half; once the line is complete, over its own length', Math.abs(f({ before: 10, total: 20, atEnd: false, above: [], perLine: 65 }) - 10 / 65) < 1e-9 && Math.abs(f({ before: 10, total: 20, atEnd: false, above: [], perLine: 65, complete: true }) - 0.5) < 1e-9);
       // before the blocks are drawn: a guess inside the leaf, marked as such; nothing without a leaf
       const q = Model.newProject({ lines: { main: 10 }, pdf: { name: 'x.pdf', pages: 2 } }), e0 = Model.entries(q)[0];
       ok('with no leaf known, a line has no place on the scan', Model.lineRect(q, e0, 'main', 0) === null);
@@ -77,8 +80,25 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await sleep(1100);
     w = await where();
     T.check('after 12 akṣaras of a line expected to have 65, the letter is 12/65 along, and in the middle', Math.abs(w.f - 12 / 65) < 0.002 && Math.abs(w.off) <= 16 && w.following && !w.button, w);
-    // a pan by hand: the scan stays where it was put, and offers to follow again
-    await page.evaluate(() => { document.querySelector('.pdf-scroller').scrollLeft += 300; });
+    // a click inside the line typed halfway: its place over the whole line
+    await page.evaluate(() => ME.Editor.setCaret(ME.Editor.activeLine(), 5));
+    await sleep(1100);
+    w = await where();
+    T.check('the caret put back at the 3rd akṣara of the 12: 3/65 along, and in the middle', Math.abs(w.f - 3 / 65) < 0.002 && Math.abs(w.off) <= 16 && w.following, w);
+    // a scroll event the app's own smooth scroll sends late (as on a phone after a long way): the scan follows on
+    await page.evaluate(() => document.querySelector('.pdf-scroller').dispatchEvent(new Event('scroll')));
+    await sleep(100);
+    w = await where();
+    T.check('a late scroll event of the app’s own does not stop the following', w.following && !w.button, w);
+    // a pan by hand (a finger on the pane): the scan stays where it was put, and offers to follow again
+    const byHand = (dx) => page.evaluate((dx) => {
+      const s = document.querySelector('.pdf-scroller');
+      s.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, pointerType: 'touch', bubbles: true }));
+      s.scrollLeft += dx;
+      s.dispatchEvent(new Event('scroll'));
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', bubbles: true }));
+    }, dx);
+    await byHand(300);
     await sleep(300);
     const panned = await where();
     await page.keyboard.type(' युयुत्सवः');
@@ -89,7 +109,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await sleep(1000);
     w = await where();
     T.check('Follow brings the letter back to the middle, and the caret stays in its line', !w.noLine && w.following && !w.button && Math.abs(w.off) <= 16, w);
-    await page.evaluate(() => { document.querySelector('.pdf-scroller').scrollLeft -= 200; });
+    await byHand(-200);
     await sleep(300);
     await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
     await sleep(1000);

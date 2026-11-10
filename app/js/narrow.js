@@ -87,8 +87,12 @@
      Simulator: the keyboard leaves 362 px of 699, and Safari scrolled the page by up to 306 px. */
   Narrow.viewport = function (v) {
     const vv = window.visualViewport;
-    const h = v && v.height !== undefined ? v.height : vv ? vv.height : window.innerHeight;
-    const top = v && v.offsetTop !== undefined ? v.offsetTop : vv ? vv.offsetTop : 0;
+    const scale = v && v.scale !== undefined ? v.scale : vv ? vv.scale : 1;
+    let h = v && v.height !== undefined ? v.height : vv ? vv.height : window.innerHeight;
+    let top = v && v.offsetTop !== undefined ? v.offsetTop : vv ? vv.offsetTop : 0;
+    /* The page pinched larger (which Safari on iOS always allows) also shrinks what can be seen; but then the app
+       must keep its size, and the browser shows the part looked at: only the keyboard takes room from the app. */
+    if (scale > 1.01) { h = document.documentElement.clientHeight || h * scale; top = 0; }
     const root = document.documentElement.style;
     root.setProperty('--app-h', Math.round(h) + 'px');
     root.setProperty('--app-top', Math.round(top) + 'px');

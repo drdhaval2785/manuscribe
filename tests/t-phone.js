@@ -71,6 +71,15 @@ const { launch, sleep, checks, ROOT } = require('./h');
     });
     T.check('with the keyboard open (362 px left, the page scrolled by 40): the app is 362 px tall, moved down by 40, and the top bar steps aside', kb.open.h === '362px' && kb.open.top === '40px' && kb.open.cls && kb.open.topbar === 'none' && kb.open.main === 362 && kb.open.mainTop === 40, kb.open);
     T.check('with the keyboard closed, all is as before', !kb.closed.cls && kb.closed.topbar !== 'none' && kb.closed.main === 844 - 46, kb.closed);
+    // the page pinched larger by the browser: what can be seen shrinks too, but the app keeps its size
+    const pinched = await page.evaluate(() => {
+      const r = ME.Narrow.viewport({ height: 300, offsetTop: 120, scale: 2.8 });
+      const cs = getComputedStyle(document.documentElement);
+      const out = { r, h: cs.getPropertyValue('--app-h').trim(), top: cs.getPropertyValue('--app-top').trim(), cls: document.body.classList.contains('keyboard-open') };
+      ME.Narrow.viewport({ height: 844, offsetTop: 0, scale: 1 });
+      return out;
+    });
+    T.check('the page pinched larger (2.8×, 300 px seen): the app stays 844 px tall, is not moved, and no keyboard is taken to be open', pinched.h === '844px' && pinched.top === '0px' && !pinched.cls, pinched);
     // a keyboard that transliterates by itself (iOS's Hindi keyboard): Manuscribe's scheme steps aside
     const tl = await page.evaluate(() => {
       ME.App.project.settings.translit = 'itrans-deva';
