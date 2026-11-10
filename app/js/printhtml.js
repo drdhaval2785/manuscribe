@@ -80,6 +80,8 @@
       unspaced: ME.Norm.unspacedText(built.map((b) => b.text).join(' ').slice(0, 20000)),
       layers: layered ? ME.LayerIds.legend(ed) : [],
       stars: built.flatMap((b) => b.stars).map((x) => ({ id: x.id, wits: x.wits.join(' '), text: x.text })),
+      // the indices chosen (opts.indices, as Concord.indices: all four when not given), set after the text
+      indices: ME.Concord ? ME.Concord.indicesData(built, ME.Concord.wanted(opts)) : null,
       labels: { B: 'Testimonia:', C: 'Singular readings:', D: 'Spelling:', E: 'Decisions:' },
       paper: P.PAPER[s.paper] || P.PAPER.a4, size: s.size, lines: s.lines === 'text' ? 'text' : 'page', every: s.every === 1 ? 1 : 5,
     };
@@ -362,6 +364,33 @@
       pg.body.appendChild(el('h2', null, 'Additional passages'));
       for (const s of D.stars) { const x = el('p', 'star'); x.lang = D.lang; x.dir = 'auto'; x.textContent = s.id + ' (' + s.wits + '): ' + s.text; pg.body.appendChild(x); if (!fits(pg)) { pg.body.removeChild(x); pg = newPage(true); pg.body.appendChild(x); } }
     }
+    // ---- the indices, at the back: each from a new page, in columns, as many entries to a page as fit ----
+    const IX = D.indices || {};
+    const item = (text, ref, cls) => { const li = el('li', cls); li.lang = D.lang; li.dir = 'auto'; li.textContent = text; if (ref) { const r = el('span', 'ref'); r.textContent = ' ' + ref; li.appendChild(r); } return li; };
+    const flow = (items, wide) => {
+      let ul = el('ul', 'idx' + (wide ? ' wide' : ''));
+      pg.body.appendChild(ul);
+      for (let i = 0; i < items.length;) {
+        // a dozen at a time, then measured
+        const from = i;
+        for (const upTo = Math.min(items.length, i + 12); i < upTo; i++) ul.appendChild(items[i]);
+        if (fits(pg)) continue;
+        // more than fits: back off to what does, and on upon a new page; one entry that fits nowhere is set anyway
+        while (i > from && !fits(pg)) { ul.removeChild(ul.lastElementChild); i--; }
+        while (ul.childElementCount && !fits(pg)) { ul.removeChild(ul.lastElementChild); i--; }
+        if (!ul.childElementCount && pg.body.childElementCount === 1) { ul.appendChild(items[i]); i++; report.overfull++; }
+        if (!ul.childElementCount) pg.body.removeChild(ul);
+        pg = newPage(true);
+        ul = el('ul', 'idx' + (wide ? ' wide' : ''));
+        pg.body.appendChild(ul);
+      }
+      if (!ul.childElementCount) pg.body.removeChild(ul);
+    };
+    const section = (title, items, wide) => { if (!items.length) return; pg = newPage(true); pg.body.appendChild(el('h2', null, title)); flow(items, wide); };
+    section('Index of pādas', (IX.padas || []).map(([p, r]) => item(p, r)));
+    section('Index of words', (IX.words || []).map(([w, r]) => item(w, r.join(', '))));
+    section('Index of quotations', (IX.quotes || []).map(([t, r, w, n]) => item(t, r + (w ? ' (' + w + (n ? ' ' + n : '') + ')' : ''))), true);
+    section('Quotations by work', (IX.byWork || []).flatMap(([w, qs]) => [item(w || 'Work not named', '', 'idx-work')].concat(qs.map(([t, r, n]) => item(t, r + (n ? ' ' + n : ''))))), true);
     // for checking: on each page, the markers in its text and the notes at its foot
     for (const p of document.querySelectorAll('.page')) {
       const inText = [...p.querySelectorAll('.body .an')].map((x) => x.closest('[data-block]').dataset.block + '#' + x.dataset.k);
@@ -420,6 +449,12 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
 .consp td { padding: 0.5mm 4mm 0.5mm 0; vertical-align: top; }
 .consp .sig { font-weight: 600; white-space: nowrap; }
 .pr { font-size: calc(var(--size) * 0.85); text-align: justify; margin: 0 0 2mm; }
+/* the indices: in columns, a long entry hanging, its references muted */
+.idx { columns: 3; column-gap: 5mm; list-style: none; margin: 0; padding: 0; font-size: calc(var(--size) * 0.8); line-height: 1.45; }
+.idx.wide { columns: 2; }
+.idx li { break-inside: avoid; padding-inline-start: 1.2em; text-indent: -1.2em; }
+.idx .ref { color: #6b5a3e; font-size: 0.9em; }
+.idx .idx-work { font-weight: 600; margin-top: 0.6em; padding-inline-start: 0; text-indent: 0; break-after: avoid; }
 @media print { html, body { background: #fff; } #book { display: block; padding: 0; } .page { box-shadow: none; margin: 0; } }
 `;
 
@@ -446,7 +481,7 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
      once and kept in this browser, with only the glyphs the edition uses. list: the witnesses, whose languages choose
      between the Chinese, Japanese and Korean fonts. -> [{name, data (base64), format, kind}] */
   const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 32768) s += String.fromCharCode.apply(null, u8.subarray(i, i + 32768)); return btoa(s); };
-  P.textOf = (ed, built) => [ed.title || '', ed.editor || '', ME.Publish.citation(ed), ...ME.Publish.declaration(ed, built), ...built.map((b) => b.text),
+  P.textOf = (ed, built) => [ed.title || '', ed.editor || '', ME.Publish.citation(ed), ...ME.Publish.declaration(ed, built), ...built.map((b) => b.text), ...Object.values(ME.Concord ? ME.Concord.TITLES : {}), 'Work not named',
     ...built.flatMap((b) => b.entries.map((e) => ME.Apparatus.format(ed, e))), ...ME.LayerIds.legend(ed).map((l) => l.abbr + ' ' + l.name)].join('\n');
   P.fonts = async function (ed, built, list) {
     const out = [];

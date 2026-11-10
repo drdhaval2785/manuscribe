@@ -48,7 +48,27 @@
   /* The formats that are printed, which may be made for a book: only the text and its apparatus, without the front
      page, the running head and the versions at the foot of the pages. */
   X.BOOK = new Set(['pdf', 'pdf-capture', 'pdf-any', 'pdf-direct', 'print-page', 'markdown', 'latex', 'text']);
-  const bare = (ctx) => ({ bare: !!ctx.bare, onProgress: ctx.progress });
+  /* The indices a reader's format may carry after the text, each chosen on the dialog: the pādas of verse (where
+     metre is a feature), the words, the quotations in the order of the alphabet, and the quotations by cited work. */
+  X.INDICES = [
+    { id: 'padas', label: 'pādas of verse', on: () => F().on('metre') },
+    { id: 'words', label: 'words' },
+    { id: 'quotes', label: 'quotations, in the order of the alphabet' },
+    { id: 'byWork', label: 'quotations by cited work' },
+  ];
+  // the formats that carry them
+  X.INDEXED = new Set(['pdf', 'pdf-capture', 'pdf-any', 'pdf-direct', 'latex', 'reader', 'print-page', 'markdown', 'text', 'indices']);
+  /* The indices chosen for an export: as the context says, else as last chosen on the dialog, else every one that is
+     offered. -> {padas, words, quotes, byWork} */
+  X.NONE = { padas: false, words: false, quotes: false, byWork: false };
+  X.indicesOf = function (ctx) {
+    if (ctx.bare) return X.NONE; // for a book: the text and its apparatus, nothing else
+    if (ctx.indices) return ctx.indices;
+    const out = {};
+    for (const i of X.INDICES) out[i.id] = (!i.on || i.on(ctx)) && !(last.indices && last.indices[i.id] === false);
+    return out;
+  };
+  const bare = (ctx) => ({ bare: !!ctx.bare, onProgress: ctx.progress, indices: X.indicesOf(ctx) });
   const file = (name, data, type) => ({ name, data, type: type || 'application/octet-stream' });
 
   /* Each format: {id, group, label, desc, on: (ctx) -> shown?, scopes: which, make(ctx) -> file | null (it opened a screen)} */
@@ -80,20 +100,21 @@
     { id: 'latex', for: 'edition', group: 'print', label: 'LaTeX for reledmac', desc: 'A folder for XeLaTeX with its font: the finest print, on your computer or on Overleaf.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.latex.zip', await ME.Zip.write(await ME.Publish.texFiles(ctx.ed, ctx.list, s.built, bare(ctx))), 'application/zip'); } },
     { id: 'reader', for: 'edition', group: 'read', label: 'Reader, one HTML file', desc: 'The edited text and its apparatus, linked, with each witness’s text; opens with no network.',
-      make: async (ctx) => { const s = await scoped(ctx); const layered = ME.LayersView ? await ME.LayersView.baseTexts(ctx.ed, s.work.id) : null; return file(base(ctx) + '.reader.html', await ME.Publish.reader(ctx.ed, ctx.list, s.built, layered), 'text/html'); } },
+      make: async (ctx) => { const s = await scoped(ctx); const layered = ME.LayersView ? await ME.LayersView.baseTexts(ctx.ed, s.work.id) : null; return file(base(ctx) + '.reader.html', await ME.Publish.reader(ctx.ed, ctx.list, s.built, layered, { indices: X.indicesOf(ctx) }), 'text/html'); } },
     { id: 'print-page', for: 'edition', group: 'read', label: 'Print page, one HTML file', desc: 'The print edition as a page, to open and print later on any computer.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.print.html', ME.PrintHTML.html(ctx.ed, ctx.list, s.built, Object.assign({ fonts: await ME.PrintHTML.fonts(ctx.ed, s.built, ctx.list) }, bare(ctx))), 'text/html'); } },
     { id: 'markdown', for: 'edition', group: 'read', label: 'Markdown', desc: 'The edition in Markdown, for GitHub, Obsidian, Pandoc and other Markdown tools: the front matter, the edited text, and its apparatus as footnotes at the lemmas.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.md', ME.Markdown.edition(ctx.ed, ctx.list, s.built, bare(ctx)), 'text/markdown'); } },
     { id: 'tei', for: 'edition', group: 'exchange', label: 'TEI apparatus', desc: 'TEI P5, parallel segmentation: for other editions, teiphy and open-cbgm.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.edition.xml', ME.Apparatus.tei(ctx.ed, s.built, s.work), 'application/xml'); } },
-    { id: 'text', for: 'edition', group: 'exchange', label: 'Apparatus as text', desc: 'The edited text with its apparatus under it, plain text.',
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.apparatus.txt', ME.Apparatus.text(ctx.ed, s.built, bare(ctx)), 'text/plain'); } },
-    { id: 'indices', for: 'edition', group: 'exchange', label: 'Indices, as text', desc: 'Every word of the edited text, every pāda where there is verse, and the quotations.', on: () => F().on('indices'),
-      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.indices.txt', ME.LayersView.indicesText(ctx.ed, s.built), 'text/plain'); } },
-    { id: 'quotes-index', for: 'edition', group: 'exchange', label: 'Index of quotations', desc: 'Every passage marked as a quotation, in the order of the alphabet, with its place and the work it is from.',
+    { id: 'text', for: 'edition', group: 'exchange', label: 'Apparatus as text', desc: 'The edited text with its apparatus under it, plain text; then the indices chosen.',
+      make: async (ctx) => { const s = await scoped(ctx); const ix = ME.LayersView.indicesBody(ctx.ed, s.built, X.indicesOf(ctx)); return file(base(ctx) + '.apparatus.txt', ME.Apparatus.text(ctx.ed, s.built, bare(ctx)) + (ix ? '\n\n' + ix + '\n' : ''), 'text/plain'); } },
+    { id: 'indices', for: 'edition', group: 'exchange', label: 'Indices, as text', desc: 'The indices chosen, plain text: the words of the edited text, the pādas where there is verse, the quotations in the order of the alphabet and by the work quoted.', on: () => F().on('indices'),
+      make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.indices.txt', ME.LayersView.indicesText(ctx.ed, s.built, X.indicesOf(ctx)), 'text/plain'); } },
+    // the two indices of quotations alone, for the code that asks for them: the dialog offers them within Indices
+    { id: 'quotes-index', hidden: true, for: 'edition', group: 'exchange', label: 'Index of quotations', desc: 'Every passage marked as a quotation, in the order of the alphabet, with its place and the work it is from.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.quotations.txt', ME.Publish.citation(ctx.ed) + '\n\n' + ME.LayersView.quotesText(ctx.ed, s.built, false) + '\n', 'text/plain'); } },
-    { id: 'quotes-by-work', for: 'edition', group: 'exchange', label: 'Quotations by cited work', desc: 'The quotations under the works they are from, each work’s in the order of the alphabet.',
+    { id: 'quotes-by-work', hidden: true, for: 'edition', group: 'exchange', label: 'Quotations by cited work', desc: 'The quotations under the works they are from, each work’s in the order of the alphabet.',
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.quotations-by-work.txt', ME.Publish.citation(ctx.ed) + '\n\n' + ME.LayersView.quotesText(ctx.ed, s.built, true) + '\n', 'text/plain'); } },
     { id: 'dts', for: 'edition', group: 'exchange', label: 'DTS files', desc: 'Static files in the shape of the Distributed Text Services API 1.0.', on: () => F().on('dts'),
       make: async (ctx) => { const s = await scoped(ctx); return file(base(ctx) + '.dts.zip', await ME.Zip.write(ME.DTS.files(ctx.ed, [{ work: s.work, built: s.built }])), 'application/zip'); } },
@@ -177,8 +198,16 @@
     }
     const scopeRow = scope ? U.el('label', { class: 'xp-scope' }, 'How much: ', scope) : null;
     // for a book: only the text and its apparatus
-    const book = ctx.kind === 'edition' ? U.el('input', { type: 'checkbox', checked: !!last.bare, dataset: { action: 'export-book' }, onchange: () => { last.bare = book.checked; } }) : null;
-    const bookRow = book ? U.el('label', { class: 'xp-book', title: 'For printing in a book of your own: the edited text and its apparatus, nothing else' }, book, ' ', U.el('strong', null, 'For a book'), U.el('span', { class: 'help' }, ' only the text and its apparatus: no front page (title, citation, conspectus, principles), no running head, and no version of the edition or of Manuscribe on the pages')) : null;
+    const book = ctx.kind === 'edition' ? U.el('input', { type: 'checkbox', checked: !!last.bare, dataset: { action: 'export-book' }, onchange: () => { last.bare = book.checked; sync(); } }) : null;
+    const bookRow = book ? U.el('label', { class: 'xp-book', title: 'For printing in a book of your own: the edited text and its apparatus, nothing else' }, book, ' ', U.el('strong', null, 'For a book'), U.el('span', { class: 'help' }, ' only the text and its apparatus: no front page (title, citation, conspectus, principles), no running head, no indices, and no version of the edition or of Manuscribe on the pages')) : null;
+    // the indices to carry after the text, for the formats that read
+    const ixBoxes = {};
+    const chosen = X.indicesOf(ctx);
+    const ixRow = ctx.kind === 'edition' ? U.el('div', { class: 'xp-indices', dataset: { action: 'export-indices' } }, U.el('strong', null, 'Indices'),
+      ...X.INDICES.filter((i) => !i.on || i.on(ctx)).map((i) => { const cb = U.el('input', { type: 'checkbox', checked: chosen[i.id] !== false, dataset: { index: i.id } }); ixBoxes[i.id] = cb; return U.el('label', { class: 'xp-ix' }, cb, ' ' + i.label); }),
+      U.el('span', { class: 'help' }, 'each one ticked is set after the text and its apparatus; untick them all for none')) : null;
+    const indicesChosen = () => { const o = {}; for (const i of X.INDICES) o[i.id] = !!(ixBoxes[i.id] && ixBoxes[i.id].checked); return o; };
+    // (for a book there are none: the row is hidden, and nothing is remembered from it)
     const sync = () => {
       const k = X.kindOf(pick);
       for (const [kk, r] of Object.entries(kindRadios)) r.checked = kk === k;
@@ -186,6 +215,7 @@
       kindHelp.textContent = KIND_HELP[k] || '';
       if (scopeRow) scopeRow.hidden = !!pick.whole || pick.scope === 'block';
       if (bookRow) bookRow.hidden = !X.BOOK.has(pick.id);
+      if (ixRow) ixRow.hidden = !X.INDEXED.has(pick.id) || !!(book && book.checked && X.BOOK.has(pick.id));
     };
     sync();
     const go = U.el('button', { class: 'btn primary', dataset: { action: 'export-go' }, onclick: async () => {
@@ -197,8 +227,9 @@
         last[ctx.kind] = pick.id;
         last[ctx.kind + ':' + X.kindOf(pick)] = pick.id;
         if (pick.id === 'pdf') last.pdfRoute = X.pdfRoute(ctx);
+        if (ixRow && !ixRow.hidden) last.indices = indicesChosen();
         try { localStorage.setItem(KEY, JSON.stringify(last)); } catch (e) { /* not kept */ }
-        c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null, bare: !!(book && book.checked && X.BOOK.has(pick.id)) });
+        c = Object.assign({}, ctx, { scope: pick.scope === 'block' ? 'block' : scope ? scope.value : null, bare: !!(book && book.checked && X.BOOK.has(pick.id)), indices: ixRow && !ixRow.hidden ? indicesChosen() : ctx.indices });
         /* A format that opens a tab opens it now, in the click itself, before anything is waited for: Safari, and
            other browsers with a strict pop-up blocker, allow a new tab only then. It is filled when ready. */
         if (typeof pick.opensWindow === 'function' ? pick.opensWindow(c) : pick.opensWindow) {
@@ -237,7 +268,7 @@
       if (missing.length) bits.push(missing.length + ' block(s) have not been collated (' + names(missing) + '), and will be left out');
       if (bits.length) { staleNote.textContent = bits.join('; ') + '. Press Collate first to bring them up to date.'; staleNote.hidden = false; }
     })().catch(() => {});
-    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, staleNote, kindRow, kindHelp, list, bookRow, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
+    await UI.modal({ title: 'Export', body: U.el('div', { class: 'xp' }, staleNote, kindRow, kindHelp, list, bookRow, ixRow, U.el('div', { class: 'nv-head xp-foot' }, scopeRow, U.el('span', { class: 'cv-spacer' }), go)), wide: true, buttons: [{ label: 'Close', value: null }] });
   };
 
   ME.ExportView = X;

@@ -89,7 +89,7 @@
     for (const b of built) {
       let k = 0;
       for (const raw of b.text.split(/\s+/)) {
-        const word = raw.replace(/[।॥|.,;:'"“”‘’()[\]॰-]+/g, '').trim();
+        const word = raw.replace(/[।॥|.,;:'"“”‘’()[\]॰،؛؟-]+/g, '').trim();
         if (!word || /^[\d०-९]+$/.test(word)) continue;
         k++;
         if (!map.has(word)) map.set(word, []);
@@ -141,6 +141,27 @@
     }
     return out.sort((a, b) => collator.compare(a.pada, b.pada));
   };
+
+  /* ---------- the indices chosen ---------- */
+
+  /* which: {padas, words, quotes, byWork}, each true to have it; all four when not given. -> the same, as booleans */
+  Concord.choice = (which) => (which ? { padas: !!which.padas, words: !!which.words, quotes: !!which.quotes, byWork: !!which.byWork } : { padas: true, words: true, quotes: true, byWork: true });
+  /* The indices chosen, each computed only if chosen. -> {padas, words, quotes, byWork}, [] where not chosen */
+  Concord.indices = function (built, which) {
+    const c = Concord.choice(which);
+    return { padas: c.padas ? Concord.padaIndex(built) : [], words: c.words ? Concord.wordIndex(built) : [], quotes: c.quotes ? Concord.quoteIndex(built) : [], byWork: c.byWork ? Concord.quotesByWork(built) : [] };
+  };
+  /* The same as plain arrays, for a page that carries them as JSON: words [word, refs], pādas [pāda, ref], quotations
+     [text, ref, work, n], by work [work, [[text, ref, n]]]. */
+  Concord.indicesData = function (built, which) {
+    const ix = Concord.indices(built, which);
+    return { words: ix.words.map((w) => [w.word, w.refs]), padas: ix.padas.map((p) => [p.pada, p.ref]), quotes: ix.quotes.map((q) => [q.text, q.ref, q.work, q.n]), byWork: ix.byWork.map((g) => [g.work, g.quotes.map((q) => [q.text, q.ref, q.n])]) };
+  };
+  /* What an exporter's options ask for: none for a book (opts.bare: the text and its apparatus, nothing else), else
+     opts.indices, else (undefined) all four. */
+  Concord.wanted = (opts) => (opts && opts.bare ? { padas: false, words: false, quotes: false, byWork: false } : opts && opts.indices);
+  Concord.any = (ix) => !!(ix && ((ix.padas || []).length || (ix.words || []).length || (ix.quotes || []).length || (ix.byWork || []).length));
+  Concord.TITLES = { padas: 'Index of pādas', words: 'Index of words', quotes: 'Index of quotations', byWork: 'Quotations by work' };
 
   ME.Concord = Concord;
 })(window.ME);

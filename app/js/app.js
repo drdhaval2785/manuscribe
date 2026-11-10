@@ -1297,7 +1297,10 @@
     const F = ME.Features;
     const tabs = U.el('div', { class: 'nv-head st-tabs' });
     const body = U.el('div', { class: 'st-body' });
-    let form = null;
+    let form = null, kept = null;
+    // the level changed in the Interface tab: the Transcription tab is built afresh, with what was typed in it kept
+    const onFeatures = () => { if (form) kept = form.values(); form = null; };
+    F.onChange(onFeatures);
     const sections = [['interface', 'Interface']].concat(onProject ? [['transcription', 'Transcription']] : []);
     const show = (k) => {
       for (const b of tabs.children) b.setAttribute('aria-pressed', String(b.dataset.k === k));
@@ -1316,7 +1319,7 @@
             { n: 'guide', label: 'Line guide on the PDF', type: 'select', options: ['band', 'dim', 'off'], labels: ['Highlight the current line', 'Dim everything except the current line', 'Off'] },
             { n: 'showMarkers', label: 'Show paragraph / verse / quotation markers', type: 'checkbox' },
             { n: 'noAnchorIds', label: 'Notes without a placeholder in the text (types, separated by commas)', type: 'text', help: 'Notes with one of these types (e.g. the name of the work, the folio number, the author) are shown only in the margin, with no mark in the line.' },
-          ], s);
+          ], Object.assign({}, s, kept));
         }
         body.append(form.el);
       }
@@ -1324,8 +1327,9 @@
     for (const [k, label] of sections) tabs.append(U.el('button', { class: 'btn small', dataset: { k }, onclick: () => show(k) }, label));
     show(onProject ? 'transcription' : 'interface');
     const ok = await UI.modal({ title: 'Settings', body: U.el('div', null, sections.length > 1 ? tabs : null, body), buttons: [{ label: 'Close', kind: 'ghost', value: null }].concat(onProject ? [{ label: 'Apply', kind: 'primary', value: true }] : []) });
-    if (onProject && ok && form) {
-      const v = form.values();
+    F.offChange(onFeatures);
+    if (onProject && ok && (form || kept)) {
+      const v = form ? form.values() : kept;
       const s = App.project.settings;
       if (v.translit && v.translit !== 'off') v.translitLast = v.translit;
       Object.assign(s, v);

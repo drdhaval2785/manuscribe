@@ -150,11 +150,21 @@
 
   /* ---------- indices ---------- */
 
-  LayersView.indicesText = function (ed, built) {
-    const words = ME.Concord.wordIndex(built), padas = ME.Concord.padaIndex(built);
-    return ME.Publish.citation(ed) + '\n\nIndex of words\n' + words.map((w) => w.word + '  ' + w.refs.join(', ')).join('\n')
-      + (padas.length ? '\n\nIndex of pādas\n' + padas.map((p) => p.pada + '  ' + p.ref).join('\n') : '')
-      + (ME.Concord.quoteIndex(built).length ? '\n\n' + LayersView.quotesText(ed, built, false) + '\n\n' + LayersView.quotesText(ed, built, true) : '') + '\n';
+  /* The indices chosen (which: {padas, words, quotes, byWork}; all when not given), as text, each under its title.
+     -> string, '' when none has anything */
+  LayersView.indicesBody = function (ed, built, which) {
+    const ix = ME.Concord.indices(built, which);
+    const parts = [];
+    if (ix.words.length) parts.push('Index of words\n' + ix.words.map((w) => w.word + '  ' + w.refs.join(', ')).join('\n'));
+    if (ix.padas.length) parts.push('Index of pādas\n' + ix.padas.map((p) => p.pada + '  ' + p.ref).join('\n'));
+    if (ix.quotes.length) parts.push(LayersView.quotesText(ed, built, false));
+    if (ix.byWork.length) parts.push(LayersView.quotesText(ed, built, true));
+    return parts.join('\n\n');
+  };
+  // the indices as a file: the citation, then the indices chosen
+  LayersView.indicesText = function (ed, built, which) {
+    const body = LayersView.indicesBody(ed, built, which);
+    return ME.Publish.citation(ed) + '\n\n' + (body || 'No index chosen.') + '\n';
   };
   /* The quotations as text: in the order of the alphabet, each with its place and work; or by the work quoted. */
   LayersView.quotesText = function (ed, built, byWork) {

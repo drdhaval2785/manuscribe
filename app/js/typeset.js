@@ -356,6 +356,30 @@
       heading('Additional passages');
       for (const s of stars) para([{ t: s.id, size: 10, rise: 0, gap: 0, mark: 'unit' }].concat(L.words('(' + s.wits.join(' ') + '): ' + s.text, 10).map((a, i) => (i ? a : Object.assign(a, { gap: 8 })))), 15, { running });
     }
+    // ---- the indices chosen, at the back: each from a new page, in columns, the references muted ----
+    const ix = ME.Concord ? ME.Concord.indices(built, ME.Concord.wanted(options)) : null;
+    if (ix) {
+      const is = size * 0.8, ilead = is * 1.45, indent = is * 1.2, gutter = mm(5);
+      // items: each an entry's atoms; set down one column, then the next; a line after an entry's first set in
+      const columned = (items, cols) => {
+        const colW = (bodyW - gutter * (cols - 1)) / cols;
+        let col = 0, top = y, deepest = y;
+        const next = () => { if (col + 1 < cols) { col++; y = top; } else { newPage(running); col = 0; top = y; } };
+        for (const atoms of items) {
+          const ls = L.lines(atoms, colW - indent, false);
+          if (y > top && y + ls.length * ilead > avail()) next();
+          ls.forEach((l, k) => { if (y + ilead > avail()) next(); draw(l.atoms, left() + col * (colW + gutter) + (k ? indent : 0), y + ilead * 0.75); y += ilead; deepest = Math.max(deepest, y); });
+        }
+        y = deepest;
+      };
+      const ref = (t) => L.words(t, is * 0.85, { mark: 'unit' }).map((a, i) => (i ? a : Object.assign(a, { gap: is * 0.5 })));
+      const entry = (text, r) => L.words(text, is).concat(ref(r));
+      const section = (title, items, cols) => { if (!items.length) return; newPage(running); heading(title); columned(items, cols); };
+      section('Index of pādas', ix.padas.map((p) => entry(p.pada, p.ref)), 3);
+      section('Index of words', ix.words.map((w) => entry(w.word, w.refs.join(', '))), 3);
+      section('Index of quotations', ix.quotes.map((q) => entry(q.text, q.ref + (q.work ? ' (' + q.work + (q.n ? ' ' + q.n : '') + ')' : ''))), 2);
+      section('Quotations by work', ix.byWork.flatMap((g) => [L.words(g.work || 'Work not named', is, { mark: 'accent' })].concat(g.quotes.map((q) => entry(q.text, q.ref + (q.n ? ' ' + q.n : ''))))), 2);
+    }
     const blob = await doc.save();
     return { blob, pages: pageNo, overfull, missing, layout };
   };

@@ -542,6 +542,9 @@ tr.cov-bad th .ly-abbr-tag, tr.cov-bad th, tr.cv-bad .cv-unit { color: #8a2a17; 
 .cv-key.by-rule { font-style: italic; color: #8a5a00; }
 .cv-tools { padding: 6px 8px; margin: 6px 0; background: #f8f3e8; border-radius: 8px; }
 .cv-tools select { max-width: 130px; }
+/* at the Full level the tools are in view, a row under the step's controls, not a menu */
+.cv-tools.in-view { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.cv-tools.in-view .menu-items { display: contents; }
 .cv-col.lk1 { background: #e9e3f5; }
 .cv-col.lk2 { background: #cfc3ea; }
 .cv-col.cut, .cv-cell.cut { border-left: 2px solid #b9a98c; }
@@ -912,6 +915,10 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 /* Export: for a book */
 .xp-book { display: flex; gap: 8px; align-items: baseline; margin: 8px 0 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
 .xp-book .help { margin-left: 2px; }
+/* Export: the indices to carry after the text */
+.xp-indices { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin: 8px 0 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+.xp-indices .xp-ix { white-space: nowrap; cursor: pointer; }
+.xp-indices .help { flex-basis: 100%; margin-top: 2px; }
 
 /* versions: Manuscribe's beside its name, the edition's under its title */
 .brand-ver { font-size: 11px; opacity: .6; margin-left: -2px; font-variant-numeric: tabular-nums; }

@@ -63,6 +63,7 @@
   };
   const listeners = [];
   F.onChange = (fn) => listeners.push(fn);
+  F.offChange = (fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
 
   /* ---------- the languages in view ---------- */
 

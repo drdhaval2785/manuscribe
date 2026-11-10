@@ -173,12 +173,17 @@
     // the optional tools, in one menu; what is not switched on is a click away in Settings
     const close = (e) => { const d = e.target.closest('details'); if (d) d.open = false; };
     const item = (t) => U.el('button', { class: 'btn small', title: t.title, dataset: { action: t.action }, onclick: (e) => { close(e); t.run(); } }, t.label);
-    const tools = U.el('details', { class: 'menu cv-tools' }, U.el('summary', { class: 'btn small', title: 'Optional tools: switch them on or off under ⚙ Settings' }, 'Tools'), U.el('div', { class: 'menu-items' },
+    const toolItems = () => [
       again,
       F.on('alignMore') && !all ? U.el('button', { class: 'btn small', disabled: !anyTable, title: 'Replace this work’s tables with an alignment made elsewhere', onclick: (e) => { close(e); CollateView.importInto(ed, list, workId, summaries, redraw); } }, 'Import alignment…') : null,
       ed.works.length > 1 && F.on('layers') && !all ? U.el('button', { class: 'btn small', title: 'Which block of this work comments on which block of its base text', onclick: (e) => { close(e); ME.LayersView.links(ed, list, workId); } }, 'Links to the base text…') : null,
       anyTable ? ME.Steps.tools(ed, list, redraw).map(item) : null,
-      U.el('button', { class: 'btn small ghost', title: 'Choose which optional tools are shown', dataset: { action: 'tools-settings' }, onclick: (e) => { close(e); ME.App.showSettings(); } }, 'Switch tools on or off…')));
+      U.el('button', { class: 'btn small ghost', title: 'Choose which optional tools are shown', dataset: { action: 'tools-settings' }, onclick: (e) => { close(e); ME.App.showSettings(); } }, 'Switch tools on or off…')];
+    // at the Full level every tool is in view, in a row of its own under the step's controls; else they are a menu
+    const inView = F.prefs().level === 'full';
+    const tools = inView
+      ? U.el('div', { class: 'cv-tools in-view', title: 'The optional tools, every one in view at the Full level' }, U.el('span', { class: 'help' }, 'Tools:'), U.el('div', { class: 'menu-items' }, ...toolItems()))
+      : U.el('details', { class: 'menu cv-tools' }, U.el('summary', { class: 'btn small', title: 'Optional tools: switch them on or off under ⚙ Settings, or choose the Full level to have every one in view' }, 'Tools'), U.el('div', { class: 'menu-items' }, ...toolItems()));
     void trustLine; void tok;
     // the method, on the step itself; a change while a collation runs would give its blocks different methods
     const method = ed.witnesses.length < 2 ? U.el('div', { class: 'nv-head' }, U.el('span', { class: 'help', dataset: { action: 'one-witness' } }, 'One witness: there is nothing to line it up against, so Collate only prepares its text. It takes seconds.'), settingsBtn) : methodChooser(ed, Collate.choiceOf(ed, '', ''), (how) => {
@@ -195,7 +200,8 @@
       method,
       U.el('div', { class: 'nv-head' }, workPick, go,
         U.el('button', { class: 'btn small', disabled: !anyTable, title: 'The edited text of the whole work, its apparatus, checks, search and indices', dataset: { action: 'work-apparatus' }, onclick: () => CollateView.workApparatus(ed, list, workId) }, 'Edited text and apparatus…'),
-        tools),
+        inView ? null : tools),
+      inView ? tools : null,
       progress, table);
   };
 
@@ -1560,6 +1566,9 @@
     const stale = statusOf(ed, list, (await Collate.summaries(ed.id)).get(rec.key));
     const textTab = U.el('button', { class: 'btn small', 'aria-pressed': 'true', onclick: () => setMode('text') }, 'Text');
     const letterTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', dataset: { action: 'letters' }, hidden: !ME.Features.on('letters'), onclick: () => setMode('letters') }, 'Letters');
+    // the level may change while this window is open: the letter view comes and goes with it
+    const onFeatures = () => { if (!document.body.contains(letterTab)) { ME.Features.offChange(onFeatures); return; } letterTab.hidden = !ME.Features.on('letters'); };
+    ME.Features.onChange(onFeatures);
     const appTab = U.el('button', { class: 'btn small', 'aria-pressed': 'false', dataset: { action: 'apparatus' }, onclick: () => setMode('apparatus') }, 'Apparatus');
     const appPane = U.el('div', { class: 'ap-pane', hidden: true });
     const drawApparatus = () => {

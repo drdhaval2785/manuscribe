@@ -49,7 +49,7 @@
   /* The edition, as Markdown. -> string */
   MD.edition = function (ed, list, built, opts) {
     const bare = !!(opts && opts.bare);
-    const D = ME.PrintHTML.data(ed, list, built, { bare });
+    const D = ME.PrintHTML.data(ed, list, built, { bare, indices: opts && opts.indices });
     const out = [];
     if (!bare) {
       out.push('# ' + esc(D.title), '');
@@ -86,6 +86,15 @@
     if (D.stars && D.stars.length) {
       out.push('## Additional passages', '');
       for (const s of D.stars) out.push('**' + esc(s.id) + '** (' + esc(s.wits) + '): ' + esc(s.text), '');
+    }
+    // the indices chosen, each a list, after the text
+    const ix = D.indices;
+    if (ix) {
+      const refs = (r) => ' — ' + esc(r);
+      if (ix.padas.length) out.push('## Index of pādas', '', ...ix.padas.map(([p, r]) => '- ' + esc(p) + refs(r)), '');
+      if (ix.words.length) out.push('## Index of words', '', ...ix.words.map(([w, r]) => '- ' + esc(w) + refs(r.join(', '))), '');
+      if (ix.quotes.length) out.push('## Index of quotations', '', ...ix.quotes.map(([t, r, w, n]) => '- ' + esc(t) + refs(r + (w ? ' (' + w + (n ? ' ' + n : '') + ')' : ''))), '');
+      if (ix.byWork.length) { out.push('## Quotations by work', ''); for (const [w, qs] of ix.byWork) out.push('### ' + esc(w || 'Work not named'), '', ...qs.map(([t, r, n]) => '- ' + esc(t) + refs(r + (n ? ' ' + n : ''))), ''); }
     }
     if (notes.length) out.push(...notes, '');
     if (!bare && D.versions) out.push('---', '', '*' + esc(D.versions) + '*', '');

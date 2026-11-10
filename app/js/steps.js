@@ -116,7 +116,7 @@
         U.el('li', null, U.el('strong', null, 'Witnesses: '), 'add the transcriptions of your manuscripts, and check that their citation IDs match.'),
         U.el('li', null, U.el('strong', null, 'Collate: '), 'line them up, block by block, then open a block to decide. Where the witnesses differ, choose a reading; the proposal is the reading of most witnesses, or of the most trusted. Any word, even one every witness agrees on, can be clicked and emended, or several words dragged across and emended as one, typed with the same typing schemes as a transcription. A decision is withdrawn with Withdraw decision. Collation settings… says what counts as the same reading.'),
         U.el('li', null, U.el('strong', null, 'Publish: '), 'say how the edition is cited, check the apparatus, and Export… it: a PDF, a reader, TEI, LaTeX and more.')),
-      U.el('p', { class: 'help' }, 'The line under the steps says where the edition stands and offers what comes next. Optional tools (metre, agreement, the stemmatic workbench, testimonia) are in the Collate step’s Tools menu once they are switched on under ⚙ Settings, or all at once with the Full level.'),
+      U.el('p', { class: 'help' }, 'The line under the steps says where the edition stands and offers what comes next. Optional tools (metre, agreement, the stemmatic workbench, testimonia) are in the Collate step’s Tools menu once they are switched on under ⚙ Settings; at the Full level every one of them is in view there, in a row of its own.'),
       U.el('h3', null, 'In a block'),
       rows([
         ['N  P', 'The next or previous place where the witnesses differ'],

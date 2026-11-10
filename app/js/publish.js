@@ -118,6 +118,22 @@
       return '\\pstart\n\\noindent\\textbf{' + tex(b.table.unit) + '}\\quad ' + body.trim() + '\n\\pend';
     });
     const stars = built.flatMap((b) => b.stars);
+    // the indices chosen, after the text: each in columns, the references in grey, a long entry hanging
+    const ix = ME.Concord ? ME.Concord.indices(built, ME.Concord.wanted(opts)) : null;
+    // (as macros of the preamble: in a right-to-left edition every number of the body is wrapped for its direction;
+    // a list of references may break after any comma)
+    const entry = (text, ref) => '\\ixentry{' + tex(text) + '}{' + tex(ref).replace(/, /g, ',\\allowbreak{} ') + '}';
+    const index = (title, items, cols) => (items.length ? '\n\\section*{' + title + '}\n' + (cols === 2 ? '\\ixtwo' : '\\ixthree') + '\n' + items.join('\n') + '\n\\ixend\n' : '');
+    // (in a right-to-left edition the columns of multicol come out too wide under bidi: one column there)
+    const rtl = !!(opts && opts.fonts && opts.fonts.rtl);
+    const ixSet = '\\small\\raggedright\\setlength{\\parindent}{0pt}';
+    const ixMacros = rtl
+      ? '\\newcommand{\\ixthree}{\\begingroup' + ixSet + '}\\newcommand{\\ixtwo}{\\begingroup' + ixSet + '}\\newcommand{\\ixend}{\\par\\endgroup}'
+      : '\\usepackage{multicol}\\newcommand{\\ixthree}{\\begin{multicols}{3}' + ixSet + '}\\newcommand{\\ixtwo}{\\begin{multicols}{2}' + ixSet + '}\\newcommand{\\ixend}{\\end{multicols}}';
+    const indices = !ix ? '' : index('Index of pādas', ix.padas.map((p) => entry(p.pada, p.ref)), 3)
+      + index('Index of words', ix.words.map((w) => entry(w.word, w.refs.join(', '))), 3)
+      + index('Index of quotations', ix.quotes.map((q) => entry(q.text, q.ref + (q.work ? ' (' + q.work + (q.n ? ' ' + q.n : '') + ')' : ''))), 2)
+      + index('Quotations by work', ix.byWork.flatMap((g) => ['\\medskip\\noindent\\textbf{' + tex(g.work || 'Work not named') + '}\\par'].concat(g.quotes.map((q) => entry(q.text, q.ref + (q.n ? ' ' + q.n : ''))))), 2);
     const doc = '% ' + Publish.citation(ed) + '\n'
       + '% Compile with XeLaTeX, three times so that the line references settle: xelatex edition.tex\n'
       + '\\documentclass[11pt,a4paper]{article}\n'
@@ -129,6 +145,7 @@
       + '\\emergencystretch=3em\\tolerance=1000\n'
       + '\\usepackage[normalem]{ulem}\n'
       + '\\usepackage{xcolor}\\definecolor{quote}{RGB}{31,78,140}\n'
+      + (indices ? ixMacros + '\\newcommand{\\ixentry}[2]{\\hangindent=1em\\hangafter=1 #1 {\\color{gray}#2}\\par}\n' : '')
       // the edition's version and Manuscribe's at the foot of every page, under the page number
       + (bare ? '' : '\\makeatletter\\def\\@oddfoot{\\hfil\\thepage\\hfil\\llap{\\raisebox{-2.2ex}[0pt][0pt]{\\makebox[\\textwidth][c]{\\scriptsize ' + tex(Publish.versions(ed)) + '}}}}\\let\\@evenfoot\\@oddfoot\\makeatother\n')
       + '\\usepackage{reledmac}\n'
@@ -146,6 +163,7 @@
       + '\\section*{Text}\n')
       + '\\beginnumbering\n' + blocks.join('\n\n') + '\n\\endnumbering\n'
       + (stars.length ? '\n\\section*{Additional passages}\n' + stars.map((x) => '\\noindent\\textbf{' + tex(x.id) + '} (' + tex(x.wits.join(' ')) + '): ' + tex(x.text) + '\\par').join('\n') + '\n' : '')
+      + indices
       + '\\end{document}\n';
     return withRuns(doc, opts && opts.fonts);
   };
@@ -259,11 +277,12 @@
   /* ---------- reading: one HTML file ---------- */
 
   // What the reader needs, and nothing of the editing: the text, the entries, the witnesses.
-  Publish.readerData = function (ed, list, built, layered) {
+  Publish.readerData = function (ed, list, built, layered, which) {
     const linkOf = (unit) => (layered ? layered.links.find((l) => l.unit === unit) : null);
     return {
       base: layered ? { title: layered.title } : null,
-      indices: ME.Concord ? { words: ME.Concord.wordIndex(built).map((w) => [w.word, w.refs]), padas: ME.Concord.padaIndex(built).map((p) => [p.pada, p.ref]), quotes: ME.Concord.quoteIndex(built).map((q) => [q.text, q.ref, q.work]), byWork: ME.Concord.quotesByWork(built).map((g) => [g.work, g.quotes.map((q) => [q.text, q.ref])]) } : null,
+      // the indices chosen (which, as Concord.indices: all four when not given)
+      indices: ME.Concord ? ME.Concord.indicesData(built, which) : null,
       title: ed.title || 'Edition', citation: Publish.citation(ed), principles: Publish.declaration(ed, built), conspectus: Publish.conspectus(ed, list),
       sigla: ed.witnesses.map((w) => w.siglum),
       blocks: built.map((b) => {
@@ -490,8 +509,8 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
 }
 `;
 
-  Publish.reader = async function (ed, list, built, layered) {
-    const data = Publish.readerData(ed, list, built, layered);
+  Publish.reader = async function (ed, list, built, layered, opts) {
+    const data = Publish.readerData(ed, list, built, layered, opts && opts.indices);
     // Tiro, only where the edition has Devanagari
     const font = ME.FontLib.needsTiro(JSON.stringify(data)) ? await Publish.font() : null;
     const esc = (s) => U.escXml(String(s));
@@ -520,11 +539,11 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + '<div id="pop" hidden></div>\n'
       + '<aside id="panel" aria-label="Apparatus"><div class="panel-head"><h2>Apparatus</h2><button id="panel-close" title="Close">×</button></div><div id="panel-body"></div></aside>\n'
       + (stars.length ? '<div class="front"><h2>Additional passages</h2>' + stars.map((x) => '<p><b>' + esc(x.id) + '</b> (' + esc(x.wits.join(' ')) + '): ' + esc(x.text) + '</p>').join('') + '</div>\n' : '')
-      + (data.indices && data.indices.words.length ? '<div class="front indices"><details><summary>Indices</summary>'
+      + (data.indices && ME.Concord.any(data.indices) ? '<div class="front indices"><details><summary>Indices</summary>'
         + (data.indices.padas.length ? '<h2>Pādas</h2><ul>' + data.indices.padas.map(([p, r]) => '<li>' + esc(p) + ' <span class="ref">' + esc(r) + '</span></li>').join('') + '</ul>' : '')
-        + '<h2>Words</h2><ul>' + data.indices.words.map(([w, r]) => '<li>' + esc(w) + ' <span class="ref">' + esc(r.join(', ')) + '</span></li>').join('') + '</ul>'
-        + (data.indices.quotes && data.indices.quotes.length ? '<h2>Quotations</h2><ul>' + data.indices.quotes.map(([t, r, w]) => '<li>' + esc(t) + ' <span class="ref">' + esc(r + (w ? ' · ' + w : '')) + '</span></li>').join('') + '</ul>'
-          + '<h2>Quotations by work</h2>' + data.indices.byWork.map(([w, qs]) => '<h3>' + esc(w || 'Work not named') + '</h3><ul>' + qs.map(([t, r]) => '<li>' + esc(t) + ' <span class="ref">' + esc(r) + '</span></li>').join('') + '</ul>').join('') : '')
+        + (data.indices.words.length ? '<h2>Words</h2><ul>' + data.indices.words.map(([w, r]) => '<li>' + esc(w) + ' <span class="ref">' + esc(r.join(', ')) + '</span></li>').join('') + '</ul>' : '')
+        + (data.indices.quotes.length ? '<h2>Quotations</h2><ul>' + data.indices.quotes.map(([t, r, w, n]) => '<li>' + esc(t) + ' <span class="ref">' + esc(r + (w ? ' · ' + w + (n ? ' ' + n : '') : '')) + '</span></li>').join('') + '</ul>' : '')
+        + (data.indices.byWork.length ? '<h2>Quotations by work</h2>' + data.indices.byWork.map(([w, qs]) => '<h3>' + esc(w || 'Work not named') + '</h3><ul>' + qs.map(([t, r, n]) => '<li>' + esc(t) + ' <span class="ref">' + esc(r + (n ? ' ' + n : '')) + '</span></li>').join('') + '</ul>').join('') : '')
         + '</details></div>\n' : '')
       + '<footer class="cite">' + esc(data.citation) + '</footer>\n'
       + '<script type="application/json" id="edition-data">' + json + '</script>\n'

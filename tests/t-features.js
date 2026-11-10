@@ -120,6 +120,21 @@ const { launch, sleep, checks } = require('./h');
   const tools = await page.evaluate(() => ME.Features.LIST.length);
   T.check('Settings shows the level, the language features and a switch for each tool', dlg.radios === 2 && dlg.switches === tools && /South Asian scripts/.test(dlg.text) && /Now on: the text is sa-Deva/.test(dlg.text), { radios: dlg.radios, switches: dlg.switches, tools });
   await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  // the real path: the gear, the Full level, Close. The Collate step then has every tool in view, in a row where
+  // the Tools menu was; back at Simple, the menu again
+  await page.evaluate(async (id) => { ME.Features.save({ level: 'simple', on: {}, packs: {} }); ME.Edition.stepOf[id] = 'collate'; await ME.Edition.show(id); }, ids.sa);
+  await sleep(500);
+  const vis = () => page.evaluate(() => { const v = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }; return { menu: !!document.querySelector('details.cv-tools'), row: !!document.querySelector('.cv-tools.in-view'), shown: [...document.querySelectorAll('.cv-tools .btn')].filter(v).map((b) => b.dataset.action || b.textContent.trim()) }; });
+  const atSimple = await vis();
+  await page.evaluate(() => document.querySelector('#edition-view [data-action="settings"]').click());
+  await sleep(400);
+  await page.evaluate(() => document.querySelector('.modal input[name="ft-level"][value="full"]').click());
+  await sleep(200);
+  await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+  await sleep(700);
+  const atFull = await vis();
+  T.check('Settings › Full, closed: the Collate step shows every tool in view, in a row where the Tools menu was', atSimple.menu && !atSimple.row && atFull.row && !atFull.menu && ['an-agreement', 'an-metre', 'stemmatics', 'an-registers', 'tools-settings'].every((a) => atFull.shown.includes(a)), { atSimple, atFull });
+  await page.evaluate(() => ME.Features.save({ level: 'simple' }));
   // the names of commentary evidence follow the witnesses' languages, not this browser's switches
   const names = await page.evaluate(() => {
     const F = ME.Features, L = ME.Layers;

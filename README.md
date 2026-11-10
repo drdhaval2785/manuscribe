@@ -489,7 +489,8 @@ Above the steps: **‹ Start**, the title, **Export…** (every output, see [Pub
   a block to open it and decide); **Edited text and apparatus…** for the whole work, with its indices; and
   **Tools**, the optional tools switched on under ⚙ Settings: metre (with the South Asian pack), agreement, the
   stemmatic workbench in its parts, testimonia, parallels and the concordance, Align again and Import alignment.
-  Its last item, **Switch tools on or off…**, opens Settings.
+  At the Simple level they are a menu; at the Full level every one of them is in view, in a row of its own under
+  these controls. The last item, **Switch tools on or off…**, opens Settings.
 - **3 Publish** is described below.
 - **Export › Edition package** saves a ZIP of plain files, for backup and for moving between computers or
   editors; **Open…** on the start screen reads it back. The edition reminds you when it has never been exported,
@@ -702,7 +703,7 @@ HTML page (Manuscribe's). On screen, Manuscribe's version is beside its name, an
 
 **For a book.** Tick **For a book** in Export (PDF, the print page, Markdown, LaTeX, plain text) for only the edited text and
 its apparatus, to print in a book of your own: no front page (title, citation, conspectus, principles), no running
-head, and no versions at the foot of the pages. The file is named `….book.pdf`, `….book.print.html` and so on.
+head, no indices, and no versions at the foot of the pages. The file is named `….book.pdf`, `….book.print.html` and so on.
 
 - **Reader, one HTML file:** the edited text, the conspectus siglorum and the editorial principles, in one file that
   opens from disk and needs no network. It opens on the critical text alone, to be read, the words with variant
@@ -892,8 +893,11 @@ carry both texts. Where blocks are linked, the apparatus window and the reader s
   found can be added to the parallels. Texts brought in stay in this browser and are not put in the edition package.
 - **Indices:** every word of the edited text and every pāda of its verses, in the order of the Sanskrit alphabet, with
   block and word or verse and pāda; and the quotations, in the order of the alphabet with their place and the work
-  each is from, and again under the works quoted. They save as text and are in the reader. **Export › Index of
-  quotations** and **Quotations by cited work** give the two lists of quotations on their own.
+  each is from, and again under the works quoted. They save as text, and every export that is read (PDF, LaTeX,
+  the reader and the print page, Markdown, the apparatus as text, the indices as text) carries the ones ticked under
+  **Indices** in the Export dialog: pādas of verse, words, quotations in the order of the alphabet, quotations by
+  cited work. All four are ticked at first; the choice is remembered in this browser. They are set after the text
+  and its apparatus, in columns, each from a new page; in the reader they are folded under the text.
 
 #### Correcting the letters
 
@@ -1086,7 +1090,9 @@ number and sits beside another PDF page. A backup is made first either way.
 **Interface** is about this browser, not the edition: it is kept here, and never changes what an edition holds.
 
 - **How much is shown:** *Simple*, the everyday work, with the rest a click away in Settings (the start for a new
-  browser); or *Full*, every tool in view.
+  browser); or *Full*, every tool in view: the screen you are on is drawn again as you close Settings, the tools of
+  the Collate step in a row rather than a menu, **Share…** above the steps, the Letters view and the evidence form
+  in a block, the folds of normalisation rules, and the exchange formats in Export.
 - **Language features:** the *South Asian scripts* pack brings typing schemes and gemination, the Sanskrit, Prakrit
   and Old Gujarati normalisation, akṣara tokens, metre and the pāda index, the Sanskrit names of commentary
   evidence, Export for Saktumiva, and the PDF in Manuscribe's Devanagari font. It is on when a witness's language
