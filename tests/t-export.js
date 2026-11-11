@@ -1,6 +1,7 @@
 // One Export: every format comes out of the dialog exactly as it did from its own button (the same text, the same
 // files in a ZIP, the same PDF but for its date); each is offered only where it makes sense; and a choice made in
-// the dialog is saved, and remembered.
+// the dialog is saved, and remembered. The reader page, opened as a file on a phone, with and without a script running,
+// and for an edition of one witness.
 const fs = require('fs'), path = require('path');
 const { launch, sleep, checks, WORK, exportVia } = require('./h');
 
@@ -109,6 +110,41 @@ const { launch, sleep, checks, WORK, exportVia } = require('./h');
     return out;
   });
   for (const [n, c, x] of res) T.check(n, c, x);
+
+  // the reader page, opened as a file would be on a phone: the text and the notes are in the file itself, so that a
+  // viewer that runs no script (a phone's file preview) shows them, the notes under the text; with the script, as
+  // before; and an edition of one witness reads too
+  const readerOf = (one) => page.evaluate(async (one) => {
+    const { Store, Edition, Collate, Publish } = ME;
+    let ed = window.ed, list = window.list;
+    if (one) {
+      ed = Edition.create('Alone'); ed.editor = 'Editor';
+      const p = list[0].p, w = { siglum: 'A', projectId: p.id, streams: {} };
+      ed.witnesses.push(w); list = [{ w, p }]; ed.trust = ['A'];
+      await Store.putEdition(ed);
+      await Collate.run(ed, list, 'main', {});
+    }
+    const { built } = (await ME.Release.works(ed, list))[0];
+    return Publish.reader(ed, list, built, await ME.LayersView.baseTexts(ed, 'main'));
+  }, one);
+  const look = async (html, js) => {
+    const p2 = await browser.newPage();
+    await p2.setJavaScriptEnabled(js);
+    await p2.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+    const errors = [];
+    p2.on('pageerror', (e) => errors.push(String(e)));
+    await p2.setContent(html, { waitUntil: 'load' });
+    await sleep(300);
+    const r = await p2.evaluate(() => ({ blocks: document.querySelectorAll('#text section.block').length, text: [...document.querySelectorAll('#text .txt')].map((x) => x.textContent.trim()).filter(Boolean).length, app: [...document.querySelectorAll('#text ol.app')].some((x) => x.getBoundingClientRect().height > 0), items: document.querySelectorAll('#text ol.app li').length, controls: getComputedStyle(document.querySelector('header label')).display, docW: document.documentElement.scrollWidth }));
+    r.errors = errors;
+    await p2.close();
+    return r;
+  };
+  const three = await readerOf(false), alone = await readerOf(true);
+  const withJs = await look(three, true), without = await look(three, false), aloneJs = await look(alone, true), aloneNo = await look(alone, false);
+  T.check('the reader page on a phone: its two blocks of text, the notes kept for pointing and clicking, no error, nothing past the right edge', withJs.blocks === 2 && withJs.text === 2 && withJs.app === false && withJs.items > 0 && !withJs.errors.length && withJs.docW <= 390, withJs);
+  T.check('with no script running (a phone’s file preview): the text is there all the same, the notes under it, the dead controls not shown', without.blocks === 2 && without.text === 2 && without.app === true && without.items > 0 && without.controls === 'none', without);
+  T.check('an edition of one witness: its text in the reader, with and without a script, no error', aloneJs.blocks === 2 && aloneJs.text === 2 && !aloneJs.errors.length && aloneNo.blocks === 2 && aloneNo.text === 2, { aloneJs, aloneNo });
 
   // on screen: one Export… where there were many buttons
   await page.evaluate(async () => { await ME.Edition.show(window.ed.id); });

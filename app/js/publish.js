@@ -307,12 +307,14 @@
     };
   };
 
-  // Runs inside the reader file, so it can use nothing from outside itself.
-  function reader() {
-    const D = JSON.parse(document.getElementById('edition-data').textContent);
-    const $ = (s, r) => (r || document).querySelector(s);
+  /* The text and the apparatus of the reader, drawn from its data (D, as Publish.readerData gives it) and the
+     reader's state: what is read (the edited text, or a witness), the readings swapped in, and which notes are
+     shown. Used twice: here, when the file is written, so that the text and its notes are in the file itself and a
+     viewer that runs no script (a phone's file preview) shows them; and in the file, by reader(), for every change.
+     So it can use nothing from outside itself. -> {state, blocks(), entryItem(bi, i)} */
+  function readerParts(D, given) {
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const state = { view: 'edited', swapped: {}, orth: false, singular: true, ac: true, heat: false };
+    const state = given || { view: 'edited', swapped: {}, orth: false, singular: true, ac: true, heat: false };
     const witnessText = (e, w) => {
       const lost = e.missing.find((m) => m.wit === w);
       if (lost) return lost.text ? lost.text.replace(/‡/g, '[…]') : '[…]';
@@ -334,8 +336,8 @@
       const testis = e.testimonia && e.testimonia.length ? '<span class="testis"> Testimonia: ' + esc(e.testimonia.join('; ')) + '</span>' : '';
       return '<li dir="auto" data-k="' + bi + ':' + i + '" class="' + (e.kind === 'orthographic' ? 'orth' : e.singular ? 'single' : '') + '">' + p + why + testis + '<span class="swaps">' + swaps + '</span></li>';
     };
-    const draw = () => {
-      const main = $('#text');
+    // the blocks: each its text, the words with notes marked, and its notes under it
+    const blocks = () => {
       let html = '';
       D.blocks.forEach((b, bi) => {
         let text = '';
@@ -372,7 +374,18 @@
         // no internal reference is shown: the block's id is only its anchor
         html += '<section class="block' + (L && L.depth ? ' layer' : '') + '" id="b-' + esc(b.id) + '"' + lay + '>' + mula + '<p class="txt">' + abbr + text.trim() + '</p><ol class="app">' + items + '</ol></section>';
       });
-      main.innerHTML = html;
+      return html;
+    };
+    return { state, blocks, entryItem };
+  }
+
+  // Runs inside the reader file, so it can use nothing from outside itself but readerParts, written into the file with it.
+  function reader() {
+    const D = JSON.parse(document.getElementById('edition-data').textContent);
+    const $ = (s, r) => (r || document).querySelector(s);
+    const R = readerParts(D), state = R.state, entryItem = R.entryItem;
+    const draw = () => {
+      $('#text').innerHTML = R.blocks();
       if (state.open) showPanel(state.open);
     };
     /* The apparatus is not in the way of reading: pointing at a word shows its entry beside it, and clicking keeps
@@ -535,7 +548,9 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
       + '<div class="front"><p class="cite">' + esc(data.citation) + '</p>'
       + '<details><summary>Conspectus siglorum and editorial principles</summary>' + consp + '<div class="principles">' + data.principles.map((p) => '<p>' + esc(p) + '</p>').join('') + '</div></details>'
       + '<p class="cite">The edited text, to read. Point at an underlined word to see what the witnesses read there; click it to keep its notes open at the side, where a click on a reading puts it into the text.</p></div>\n'
-      + '<main id="text"></main>\n'
+      // the text and its notes in the file itself (readerParts), for a viewer that runs no script: then the notes under the text, as in print
+      + '<noscript><style>#text ol.app { display: block; } header label, header button, .front p.cite:last-child { display: none; }</style></noscript>\n'
+      + '<main id="text">' + readerParts(data).blocks() + '</main>\n'
       + '<div id="pop" hidden></div>\n'
       + '<aside id="panel" aria-label="Apparatus"><div class="panel-head"><h2>Apparatus</h2><button id="panel-close" title="Close">×</button></div><div id="panel-body"></div></aside>\n'
       + (stars.length ? '<div class="front"><h2>Additional passages</h2>' + stars.map((x) => '<p><b>' + esc(x.id) + '</b> (' + esc(x.wits.join(' ')) + '): ' + esc(x.text) + '</p>').join('') + '</div>\n' : '')
@@ -547,7 +562,7 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
         + '</details></div>\n' : '')
       + '<footer class="cite">' + esc(data.citation) + '</footer>\n'
       + '<script type="application/json" id="edition-data">' + json + '</script>\n'
-      + '<script>(' + reader.toString().replace(/<\/script/gi, '<\\/script') + ')();</' + 'script>\n</body>\n</html>\n';
+      + '<script>' + readerParts.toString().replace(/<\/script/gi, '<\\/script') + '\n(' + reader.toString().replace(/<\/script/gi, '<\\/script') + ')();</' + 'script>\n</body>\n</html>\n';
   };
 
   ME.Publish = Publish;

@@ -1486,6 +1486,7 @@
     };
     ['f-b', 'f-c', 'f-inv', 'f-gray'].forEach((id) => $(id).addEventListener('input', onFilter));
     $('f-reset').onclick = () => { $('f-b').value = 100; $('f-c').value = 100; $('f-inv').checked = false; $('f-gray').checked = false; onFilter(); };
+    $('f-done').onclick = () => { $('filters-pop').hidden = true; }; // (the values apply as the sliders move)
 
     // editor zoom
     const setEd = (z) => {

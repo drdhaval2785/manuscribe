@@ -153,22 +153,24 @@ and offers **Download .xml** and **Download .html**.
   the scan then moves by half a screen whenever the letter you type comes near its edge. The status bar makes way
   for the text: the position (folio, block, line) is a line
   fixed at the top of the typing area, with **− / +** for the lines of the block; **↑** and **↓** in the folio bar
-  go to the line above or below, since a phone's keyboard has no arrows; and the bar's **⋯** menu holds the
+  go to the line above or below, since a phone's keyboard has no arrows, and so does a swipe up or down on the
+  text; and the bar's **⋯** menu holds the
   scan's controls (below) and **Folio**, which shows the whole folio side instead, enlarged until its letters can be read (**3 lines** brings
   the strips back; the choice, and the sizes you choose, are kept for that device, so the project keeps the sizes
   of the computer you mostly type on), the typing scheme, and the size of the typing area (the letter-size
   buttons **A− / A+** are left out there, the folio's **− / +** enlarging the letters too; tap **100%** to come
-  back). While the keyboard is open the top bar steps aside, so that the scan and the line being typed have the
-  room above it, whether the browser brings the keyboard over the page (Safari) or shrinks the page for it
-  (Chrome on Android). A dialog (New transcription, the settings) is a sheet the height of the screen, its body
+  back). While the keyboard is open the top bar stays, with the way back and **Export** on it, and the scan and
+  the strips are fitted to the room left above the keyboard, whether the browser brings the keyboard over the
+  page (Safari) or shrinks the page for it (Chrome on Android). A dialog (New transcription, the settings) is a sheet the height of the screen, its body
   scrolling between the title and the buttons. The tags are behind one **Tags** button, which opens them from the
   bottom of the screen, as does a finger held on the text for a moment; one chosen is applied to the selected
   text and the panel closes. A selection made by a finger is kept by Manuscribe from the moment it is made: a tap
   on **Tags**, on a tag, or the finger held on the passage itself does not lose it (the browser's own selection
   may go; the passage stays marked), and the sheet names what the tag will go round. The side panel (**◧**) is a
   sheet over the text, closed by a tap beside it or by its **✕**; it does not open on its own on a phone,
-  whatever the computer chose. The scan's controls (zoom, Leaf or Page, rotate, brightness) are in the folio
-  bar's **⋯** menu, above the folio's own, and **⌖** Calibrate is a button in the bar, calibrated or not, since
+  whatever the computer chose. The scan's controls (zoom, Leaf or Page, rotate, brightness, whose pop-up has
+  **Done** to put it away) are in the folio bar's **⋯** menu, above the folio's own, and **⌖** Calibrate is a
+  button in the bar, calibrated or not, since
   some manuscripts need calibrating on every folio side (on a computer a calibrated folio's **Recalibrate** is in
   the Folio tab): nothing lies over a scan three lines tall but **↩ Follow**, which appears at its corner when
   the scan has been moved by hand. While calibrating, the bar's wording is short, the whole
@@ -731,7 +733,8 @@ its apparatus, to print in a book of your own: no front page (title, citation, c
 head, no indices, and no versions at the foot of the pages. The file is named `….book.pdf`, `….book.print.html` and so on.
 
 - **Reader, one HTML file:** the edited text, the conspectus siglorum and the editorial principles, in one file that
-  opens from disk and needs no network. It opens on the critical text alone, to be read, the words with variant
+  opens from disk and needs no network (the text and its notes are written into the file, so a viewer that runs no
+  script, such as a phone's file preview, shows them too, the notes under the text). It opens on the critical text alone, to be read, the words with variant
   readings underlined with dots: **point at one** and what
   the witnesses read there appears beside it; **click it** and its notes, with the other notes of that passage, stay
   open in a panel at the side (at the foot on a narrow screen), where a click on a reading puts it into the text; Esc

@@ -1,9 +1,11 @@
 // Typing on a phone (390 px wide): the typing area shows three lines - the line being typed, the one above and the
 // one below - each a strip the width of the screen scrolling along its own text, with the notes of the line under it,
-// and the scan about three lines of the page (the whole folio a button away); on a calibrated folio the scan shows
+// and the scan about three lines of the page (the whole folio a button away), the top bar staying while the keyboard
+// is open; on a calibrated folio the scan shows
 // two of the three parts of a line, the first two until the letter typed passes the middle, then the last two, not
 // sliding meanwhile (nor back for a letter corrected there), unless the device has a zoom of its own; along a long
-// line the caret is kept in the middle of the strip; a long press opens the tags; ↑ and ↓ (in the folio bar) go to the line above or below without
+// line the caret is kept in the middle of the strip; a long press opens the tags; ↑ and ↓ (in the folio bar), and a
+// swipe up or down on the strips, go to the line above or below without
 // losing the caret; the status bar makes way for the text, its position line fixed at the top of the typing area
 // with − / + for the lines; ⌖ Calibrate in the folio bar though the folio is calibrated, the scan's controls in the
 // bar's ⋯ menu and nothing over the scan; with the keyboard
@@ -146,6 +148,21 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await sleep(1000);
     const s6 = await step();
     T.check('the caret put back well before the middle (' + s6.n + ' letters before it): the first two parts again', s6.f < 0.35 && atStart(s6), s6);
+    // a swipe up or down on the strips goes to the line below or above, as the arrows do; a short movement, a sideways
+    // one and a slow one go nowhere
+    const swipe = (dx, dy, ms) => page.evaluate(async (dx, dy, ms) => {
+      const l = ME.Editor.activeLine(), r = l.getBoundingClientRect();
+      const x = r.left + 60, y = r.top + r.height / 2;
+      const ev = (type, cx, cy) => { const t = new Touch({ identifier: 1, target: l, clientX: cx, clientY: cy }); l.dispatchEvent(new TouchEvent(type, { touches: type === 'touchend' ? [] : [t], changedTouches: [t], bubbles: true, cancelable: true })); };
+      ev('touchstart', x, y);
+      await new Promise((res) => setTimeout(res, ms));
+      ev('touchend', x + dx, y + dy);
+      await new Promise((res) => setTimeout(res, 150));
+      const a = ME.Editor.activeLine();
+      return a ? ME.Editor.posOf(a).i : null;
+    }, dx, dy, ms);
+    const sw = [await swipe(0, -90, 120), await swipe(0, -90, 120), await swipe(4, 90, 120), await swipe(0, -20, 120), await swipe(90, -30, 120), await swipe(0, -90, 900)];
+    T.check('a swipe up on the strips goes to the line below (1 → 2 → 3), a swipe down to the line above (→ 2); a short movement, a sideways one and a slow one go nowhere', sw.join() === '2,3,2,2,2,2', sw);
     await page.evaluate(() => ME.Editor.focusLine('main', 1, 'end'));
     await sleep(300);
     // a long line: the caret stays in the middle half of the typing area
@@ -157,7 +174,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
       return { caretX: Math.round(c.left - pane.left), paneW: Math.round(pane.width), lineW: Math.round(line.width), textW: el.scrollWidth, scrolled: Math.round(el.scrollLeft) };
     });
     T.check('along a text wider than the screen (' + caret.textW + ' px) the strip scrolls so that the caret is kept in its middle half', caret.textW > caret.paneW && caret.lineW <= caret.paneW && caret.caretX > caret.paneW * 0.2 && caret.caretX < caret.paneW * 0.8 && caret.scrolled > 0, caret);
-    // the keyboard: the app is as tall as can be seen, follows the browser's scrolling, and the top bar steps aside;
+    // the keyboard: the app is as tall as can be seen, follows the browser's scrolling, and the top bar stays;
     // the scan keeps its three lines, the typing area shows three strips, in sight above the keyboard
     await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
     await sleep(300);
@@ -176,7 +193,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
       const closed = { r: r2, cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height), near: near() };
       return { open, closed };
     });
-    T.check('with the keyboard open (362 px left, the page scrolled by 40): the app is 362 px tall, moved down by 40, and the top bar steps aside', kb.open.h === '362px' && kb.open.top === '40px' && kb.open.cls && kb.open.topbar === 'none' && kb.open.main === 362 && kb.open.mainTop === 40, kb.open);
+    T.check('with the keyboard open (362 px left, the page scrolled by 40): the app is 362 px tall, moved down by 40, and the top bar stays, the way back on it', kb.open.h === '362px' && kb.open.top === '40px' && kb.open.cls && kb.open.topbar !== 'none' && kb.open.main === 362 - 46 && kb.open.mainTop === 40 + 46, kb.open);
     T.check('with the keyboard open the scan keeps its three lines and the typing area shows three strips at the least, all in sight above the keyboard', /(^|,)1,2,3(,|$)/.test(kb.open.near) && kb.open.linesOfScan >= 2.95 && kb.open.linesOfScan <= 3.05 && kb.open.stripsIn, kb.open);
     T.check('with the keyboard closed, all is as before, the strips as many as fit', !kb.closed.cls && kb.closed.topbar !== 'none' && kb.closed.main === 844 - 46 && kb.closed.near.split(',').length > 3, kb.closed);
     // a browser that shrinks the window for the keyboard (Chrome on Android): read as the keyboard too, and not as a phone held sideways
@@ -186,7 +203,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
     await sleep(700);
     const grown = await page.evaluate(() => ({ cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, near: [...document.querySelectorAll('.line.near')].map((l) => l.dataset.i).join(',') }));
-    T.check('the window shrunk to 390 × 362 for the keyboard: read as the keyboard (the top bar steps aside, three strips, the scan three lines), not as a phone held sideways; the window grown again, all as before', shrunk.cls && shrunk.topbar === 'none' && shrunk.main === 362 && /(^|,)1,2,3(,|$)/.test(shrunk.near) && shrunk.grid === 'flex' && shrunk.docW <= 390 && Math.abs(shrunk.pdfH - 3 * shrunk.line) <= 2 && !grown.cls && grown.topbar !== 'none' && grown.near.split(',').length > 3, { shrunk, grown });
+    T.check('the window shrunk to 390 × 362 for the keyboard: read as the keyboard (the top bar staying, three strips, the scan three lines), not as a phone held sideways; the window grown again, all as before', shrunk.cls && shrunk.topbar !== 'none' && shrunk.main === 362 - 46 && /(^|,)1,2,3(,|$)/.test(shrunk.near) && shrunk.grid === 'flex' && shrunk.docW <= 390 && Math.abs(shrunk.pdfH - 3 * shrunk.line) <= 2 && !grown.cls && grown.topbar !== 'none' && grown.near.split(',').length > 3, { shrunk, grown });
     // the page pinched larger by the browser: what can be seen shrinks too, but the app keeps its size
     const pinched = await page.evaluate(() => {
       const r = ME.Narrow.viewport({ height: 300, offsetTop: 120, scale: 2.8 });

@@ -2,7 +2,8 @@
 // and the scan enlarged together until they can be read, with the device's own sizes (the project's are left as
 // they are); the folio bar on one row, the tags in a panel from the bottom of the screen that closes when one is
 // chosen; buttons big enough for a finger; the scan's controls in the folio bar's ⋯ menu, ⌖ Calibrate a button in
-// the bar, nothing over the scan but Follow; no page that scrolls sideways; wide tables with the column that names the row in view; calibration by touch: a finger
+// the bar, nothing over the scan but Follow, the brightness pop-up with Done; the tick boxes of Settings with their
+// words beside them; no page that scrolls sideways; wide tables with the column that names the row in view; calibration by touch: a finger
 // draws, two fingers pinch to zoom. On a tablet held upright (820 ×
 // 1180) the folio keeps the project's sizes and the tags are in the same panel. On a computer, nothing of this.
 const { launch, sleep, checks, audit } = require('./h');
@@ -147,6 +148,27 @@ function scanPdf() {
     });
     T.check('the scan’s controls (zoom, leaf or page, rotation, brightness) are in the folio bar’s ⋯ menu with the folio’s own, the menu whole and within the screen, its buttons readable; ⌖ Calibrate a button in the bar; nothing over the scan but Follow, in view when needed; the View menu of the computer put away', tools.calIn && tools.menuIn && tools.inMenu && tools.whole && tools.zoomed && tools.readable && tools.overScan.length === 0 && tools.followIn && tools.view, tools);
 
+    // the brightness pop-up on a phone: under the scan, within the screen, with Done, which puts it away; a tap elsewhere does too
+    const bright = await page.evaluate(async () => {
+      const w = (ms) => new Promise((r) => setTimeout(r, ms));
+      const pop = document.getElementById('filters-pop'), done = document.getElementById('f-done'), menu = document.querySelector('#midbar details.more-menu');
+      menu.open = true;
+      document.getElementById('btn-filters').click();
+      await w(150);
+      const r = pop.getBoundingClientRect(), pane = document.getElementById('pdf-pane').getBoundingClientRect();
+      const open = { shown: !pop.hidden && r.height > 0, under: r.top >= pane.bottom, within: r.left >= 0 && r.right <= innerWidth, done: getComputedStyle(done).display !== 'none' && done.getBoundingClientRect().height >= 36, menuClosed: !menu.open };
+      done.click();
+      await w(100);
+      const closedByDone = pop.hidden;
+      document.getElementById('btn-filters').click();
+      await w(100);
+      const again = !pop.hidden;
+      document.getElementById('editor-pane').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+      await w(100);
+      return { open, closedByDone, again, closedByTap: pop.hidden };
+    });
+    T.check('the brightness pop-up opens under the scan, within the screen, with a Done button for a finger that puts it away; a tap elsewhere puts it away too', bright.open.shown && bright.open.under && bright.open.within && bright.open.done && bright.open.menuClosed && bright.closedByDone && bright.again && bright.closedByTap, bright);
+
     // a selection made by a finger is kept: a tap on Tags or on a tag, or a long press, does not lose it
     const keptSel = await page.evaluate(async () => {
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -229,6 +251,8 @@ function scanPdf() {
     await page.evaluate(() => document.getElementById('btn-settings').click());
     await sleep(400);
     await clean('Settings');
+    const ticks = await page.evaluate(() => { const W = innerWidth; return [...document.querySelectorAll('.modal .field.check')].map((f) => { const r = f.querySelector('span').getBoundingClientRect(), i = f.querySelector('input').getBoundingClientRect(); return { text: f.textContent.trim().slice(0, 24), in: r.right <= W && r.left >= 0, box: Math.round(i.width), gap: Math.round(r.left - i.right) }; }); });
+    T.check('the tick boxes of Settings (' + ticks.length + ') have their words beside them, within the screen', ticks.length >= 1 && ticks.every((t) => t.in && t.box <= 30 && t.gap >= 0 && t.gap <= 16), ticks);
     await page.evaluate(() => { [...document.querySelectorAll('.modal .st-tabs .btn')].find((b) => b.dataset.k === 'interface').click(); });
     await sleep(300);
     await clean('Settings, Interface');

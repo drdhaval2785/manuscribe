@@ -97,7 +97,9 @@ body.sidebar-open #sidebar { display: flex; }
 }
 .filters-pop label { display: grid; gap: 3px; }
 .filters-pop label.check { display: flex; align-items: center; gap: 6px; }
-.filters-pop .btn { justify-self: end; color: #eee5d6; }
+.filters-pop .f-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.filters-pop .btn { color: #eee5d6; }
+.filters-pop #f-done { display: none; } /* (a phone: the pop-up is put away with it) */
 .calib-bar {
   position: absolute; left: 0; right: 0; top: 0; height: 48px; z-index: 7;
   display: flex; gap: 10px; align-items: center; background: #fffaf0; color: var(--ink);
@@ -911,7 +913,8 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .modal .row2, .modal .row4, .modal .layout-cards { grid-template-columns: minmax(0, 1fr); gap: 0 }
   .modal .layout-cards { gap: 8px; }
   .modal .field { min-width: 0; }
-  .modal .field > input, .modal .field > select, .modal .field > textarea, .modal .lang-pick { width: 100%; max-width: 100%; min-width: 0; }
+  .modal .field > input:not([type=checkbox]):not([type=radio]), .modal .field > select, .modal .field > textarea, .modal .lang-pick { width: 100%; max-width: 100%; min-width: 0; }
+  .modal .field.check > span { flex: 1; min-width: 0; }
   .modal .lang-pick > * { flex: 1 1 0; min-width: 0; width: auto; }
   .modal .lines-inputs .field { width: 92px; }
   .file-row { flex-wrap: wrap; }
@@ -931,9 +934,9 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 }
 /* a phone, upright or held sideways: the line view (narrow.js), and a header of icons */
 @media (max-width: 700px), ((max-height: 460px) and (min-aspect-ratio: 4/3) and (pointer: coarse)) {
-  /* while the keyboard is open, the top bar gives its room to the typing area */
-  body.keyboard-open #topbar { display: none; }
-  body.keyboard-open #main { height: var(--app-h, 100dvh); }
+  /* (while the keyboard is open the top bar stays, the way back and Export on it: the scan and the strips are fitted
+     to what is left, narrow.js); a swipe down on the text goes to the line above, and must not reload the page */
+  html, body { overscroll-behavior-y: none; }
   .copy-folio, .folio-count { display: none; }
   #topbar { gap: 4px; padding: 0 6px; }
   .brand { margin-right: 0; }
@@ -967,6 +970,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .pdf-tools { top: 6px; right: 6px; padding: 0; gap: 0; flex-wrap: nowrap; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; z-index: 8; }
   .pdf-tools .pbtn { padding: 4px 8px; background: rgba(32, 26, 21, .9); }
   .filters-pop.pf-float { position: fixed; right: 8px; left: auto; z-index: 40; }
+  .filters-pop.pf-float #f-done { display: inline-block; }
   .pdf-pageinfo { display: none; }
   /* the folio bar: one row, the folio's name giving way to the buttons; ↑ ↓, ⌖ Calibrate and ⋯ at its end (the
      status bar's controls and the scan's, narrow.js); the status bar itself is not shown */

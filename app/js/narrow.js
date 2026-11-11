@@ -7,10 +7,11 @@
    (kept in this browser), not the project's, which keeps those of the computer it is mostly typed on.
 
    On a phone the bars also make way for the text (Narrow.layout): the status bar is hidden, its position line fixed
-   at the top of the typing area with − / + for the lines of the block, ↑ ↓ in the folio bar and the rest in a ⋯
-   menu there, together with the scan's controls; ⌖ Calibrate is a button in that bar too, so that nothing but
-   Follow lies over the scan. The scan is three lines tall (the line typed, one above, one below), and the typing
-   area shows as many lines round the one typed as fit: three at the least, with the keyboard open. Along the line
+   at the top of the typing area with − / + for the lines of the block, ↑ ↓ in the folio bar (a swipe up or down
+   on the strips does the same) and the rest in a ⋯ menu there, together with the scan's controls; ⌖ Calibrate is
+   a button in that bar too, so that nothing but Follow lies over the scan. The scan is three lines tall (the line
+   typed, one above, one below), and the typing area shows as many lines round the one typed as fit: three at the
+   least, with the keyboard open, the top bar staying (the way back, Export, the menu). Along the line
    the scan shows two of three parts, the first two until the letter typed passes the middle of the line, then the
    last two (pdfview.js, steppedLeft), so that it does not slide along with every letter.
 
@@ -83,7 +84,7 @@
     const lh = lines && !st.split ? Narrow.scanLine() : null;
     if (lh) {
       const appH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-h')) || window.innerHeight;
-      const top = document.body.classList.contains('keyboard-open') ? 0 : ($('topbar') || {}).offsetHeight || 46;
+      const top = ($('topbar') || {}).offsetHeight || 46;
       const mid = ($('midbar') || {}).offsetHeight || 48;
       const room = appH - top - mid - Narrow.typingNeed();
       pane.style.height = Math.round(Math.max(SCAN_MIN, Math.min(lh * LINES_OF_SCAN, room))) + 'px';
@@ -248,9 +249,10 @@
 
   /* ---------- the height that can be seen ---------- */
   /* The app is as tall as can be seen (the keyboard takes the rest), and follows the browser where it scrolls the page
-     to bring the line typed above the keyboard (Safari on iOS does: visualViewport.offsetTop). While the keyboard is
-     open on a phone, the top bar gives its room to the typing area (body.keyboard-open). Measured on the iPhone
-     Simulator: the keyboard leaves 362 px of 699, and Safari scrolled the page by up to 306 px. */
+     to bring the line typed above the keyboard (Safari on iOS does: visualViewport.offsetTop). The keyboard open on
+     a phone is noted on the body (body.keyboard-open), and the scan and the strips are fitted to what is left; the
+     top bar stays, the way back and Export on it. Measured on the iPhone Simulator: the keyboard leaves 362 px of
+     699, and Safari scrolled the page by up to 306 px. */
   let tallest = 0, tallAt = 0, lastH = 0, lastOpen = false;
   Narrow.viewport = function (v) {
     const vv = window.visualViewport;
@@ -284,11 +286,16 @@
     if (b) { b.addEventListener('click', () => Narrow.toggleTags()); b.addEventListener('pointerdown', (e) => e.preventDefault()); } // the selection stays
     const v = document.getElementById('btn-view');
     if (v) { v.addEventListener('click', () => Narrow.setView(Narrow.view() === 'lines' ? 'folio' : 'lines')); Narrow.viewButton(); }
-    // the phone's layout of the screen; the brightness pop-up under the scan; a tap elsewhere closes the ⋯ menu
+    // the phone's layout of the screen; the brightness pop-up under the scan, with Done; a tap elsewhere closes the
+    // ⋯ menu and the pop-up
     Narrow.layout(Narrow.on());
     const fb = document.getElementById('btn-filters');
     if (fb) fb.addEventListener('click', () => { const pop = document.getElementById('filters-pop'), pane = document.getElementById('pdf-pane'); if (pop && pane && pop.classList.contains('pf-float')) pop.style.top = Math.round(pane.getBoundingClientRect().bottom + 6) + 'px'; });
-    document.addEventListener('pointerdown', (e) => { for (const d of document.querySelectorAll('details.more-menu[open]')) if (!d.contains(e.target)) d.open = false; });
+    document.addEventListener('pointerdown', (e) => {
+      for (const d of document.querySelectorAll('details.more-menu[open]')) if (!d.contains(e.target)) d.open = false;
+      const pop = document.getElementById('filters-pop');
+      if (pop && !pop.hidden && pop.classList.contains('pf-float') && !pop.contains(e.target) && !(e.target.closest && e.target.closest('#btn-filters'))) pop.hidden = true;
+    });
     /* A long press on the text (a finger held still for a moment) opens the tags, for the passage kept by the editor
        (a selection made by finger, which the press itself does not lose) or for the caret: on a phone, and on a
        tablet held upright, wherever the tags are a sheet. While the phone is selecting text itself under the finger
@@ -308,6 +315,26 @@
       pane.addEventListener('pointercancel', stop);
       document.addEventListener('selectionchange', () => { if (press && !getSelection().isCollapsed) stop(); });
       pane.addEventListener('contextmenu', (e) => { if (sheets() && ME.Device && ME.Device.touch() && e.target.closest && e.target.closest('.line')) e.preventDefault(); });
+      /* A swipe up or down on the strips (a finger moved quickly, more up or down than across) goes to the line below
+         or above, the caret kept in its column, as ↑ ↓ do: in the line view, whose strips scroll only along their
+         text; not where the page or the pane scrolled under the finger, nor while text is being selected. (Touch
+         events, not pointer events: a pointer is cancelled once the browser takes a drag for a pan.) */
+      let swipe = null;
+      pane.addEventListener('touchstart', (e) => {
+        const t = e.changedTouches[0];
+        swipe = Narrow.on() && ME.Editor && ME.Editor.view === 'lines' && e.touches.length === 1 && e.target.closest && e.target.closest('.line') ? { x: t.clientX, y: t.clientY, at: performance.now(), top: pane.scrollTop, page: window.scrollY } : null;
+      }, { passive: true });
+      pane.addEventListener('touchcancel', () => { swipe = null; });
+      pane.addEventListener('touchend', (e) => {
+        const s = swipe, t = e.changedTouches[0];
+        swipe = null;
+        if (!s || e.touches.length || !t) return;
+        const dx = t.clientX - s.x, dy = t.clientY - s.y;
+        if (performance.now() - s.at > 700 || Math.abs(dy) < 48 || Math.abs(dx) > Math.abs(dy) / 2) return;
+        if (Math.abs(pane.scrollTop - s.top) > 4 || Math.abs(window.scrollY - s.page) > 4 || !getSelection().isCollapsed) return;
+        const line = ME.Editor.activeLine() || e.target.closest('.line');
+        if (line) ME.Editor.verticalMove(line, dy < 0 ? 1 : -1);
+      }, { passive: true });
     }
     // a tag chosen closes the panel, the cursor still where it was
     const tb = document.getElementById('toolbar');
