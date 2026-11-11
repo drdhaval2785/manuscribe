@@ -35,7 +35,7 @@ button { font-family: inherit; }
 .tbtn.primary:hover { background: #c4432d; }
 .tbtn.icon { width: 32px; padding: 5px 0; font-size: 15px; }
 .tb-select { font-size: 12px; opacity: .85; display: flex; align-items: center; gap: 6px; }
-.tb-select select { background: var(--chrome-2); color: var(--chrome-ink); border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 4px 6px; font: 13px var(--ui); }
+.tb-select select { background-color: var(--chrome-2); color: var(--chrome-ink); border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 4px 6px; font: 13px var(--ui); }
 .save-status { font-size: 12px; padding: 3px 8px; border-radius: 10px; opacity: .8; }
 .save-status.saved::before { content: '✓ '; color: #8fd19e; }
 .save-status.dirty { color: #ffd27a; }
@@ -130,7 +130,7 @@ body.calibrating #pdf-pane { flex: 1 1 auto; height: auto !important; }
 #midbar-grip { position: absolute; left: 0; right: 0; top: -5px; height: 10px; cursor: row-resize; z-index: 4; }
 #midbar-grip::after { content: ''; position: absolute; left: 50%; top: 3px; width: 46px; height: 4px; margin-left: -23px; border-radius: 3px; background: #b9a68a; }
 .folio-nav { display: flex; align-items: center; gap: 4px; }
-.folio-nav select { font: 600 13px var(--ui); padding: 4px 6px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; color: var(--ink); max-width: 128px; }
+.folio-nav select { font: 600 13px var(--ui); padding: 4px 6px; border: 1px solid var(--line-2); border-radius: 8px; background-color: #fff; color: var(--ink); max-width: 128px; }
 .nbtn { width: 30px; height: 30px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; font-size: 18px; line-height: 1; cursor: pointer; color: var(--ink); }
 .nbtn:hover { border-color: var(--accent); color: var(--accent); }
 .nbtn.copy-folio { width: auto; padding: 0 8px; font: 600 12px var(--ui); margin-left: 4px; white-space: nowrap; }
@@ -861,6 +861,11 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   #edition-view table button, .modal table button { min-height: 36px; min-width: 36px; font-size: 12px; }
   #edition-view td, .modal td { padding-top: 8px; padding-bottom: 8px; }
   select, textarea, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]) { min-height: 40px; font-size: 16px; }
+  /* WebKit (Safari) draws a select at its own height whatever the style says, unless the page draws it: so, for a
+     finger, every select is drawn by the page, with an arrow of its own */
+  select { -webkit-appearance: none; appearance: none; padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5l3.5 3.5 3.5-3.5' fill='none' stroke='%235b4a3a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; background-size: 12px 12px; }
+  .tb-select select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5l3.5 3.5 3.5-3.5' fill='none' stroke='%23eee5d6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+  .folio-nav select { padding-right: 22px; background-position: right 5px center; }
   input[type=checkbox], input[type=radio] { width: 20px; height: 20px; margin: 0 6px 0 0; flex: none; }
   label:has(> input[type=checkbox]), label:has(> input[type=radio]) { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
   .mini { width: 36px; height: 36px; font-size: 16px; }
@@ -873,12 +878,13 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .ed-step-n { width: 22px; height: 22px; }
   .cv-detail, .cv-unitbox { font-size: 14px; }
   .ct-text { line-height: 2.2; }
-  /* no keyboard: the keys are not explained, and the tag buttons carry no shortcut letters */
-  body.touch .ct-keys, body.touch .tb-btn sup { display: none; }
-  body.touch .tb-btn u { text-decoration: none; }
-  body.touch .ct-touch { display: block; }
 }
+/* a finger (found, or forced: body.touch, device.js): no keyboard, so the keys are not explained, and the tag buttons
+   carry no shortcut letters */
 .ct-touch { display: none; }
+body.touch .ct-keys, body.touch .tb-btn sup { display: none; }
+body.touch .tb-btn u { text-decoration: none; }
+body.touch .ct-touch { display: block; }
 /* a phone or a tablet held upright: the tags open from the bottom of the screen */
 @media (max-width: 900px) {
   #midbar { flex-wrap: nowrap; gap: 6px; padding: 4px 6px; }

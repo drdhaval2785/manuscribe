@@ -14,7 +14,7 @@ const { launch, sleep, audit, ROOT } = require('./h');
   fs.mkdirSync(out, { recursive: true });
   const pdf = path.join(ROOT, 'linear.pdf');
   if (!fs.existsSync(pdf)) { console.log('linear.pdf is not in the repository folder'); process.exit(1); }
-  const { browser, page } = await launch('survey-mobile');
+  const { browser, page } = await launch('survey-mobile', { touch: true });
   const log = [];
   const say = (m) => { console.log(m); log.push(m); };
   const shot = async (name) => {

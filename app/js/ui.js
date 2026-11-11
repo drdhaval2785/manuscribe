@@ -30,7 +30,8 @@
         for (let k = all.length - 1; k >= keep && wraps(); k--) { menu.hidden = false; items.insertBefore(all[k], items.firstChild); }
       } finally { busy = false; }
     };
-    if (window.ResizeObserver) new ResizeObserver(() => fit()).observe(row);
+    // (fitted in the next frame, not in the observer's own callback, whose changes of size WebKit reports as a loop)
+    if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(fit)).observe(row);
     requestAnimationFrame(fit);
     menu.fit = fit;
     return menu;

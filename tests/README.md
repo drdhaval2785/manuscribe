@@ -21,7 +21,10 @@ MANUSCRIBE_ENGINE=webkit node run.js
 ```
 
 What only Chrome has (its own PDF of a page, its service worker driven by hand in `t-offline.js`) is skipped there.
-Every test also checks, as it starts, that the browser has all Manuscribe needs (`Install.missing`). On GitHub, the
+A test of the phone asks `launch` for a touch screen (`touch: true`): Playwright can give Firefox and WebKit one
+only as they start, and then `(pointer: coarse)` holds and Touch events exist, as on a phone; Chrome gets it page by
+page from `setViewport`. WebKit lets no script make a Touch, so the swipe on the strips is checked in Chrome and
+Firefox. Every test also checks, as it starts, that the browser has all Manuscribe needs (`Install.missing`). On GitHub, the
 Tests workflow (`.github/workflows/tests.yml`) runs them on Windows, macOS and Linux in all three, and in Microsoft
 Edge (`MANUSCRIBE_ENGINE=edge`, with `CHROME` set to where Edge is: the same tests as in Chrome), after each push.
 

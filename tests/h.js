@@ -60,12 +60,14 @@ async function appUrl() {
 }
 
 // level: how much Manuscribe shows. The tests see everything ('full') unless they ask for the default, 'simple'.
+// opts: level (the interface level the app starts at), fonts, touch (a test of the phone: in Firefox and WebKit
+// the browser is then a touch screen from the start, which Chrome gets from setViewport's isMobile and hasTouch)
 async function launch(name, opts) {
   const level = (opts && opts.level) || 'full';
   const dir = path.join(WORK, 'profile-' + name);
   fs.rmSync(dir, { recursive: true, force: true });
   const other = ENGINE.OTHER;
-  const { browser, page } = other ? await ENGINE.launchOther(dir, { width: 1500, height: 1000 })
+  const { browser, page } = other ? await ENGINE.launchOther(dir, { width: 1500, height: 1000 }, !!(opts && opts.touch))
     : await (async () => {
       // a browser's first start on a fresh computer can be slow (Edge on Linux): longer to start, and once more
       const go = () => puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: dir, defaultViewport: { width: 1500, height: 1000 }, protocolTimeout: 600000, timeout: 90000, args: CHROME_ARGS });
@@ -83,8 +85,9 @@ async function launch(name, opts) {
   await fontsFor(page, opts && opts.fonts === 'none' ? 'none' : !!(opts && opts.fonts));
   // the tests give the fonts themselves: whether this computer is online at the moment does not matter
   await page.evaluateOnNewDocument(() => { try { Object.defineProperty(Navigator.prototype, 'onLine', { get: () => true, configurable: true }); } catch (e) { /* as it is */ } });
-  // on GitHub's computers, slower than one's own: the speed checks allow for it (MANUSCRIBE_CI)
+  // on GitHub's computers, slower than one's own: the speed checks allow for it (MANUSCRIBE_CI), and for the engine
   if (process.env.CI) await page.evaluateOnNewDocument(() => { window.MANUSCRIBE_CI = true; });
+  await page.evaluateOnNewDocument((e) => { window.MANUSCRIBE_ENGINE = e; }, ENGINE.ENGINE);
   await page.goto(other ? await appUrl() : fileUrl(path.join(ROOT, 'app', 'index.html')));
   await sleep(700);
   // the storage open before anything is asked of it (a slow computer takes longer than the wait above)
@@ -188,7 +191,8 @@ async function audit(page, allow) {
     const box = (e) => { if (!e.matches('input[type=checkbox], input[type=radio]')) return e; const l = e.closest('label'); if (l) return l; const td = e.closest('td, th'); return td && td.querySelectorAll('button, input, select, a, summary').length === 1 ? td : e; };
     const targets = all.filter((e) => e.matches('button, select, input:not([type=hidden]):not([type=range]), a[href], summary, textarea') && !e.closest('.line, .folio' + (allow && allow.length ? ', ' + allow.join(', ') : '')));
     const small = coarse ? targets.filter((e) => { const r = box(e).getBoundingClientRect(); return r.height < 36 || r.width < 36; }).map((e) => { const r = box(e).getBoundingClientRect(); return desc(e) + ' ' + Math.round(r.width) + '×' + Math.round(r.height); }).slice(0, 14) : [];
-    const tiny = all.filter((e) => e.children.length === 0 && e.textContent.trim() && !e.closest(skipText)).filter((e) => { const fs = parseFloat(getComputedStyle(e).fontSize); return fs > 0 && fs < 12; }).map((e) => desc(e) + ' ' + getComputedStyle(e).fontSize).slice(0, 10);
+    // (the smallest text 12 px is a rule of the finger too, app.css: a window made narrow on a computer keeps its 11 px)
+    const tiny = coarse ? all.filter((e) => e.children.length === 0 && e.textContent.trim() && !e.closest(skipText)).filter((e) => { const fs = parseFloat(getComputedStyle(e).fontSize); return fs > 0 && fs < 12; }).map((e) => desc(e) + ' ' + getComputedStyle(e).fontSize).slice(0, 10) : [];
     return { W, docW: document.documentElement.scrollWidth, coarse, over, small, tiny };
   }, allow || []);
 }

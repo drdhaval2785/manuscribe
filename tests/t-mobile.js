@@ -25,7 +25,7 @@ function scanPdf() {
 
 (async () => {
   const T = checks('Phones and tablets');
-  const { browser, page } = await launch('mobile');
+  const { browser, page } = await launch('mobile', { touch: true });
   try {
     const open = async (w, h, touch) => {
       await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: !!touch, hasTouch: !!touch });

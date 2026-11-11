@@ -54,7 +54,8 @@
       if (PdfView._barH0 !== undefined) PdfView.render();
       PdfView._barH0 = h;
     };
-    PdfView.barWatch = window.ResizeObserver ? new ResizeObserver(() => PdfView.barHeight()) : null;
+    // (read in the next frame, not in the observer's own callback, whose changes of size WebKit reports as a loop)
+    PdfView.barWatch = window.ResizeObserver ? new ResizeObserver(() => requestAnimationFrame(PdfView.barHeight)) : null;
 
     // drag to pan; two fingers pinch to zoom (the stage is scaled while the fingers move, and drawn afresh when they lift)
     let pan = null, pinch = null;

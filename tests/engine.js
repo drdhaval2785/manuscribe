@@ -61,11 +61,13 @@ function wrapPage(pw, context) {
   return page;
 }
 
-/* -> {browser, page} as Puppeteer's: browser.newPage, browser.close, browser.once('targetcreated') */
-async function launchOther(dir, viewport) {
+/* -> {browser, page} as Puppeteer's: browser.newPage, browser.close, browser.once('targetcreated'). touch: the
+   browser is a touch screen (pointer: coarse, Touch events), which Playwright can give a context only at its birth:
+   the tests of the phone ask for it (h.js launch), since setViewport's isMobile and hasTouch are Chrome's. */
+async function launchOther(dir, viewport, touch) {
   const { firefox, webkit } = require('playwright');
   const type = ENGINE === 'firefox' ? firefox : webkit;
-  const context = await type.launchPersistentContext(dir, { headless: true, viewport, serviceWorkers: 'block', acceptDownloads: true });
+  const context = await type.launchPersistentContext(dir, { headless: true, viewport, serviceWorkers: 'block', acceptDownloads: true, hasTouch: !!touch });
   const first = context.pages()[0] || (await context.newPage());
   const browser = {
     _context: context,

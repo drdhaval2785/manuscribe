@@ -322,7 +322,7 @@
       let swipe = null;
       pane.addEventListener('touchstart', (e) => {
         const t = e.changedTouches[0];
-        swipe = Narrow.on() && ME.Editor && ME.Editor.view === 'lines' && e.touches.length === 1 && e.target.closest && e.target.closest('.line') ? { x: t.clientX, y: t.clientY, at: performance.now(), top: pane.scrollTop, page: window.scrollY } : null;
+        swipe = t && Narrow.on() && ME.Editor && ME.Editor.view === 'lines' && e.touches.length === 1 && e.target.closest && e.target.closest('.line') ? { x: t.clientX, y: t.clientY, at: performance.now(), top: pane.scrollTop, page: window.scrollY } : null;
       }, { passive: true });
       pane.addEventListener('touchcancel', () => { swipe = null; });
       pane.addEventListener('touchend', (e) => {

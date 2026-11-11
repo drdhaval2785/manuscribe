@@ -12,12 +12,12 @@
 // open (the window kept, or shrunk for it) the scan keeps three lines and the typing area three strips; on a
 // computer the arrows are not shown. Uses linear.pdf.
 const fs = require('fs'), path = require('path');
-const { launch, sleep, checks, ROOT } = require('./h');
+const { launch, sleep, checks, ROOT, ENGINE } = require('./h');
 (async () => {
   const T = checks('Typing on a phone');
   const pdf = path.join(ROOT, 'linear.pdf');
   if (!fs.existsSync(pdf)) { T.skip('all', 'linear.pdf is not in the repository folder'); T.done(); return; }
-  const { browser, page } = await launch('phone-typing');
+  const { browser, page } = await launch('phone-typing', { touch: true });
   try {
     await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
     await page.evaluate(async (b64) => {
@@ -149,7 +149,9 @@ const { launch, sleep, checks, ROOT } = require('./h');
     const s6 = await step();
     T.check('the caret put back well before the middle (' + s6.n + ' letters before it): the first two parts again', s6.f < 0.35 && atStart(s6), s6);
     // a swipe up or down on the strips goes to the line below or above, as the arrows do; a short movement, a sideways
-    // one and a slow one go nowhere
+    // one and a slow one go nowhere (WebKit lets no script make a Touch: checked in Chrome and Firefox)
+    if (ENGINE === 'webkit') T.skip('a swipe on the strips', 'WebKit lets no script make a Touch');
+    else {
     const swipe = (dx, dy, ms) => page.evaluate(async (dx, dy, ms) => {
       const l = ME.Editor.activeLine(), r = l.getBoundingClientRect();
       const x = r.left + 60, y = r.top + r.height / 2;
@@ -163,6 +165,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
     }, dx, dy, ms);
     const sw = [await swipe(0, -90, 120), await swipe(0, -90, 120), await swipe(4, 90, 120), await swipe(0, -20, 120), await swipe(90, -30, 120), await swipe(0, -90, 900)];
     T.check('a swipe up on the strips goes to the line below (1 → 2 → 3), a swipe down to the line above (→ 2); a short movement, a sideways one and a slow one go nowhere', sw.join() === '2,3,2,2,2,2', sw);
+    }
     await page.evaluate(() => ME.Editor.focusLine('main', 1, 'end'));
     await sleep(300);
     // a long line: the caret stays in the middle half of the typing area

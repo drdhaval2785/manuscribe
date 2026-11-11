@@ -52,7 +52,8 @@ const { LANGS, make, buildInPage } = require('./languages');
       ok('it says what it is doing, stage by stage', pdf.texts.some((t) => /Laying out/.test(t)) && pdf.texts.some((t) => /Writing page \d+ of \d+/.test(t)), pdf.texts);
       ok('it only moves forward', pdf.widths.length > 3 && pdf.widths.every((w, i) => !i || w >= pdf.widths[i - 1]) && pdf.widths[pdf.widths.length - 1] > 50, pdf.widths.slice(-5));
       ok('it goes away when the file is saved', !pdf.after && pdf.saved && /\.pdf$/.test(pdf.saved.name) && pdf.saved.size > 1000, pdf.saved);
-      const F = window.MANUSCRIBE_CI ? 3 : 1;
+      // (GitHub's computers are slower, and Firefox there writes a PDF slower still)
+      const F = window.MANUSCRIBE_CI ? (window.MANUSCRIBE_ENGINE === 'firefox' ? 6 : 3) : 1;
       ok('the page is not frozen meanwhile (' + (pdf.worst / 1000).toFixed(1) + ' s at the longest)', pdf.worst < 2500 * F, pdf.worst);
       const md = await run('markdown');
       ok('a quicker format has the bar too, and it goes away', md.atClick && !md.after && md.saved && /\.md$/.test(md.saved.name), md.saved);
