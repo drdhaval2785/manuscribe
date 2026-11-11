@@ -1,8 +1,8 @@
 // Phones and tablets. On a phone (390 × 844, touch), transcription is a line view: the letters of the typing area
 // and the scan enlarged together until they can be read, with the device's own sizes (the project's are left as
 // they are); the folio bar on one row, the tags in a panel from the bottom of the screen that closes when one is
-// chosen; buttons big enough for a finger; the scan's controls one ⋯ at its corner, ⌖ Calibrate beside it; no page
-// that scrolls sideways; wide tables with the column that names the row in view; calibration by touch: a finger
+// chosen; buttons big enough for a finger; the scan's controls in the folio bar's ⋯ menu, ⌖ Calibrate a button in
+// the bar, nothing over the scan but Follow; no page that scrolls sideways; wide tables with the column that names the row in view; calibration by touch: a finger
 // draws, two fingers pinch to zoom. On a tablet held upright (820 ×
 // 1180) the folio keeps the project's sizes and the tags are in the same panel. On a computer, nothing of this.
 const { launch, sleep, checks, audit } = require('./h');
@@ -122,27 +122,30 @@ function scanPdf() {
     });
     T.check('calibration by touch: a finger draws the box, two fingers pinch to zoom (and draw nothing)', cal.touchAction === 'none' && cal.drawn && cal.z1 > cal.z0 * 1.3 && cal.rects === 1, cal);
 
-    // the scan's controls: one ⋯ at its corner, its menu whole and within the phone; ⌖ Calibrate beside it, and Follow
+    // the scan's controls in the folio bar's ⋯ menu with the folio's own, the menu whole and within the phone, its
+    // buttons readable; ⌖ Calibrate a button in the bar; nothing over the scan but Follow, when needed
     const tools = await page.evaluate(async () => {
       const W = innerWidth, r = (e) => e.getBoundingClientRect();
+      const lum = (c) => { const m = (c.match(/\d+/g) || [0, 0, 0]).map(Number); return (m[0] * 299 + m[1] * 587 + m[2] * 114) / 1000; };
       const cal = document.getElementById('btn-calibrate');
-      const d = document.querySelector('.pdf-tools details.pdf-more');
+      const d = document.querySelector('#midbar details.more-menu');
       d.open = true;
       await new Promise((res) => setTimeout(res, 120));
       const items = d.querySelector('.menu-items');
       const m = r(items);
-      const inMenu = ['btn-zoom-out', 'pdf-zoom', 'btn-zoom-in', 'btn-pdf-mode', 'btn-rotate', 'btn-filters'].every((id) => items.contains(document.getElementById(id)));
-      const whole = m.top >= r(d).bottom && m.bottom <= innerHeight && m.height > 150; // not cut off by a scan three lines tall
+      const inMenu = ['btn-zoom-out', 'pdf-zoom', 'btn-zoom-in', 'btn-pdf-mode', 'btn-rotate', 'btn-filters', 'btn-view', 'translit-badge'].every((id) => items.contains(document.getElementById(id)));
+      const whole = m.top >= r(d).bottom && m.bottom <= innerHeight && m.height > 150;
       const zoomed = document.getElementById('btn-zoom-in').getBoundingClientRect().height >= 36;
+      const readable = Math.abs(lum(getComputedStyle(document.getElementById('btn-rotate')).color) - lum(getComputedStyle(items).backgroundColor)) > 100;
       d.open = false;
       const follow = document.getElementById('btn-follow');
       follow.hidden = false;
       const f = r(follow);
       follow.hidden = true;
-      const t = r(document.querySelector('.pdf-tools')), pdf = r(document.getElementById('pdf-pane'));
-      return { calIn: !cal.hidden && cal.textContent === '⌖' && r(cal).left >= 0 && r(cal).right <= W && r(cal).height >= 36, menuIn: m.right <= W + 0.5 && m.left >= -0.5, inMenu, whole, zoomed, toolsIn: t.left >= 0 && t.right <= W && t.width < pdf.width / 2, followIn: f.left >= 0 && f.right <= W, view: document.querySelector('.pdf-tools details.pdf-view').hidden, W };
+      const overScan = [...document.querySelectorAll('.pdf-tools > *')].filter((e) => !e.hidden).map((e) => e.id);
+      return { calIn: !cal.hidden && cal.textContent === '⌖' && !!cal.closest('#midbar') && r(cal).left >= 0 && r(cal).right <= W && r(cal).height >= 36, menuIn: m.right <= W + 0.5 && m.left >= -0.5, inMenu, whole, zoomed, readable, overScan, followIn: f.left >= 0 && f.right <= W && f.height >= 36, view: document.querySelector('.pdf-tools details.pdf-view').hidden, W };
     });
-    T.check('the scan’s controls are one ⋯ at its corner (zoom, leaf or page, rotation, brightness), its menu whole and within the screen, ⌖ Calibrate beside it and Follow in view, the View menu of the computer put away', tools.calIn && tools.menuIn && tools.inMenu && tools.whole && tools.zoomed && tools.toolsIn && tools.followIn && tools.view, tools);
+    T.check('the scan’s controls (zoom, leaf or page, rotation, brightness) are in the folio bar’s ⋯ menu with the folio’s own, the menu whole and within the screen, its buttons readable; ⌖ Calibrate a button in the bar; nothing over the scan but Follow, in view when needed; the View menu of the computer put away', tools.calIn && tools.menuIn && tools.inMenu && tools.whole && tools.zoomed && tools.readable && tools.overScan.length === 0 && tools.followIn && tools.view, tools);
 
     // a selection made by a finger is kept: a tap on Tags or on a tag, or a long press, does not lose it
     const keptSel = await page.evaluate(async () => {

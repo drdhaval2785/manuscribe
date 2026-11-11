@@ -146,13 +146,15 @@ and offers **Download .xml** and **Download .html**.
   line you are typing between the line above and the line below, and as many more as the screen has room for
   (three at the least, with the keyboard open), each scrolling along its own text, with the notes of the line
   under it; the scan above shows three lines of the page, the one you type between the one above and the one
-  below, and follows the line you type: on a calibrated folio it keeps the letter you are typing in the middle,
-  reckoned from the letters typed and the usual number in a line (set when the transcription is made, and learnt
-  from the lines you type), and shows about 22 letters of a line across the screen, so that they can be read;
-  pinch to show more or fewer. The status bar makes way for the text: the position (folio, block, line) is a line
+  below, and follows the line you type: on a calibrated folio it shows two of the three parts of the line, the
+  first two until the letter you are typing passes the middle of the line (reckoned from the letters typed and
+  the usual number in a line, set when the transcription is made and learnt from the lines you type), then the
+  last two, so that the scan does not slide along with every letter you type; pinch to show more or fewer, and
+  the scan then moves by half a screen whenever the letter you type comes near its edge. The status bar makes way
+  for the text: the position (folio, block, line) is a line
   fixed at the top of the typing area, with **− / +** for the lines of the block; **↑** and **↓** in the folio bar
-  go to the line above or below, since a phone's keyboard has no arrows; and the bar's **⋯** menu holds
-  **Folio**, which shows the whole folio side instead, enlarged until its letters can be read (**3 lines** brings
+  go to the line above or below, since a phone's keyboard has no arrows; and the bar's **⋯** menu holds the
+  scan's controls (below) and **Folio**, which shows the whole folio side instead, enlarged until its letters can be read (**3 lines** brings
   the strips back; the choice, and the sizes you choose, are kept for that device, so the project keeps the sizes
   of the computer you mostly type on), the typing scheme, and the size of the typing area (the letter-size
   buttons **A− / A+** are left out there, the folio's **− / +** enlarging the letters too; tap **100%** to come
@@ -165,10 +167,11 @@ and offers **Download .xml** and **Download .html**.
   on **Tags**, on a tag, or the finger held on the passage itself does not lose it (the browser's own selection
   may go; the passage stays marked), and the sheet names what the tag will go round. The side panel (**◧**) is a
   sheet over the text, closed by a tap beside it or by its **✕**; it does not open on its own on a phone,
-  whatever the computer chose. The scan's controls are one **⋯** button at its corner (zoom, Leaf or Page, rotate,
-  brightness), with **⌖** Calibrate always beside it, calibrated or not, since some manuscripts need calibrating
-  on every folio side (on a computer a calibrated folio's **Recalibrate** is in the Folio tab); **↩ Follow**
-  appears there when the scan has been moved by hand. While calibrating, the bar's wording is short, the whole
+  whatever the computer chose. The scan's controls (zoom, Leaf or Page, rotate, brightness) are in the folio
+  bar's **⋯** menu, above the folio's own, and **⌖** Calibrate is a button in the bar, calibrated or not, since
+  some manuscripts need calibrating on every folio side (on a computer a calibrated folio's **Recalibrate** is in
+  the Folio tab): nothing lies over a scan three lines tall but **↩ Follow**, which appears at its corner when
+  the scan has been moved by hand. While calibrating, the bar's wording is short, the whole
   page is in view below the bar whatever height it has, and **Fit** brings it back after a pinch.
 - **A phone held sideways** is a phone too: the scan at the left, the typing area beside it, as tall as the
   screen, in the line view. (A window a browser has shrunk for the keyboard is not taken for a phone held

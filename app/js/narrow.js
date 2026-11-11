@@ -8,9 +8,11 @@
 
    On a phone the bars also make way for the text (Narrow.layout): the status bar is hidden, its position line fixed
    at the top of the typing area with − / + for the lines of the block, ↑ ↓ in the folio bar and the rest in a ⋯
-   menu there; the scan's controls are one ⋯ button at its corner, with ⌖ Calibrate always beside it. The scan is
-   three lines tall (the line typed, one above, one below), and the typing area shows as many lines round the one
-   typed as fit: three at the least, with the keyboard open.
+   menu there, together with the scan's controls; ⌖ Calibrate is a button in that bar too, so that nothing but
+   Follow lies over the scan. The scan is three lines tall (the line typed, one above, one below), and the typing
+   area shows as many lines round the one typed as fit: three at the least, with the keyboard open. Along the line
+   the scan shows two of three parts, the first two until the letter typed passes the middle of the line, then the
+   last two (pdfview.js, steppedLeft), so that it does not slide along with every letter.
 
    Also, everywhere: the app's height is the height that can be seen (visualViewport; the viewport's
    interactive-widget would do it in Chrome, but Safari reports it as an error), so that on a phone or tablet the keyboard does
@@ -21,7 +23,7 @@
   const mq = window.matchMedia ? window.matchMedia('(max-width: 700px), ((max-height: 460px) and (min-aspect-ratio: 4/3) and (pointer: coarse))') : { matches: false, addEventListener() {} };
   const KEY = 'manuscribe.narrow';
   const LEGIBLE = 16; // px: the size the letters are brought to
-  Narrow.LETTERS_IN_VIEW = 22; // akṣaras of the scan across the screen: readable, with room for the guess of where the letter is
+  Narrow.SCAN_PART = 2 / 3; // of a line across the scan: the line is in three parts, and two are shown at a time
   Narrow.on = () => mq.matches;
   Narrow.state = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } };
   Narrow.save = (patch) => { try { localStorage.setItem(KEY, JSON.stringify(Object.assign(Narrow.state(), patch))); } catch (e) { /* this visit only */ } };
@@ -55,7 +57,7 @@
     return rect[3] * P.pagePx1 * P.zoom * (size.height / size.width);
   };
   const LINES_OF_SCAN = 3; // the line being typed, the one above and the one below
-  const SCAN_MIN = 72; // px: a scan never shorter than this
+  const SCAN_MIN = 56; // px: a scan never shorter than this
   const $ = (id) => document.getElementById(id);
 
   /* One strip of the line view, in px (measured; or reckoned from the letters before any is drawn) */
@@ -104,8 +106,8 @@
     return Math.min(4, Math.max(1, (E.zoom * LEGIBLE) / px));
   };
 
-  /* The zoom of the scan that shows about LETTERS_IN_VIEW akṣaras of a line across the screen, on a calibrated folio:
-     from the width of the text block and the usual number of letters in a line. -> zoom, or null */
+  /* The zoom of the scan that shows two of the three parts of a line across the screen, on a calibrated folio: from
+     the width of the text block. -> zoom, or null */
   Narrow.letterZoom = function () {
     const P = ME.PdfView, A = ME.App, M = ME.Model;
     if (!P || !A || !A.project || !A.entries || !M) return null;
@@ -113,11 +115,11 @@
     const reg = e && M.regions(A.project, e);
     const r = reg && reg.boxes && reg.boxes.main;
     if (!r) return null;
-    return P.zoomToShow((r[2] * Narrow.LETTERS_IN_VIEW) / (A.project.layout.lettersPerLine || 65));
+    return P.zoomToShow(r[2] * Narrow.SCAN_PART);
   };
 
   /* After a folio is laid out: in a narrow window, the device's own sizes, or legible ones the first time: the
-     letters of the typing area 16 px; the scan showing about 22 letters of a line, or, where the folio is not
+     letters of the typing area 16 px; the scan showing two of the three parts of a line, or, where the folio is not
      calibrated, enlarged as the typing area is. */
   let fitting = false;
   const label = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = Math.round(v * 100) + '%'; };
@@ -173,10 +175,11 @@
   /* On a phone the bars make way for the text. The status bar is hidden, and what it held moves: the position
      ("Folio 1r · Main text · line 3 of 8") to a line fixed at the top of the typing area, with − / + for the lines of
      the block (the box's tag, which would float with the strips, is not drawn there); ↑ and ↓ into the folio bar;
-     the rest (Folio / 3 lines, the typing scheme, the size of the letters) into a ⋯ menu at its end. The scan's
-     controls are one ⋯ button at its corner (zoom, leaf or page, rotation, brightness), with ⌖ Calibrate always
-     beside it, since some manuscripts need calibrating on every folio side. In a wide window everything goes back
-     where it was. */
+     the rest (Folio / 3 lines, the typing scheme, the size of the letters) into a ⋯ menu at its end, under the
+     scan's controls (zoom, leaf or page, rotation, brightness), which come there from the scan's corner; and ⌖
+     Calibrate is a button in the bar, calibrated or not, since some manuscripts need calibrating on every folio
+     side. So nothing lies over a scan three lines tall but Follow, when the scan has been moved by hand. In a wide
+     window everything goes back where it was. */
   let laid = false;
   Narrow.layout = function (on) {
     on = on === undefined ? Narrow.on() : !!on;
@@ -188,38 +191,38 @@
     laid = on;
     const cal = $('btn-calibrate'), pop = $('filters-pop');
     if (on) {
-      // the scan's controls: ⋯, and ⌖ beside it; a choice made closes the menu (the zoom buttons keep it open)
-      const items = U.el('div', { class: 'menu-items pm-items' }, U.el('div', { class: 'pm-zoom' }, $('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in')), $('btn-pdf-mode'), $('btn-rotate'), $('btn-filters'));
-      const more = U.el('details', { class: 'menu pdf-more' }, U.el('summary', { class: 'pbtn', title: 'Zoom, leaf or page, rotation, brightness' }, '⋯'), items);
-      items.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('.pm-zoom')) more.open = false; });
-      // (fixed, so that a scan three lines tall does not cut it off: placed under its button when opened)
-      more.addEventListener('toggle', () => { if (more.open) items.style.top = Math.round(more.getBoundingClientRect().bottom + 4) + 'px'; });
+      // the scan's controls and the status bar's in one ⋯ menu at the end of the folio bar (a choice made closes it;
+      // the zoom buttons keep it open), ⌖ Calibrate a button before it; only Follow stays over the scan
+      const items = U.el('div', { class: 'menu-items' },
+        U.el('div', { class: 'pm-zoom' }, $('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in')), $('btn-pdf-mode'), $('btn-rotate'), $('btn-filters'),
+        U.el('div', { class: 'menu-sep' }),
+        $('btn-view'), $('translit-badge'), ...right.querySelectorAll('.ed-zoom-ctl'), $('storage-warning'));
+      const menu = U.el('details', { class: 'menu more-menu' }, U.el('summary', { class: 'nbtn', title: 'The scan: zoom, leaf or page, rotation, brightness. The whole folio, the typing scheme, the size of the letters' }, '⋯'), items);
+      items.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('.pm-zoom, .ed-zoom-ctl')) menu.open = false; });
       view.hidden = true;
       cal.dataset.label = cal.textContent;
       cal.textContent = '⌖';
       cal.title = 'Calibrate this folio side: draw the leaf and the text blocks on the scan';
+      cal.className = 'nbtn cal-bar';
       cal.hidden = false;
-      tools.append($('btn-follow'), cal, more);
-      // the brightness pop-up would be cut off by a scan three lines tall: it floats under the scan instead
+      tools.append($('btn-follow'));
+      // the brightness pop-up floats under the scan
       pop.classList.add('pf-float');
       document.body.appendChild(pop);
-      // the status bar's controls: ↑ ↓ into the folio bar, the rest into its ⋯ menu
-      const menu = U.el('details', { class: 'menu more-menu' }, U.el('summary', { class: 'nbtn', title: 'The whole folio, the typing scheme, the size of the letters' }, '⋯'),
-        U.el('div', { class: 'menu-items' }, $('btn-view'), $('translit-badge'), ...right.querySelectorAll('.ed-zoom-ctl'), $('storage-warning')));
-      nav.append(right.querySelector('.line-nav'), menu);
+      nav.append(right.querySelector('.line-nav'), cal, menu);
       // the position, fixed at the top of the typing area, with − / + for the lines of the block
       pane.prepend(U.el('div', { class: 'lv-head' }, $('status-pos'), U.el('span', { class: 'lv-lines', hidden: true })));
       Narrow.headLines(ME.Editor && ME.Editor.current);
     } else {
-      const more = tools.querySelector('details.pdf-more'), menu = nav.querySelector('details.more-menu'), head = pane.querySelector('.lv-head');
+      const menu = nav.querySelector('details.more-menu'), head = pane.querySelector('.lv-head');
       view.querySelector('.menu-items').append($('btn-pdf-mode'), $('btn-rotate'), $('btn-filters'));
       view.hidden = false;
       cal.textContent = cal.dataset.label || '⌖ Calibrate';
       cal.title = 'Draw the leaf and the text blocks on the PDF';
+      cal.className = 'pbtn accent';
       pop.classList.remove('pf-float');
       pop.style.top = '';
       tools.append($('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in'), view, $('btn-follow'), cal, pop);
-      if (more) more.remove();
       right.append($('storage-warning'), nav.querySelector('.line-nav'), $('btn-view'), $('translit-badge'), ...(menu ? menu.querySelectorAll('.ed-zoom-ctl') : []));
       if (menu) menu.remove();
       status.prepend($('status-pos'));
@@ -281,11 +284,11 @@
     if (b) { b.addEventListener('click', () => Narrow.toggleTags()); b.addEventListener('pointerdown', (e) => e.preventDefault()); } // the selection stays
     const v = document.getElementById('btn-view');
     if (v) { v.addEventListener('click', () => Narrow.setView(Narrow.view() === 'lines' ? 'folio' : 'lines')); Narrow.viewButton(); }
-    // the phone's layout of the screen; the brightness pop-up under the scan; a tap elsewhere closes the ⋯ menus
+    // the phone's layout of the screen; the brightness pop-up under the scan; a tap elsewhere closes the ⋯ menu
     Narrow.layout(Narrow.on());
     const fb = document.getElementById('btn-filters');
     if (fb) fb.addEventListener('click', () => { const pop = document.getElementById('filters-pop'), pane = document.getElementById('pdf-pane'); if (pop && pane && pop.classList.contains('pf-float')) pop.style.top = Math.round(pane.getBoundingClientRect().bottom + 6) + 'px'; });
-    document.addEventListener('pointerdown', (e) => { for (const d of document.querySelectorAll('details.pdf-more[open], details.more-menu[open]')) if (!d.contains(e.target)) d.open = false; });
+    document.addEventListener('pointerdown', (e) => { for (const d of document.querySelectorAll('details.more-menu[open]')) if (!d.contains(e.target)) d.open = false; });
     /* A long press on the text (a finger held still for a moment) opens the tags, for the passage kept by the editor
        (a selection made by finger, which the press itself does not lose) or for the caret: on a phone, and on a
        tablet held upright, wherever the tags are a sheet. While the phone is selecting text itself under the finger

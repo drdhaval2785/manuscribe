@@ -400,7 +400,7 @@
   PdfView.guide = { rect: null, style: 'band' };
   PdfView.setGuide = function (rect, style) {
     const moved = JSON.stringify(rect) !== JSON.stringify(PdfView.guide.rect);
-    PdfView.guide = { rect, style: style || PdfView.guide.style, fx: null };
+    PdfView.guide = { rect, style: style || PdfView.guide.style, fx: null, at: null };
     if (moved && !PdfView.following) { PdfView.following = true; if (PdfView.cb.onFollow) PdfView.cb.onFollow(true); }
     PdfView.positionGuide(false);
   };
@@ -437,13 +437,36 @@
     const vt = scroller.scrollTop, vh = scroller.clientHeight;
     const target = Math.max(0, (top + bottom) / 2 - vh / 2);
     if (Math.abs(target - vt) > 3) to.top = target;
-    // and the letter being typed in the middle, once the letters have moved on by more than a little
+    // and the letter being typed in the middle, once the letters have moved on by more than a little (on a phone
+    // the scan moves in steps instead: steppedLeft)
     if (fx !== null && fx !== undefined && scroller.scrollWidth > scroller.clientWidth + 4) {
       const x = ox + (rect[0] + fx * rect[2]) * sw, vl = scroller.scrollLeft, vw = scroller.clientWidth;
-      const left = U.clamp(x - vw / 2, 0, scroller.scrollWidth - vw);
-      if (Math.abs(left - vl) > 12) to.left = left;
+      const stepped = ME.Narrow && ME.Narrow.on();
+      const left = stepped ? steppedLeft(x, ox, rect, sw, vw) : U.clamp(x - vw / 2, 0, scroller.scrollWidth - vw);
+      if (Math.abs(left - vl) > (stepped ? 3 : 12)) to.left = left;
     }
     if ('top' in to || 'left' in to) scroller.scrollTo(Object.assign(to, { behavior: instant ? 'auto' : 'smooth' }));
+  }
+
+  /* On a phone the scan does not slide along with every letter typed, which draws the eye from the typing. The line
+     is in three parts, and the scan shows two (Narrow.letterZoom): the first two until the letter typed passes the
+     middle of the line, then the last two. In general (the scan zoomed by hand) the letter is kept in the middle
+     half of the pane: when it comes three quarters of the way across, the scan moves on so that the letter is a
+     quarter of the way in; when it goes back within an eighth of the left edge, the scan moves back likewise - so
+     that a letter corrected at the middle of the line does not move the scan to and fro. The scan never shows
+     beyond the ends of the line (with a margin). Where the scan stands along the line is kept (PdfView.guide.at,
+     0..1 along the line) until the line changes. x: the letter, in the scroller's px. -> scrollLeft */
+  const EDGE = 10; // px: the end of the line is not flush with the edge of the pane
+  function steppedLeft(x, ox, rect, sw, vw) {
+    const g = PdfView.guide, padX = rect[2] * 0.01;
+    const x0 = ox + (rect[0] - padX) * sw - EDGE, x1 = ox + (rect[0] + rect[2] + padX) * sw + EDGE;
+    const lo = x0, hi = Math.max(x0, x1 - vw);
+    let left = g.at === null || g.at === undefined ? lo : x0 + g.at * (x1 - x0);
+    if (x >= left + vw * 0.75) left = x - vw / 4;
+    else if (x < left + vw / 8) left = x - vw * 0.75;
+    left = U.clamp(left, lo, hi);
+    g.at = x1 > x0 ? (left - x0) / (x1 - x0) : 0;
+    return U.clamp(left, 0, scroller.scrollWidth - vw);
   }
 
   /* ---------- calibration ---------- */

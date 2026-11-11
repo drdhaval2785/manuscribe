@@ -1,10 +1,12 @@
 // Typing on a phone (390 px wide): the typing area shows three lines - the line being typed, the one above and the
 // one below - each a strip the width of the screen scrolling along its own text, with the notes of the line under it,
 // and the scan about three lines of the page (the whole folio a button away); on a calibrated folio the scan shows
-// about 22 letters of a line, unless the device has a zoom of its own; along a long line the caret is kept in the
-// middle of the strip; a long press opens the tags; ↑ and ↓ (in the folio bar) go to the line above or below without
+// two of the three parts of a line, the first two until the letter typed passes the middle, then the last two, not
+// sliding meanwhile (nor back for a letter corrected there), unless the device has a zoom of its own; along a long
+// line the caret is kept in the middle of the strip; a long press opens the tags; ↑ and ↓ (in the folio bar) go to the line above or below without
 // losing the caret; the status bar makes way for the text, its position line fixed at the top of the typing area
-// with − / + for the lines; ⌖ Calibrate stays at the scan's corner though the folio is calibrated; with the keyboard
+// with − / + for the lines; ⌖ Calibrate in the folio bar though the folio is calibrated, the scan's controls in the
+// bar's ⋯ menu and nothing over the scan; with the keyboard
 // open (the window kept, or shrunk for it) the scan keeps three lines and the typing area three strips; on a
 // computer the arrows are not shown. Uses linear.pdf.
 const fs = require('fs'), path = require('path');
@@ -34,12 +36,12 @@ const { launch, sleep, checks, ROOT } = require('./h');
       const P = ME.PdfView, scroller = document.querySelector('.pdf-scroller'), stage = document.querySelector('.pdf-stage');
       const r = ME.Model.regions(ME.App.project, ME.App.entries[ME.App.idx]).boxes.main;
       const blockPx = r[2] * parseFloat(stage.style.width);
-      return { zoom: +P.zoom.toFixed(2), blockPx: Math.round(blockPx), paneW: scroller.clientWidth, lettersAcross: +((66 * scroller.clientWidth) / blockPx).toFixed(1), device: ME.Narrow.state().pdf || null, narrow: ME.Narrow.on() };
+      return { zoom: +P.zoom.toFixed(2), blockPx: Math.round(blockPx), paneW: scroller.clientWidth, partsAcross: +((3 * scroller.clientWidth) / blockPx).toFixed(2), device: ME.Narrow.state().pdf || null, narrow: ME.Narrow.on() };
     });
-    const fit = await page.evaluate(() => { const mid = document.getElementById('midbar').getBoundingClientRect(), cal = document.getElementById('btn-calibrate'); return { inner: innerWidth, docW: document.documentElement.scrollWidth, midW: Math.round(mid.width), midH: Math.round(mid.height), status: getComputedStyle(document.getElementById('statusbar')).display, fontBtn: getComputedStyle(document.getElementById('btn-font-down').parentElement).display, head: !!document.querySelector('#editor-pane .lv-head #status-pos'), nav: !!document.querySelector('#midbar .line-nav'), menu: ['btn-view', 'translit-badge', 'ed-zoom'].every((id) => !!document.getElementById(id).closest('#midbar details.more-menu')), cal: !cal.hidden && cal.textContent === '⌖' && !!cal.closest('.pdf-tools') }; });
-    T.check('the app is no wider than the phone, so the browser does not zoom the page out; the status bar makes way for the text: its position line at the top of the typing area, ↑ ↓ in the folio bar (one row), the rest in its ⋯ menu, the letter-size buttons left out; ⌖ Calibrate at the scan’s corner though the folio is calibrated', fit.inner === 390 && fit.docW <= 390 && fit.midW <= 390 && fit.midH <= 48 && fit.status === 'none' && fit.fontBtn === 'none' && fit.head && fit.nav && fit.menu && fit.cal, fit);
+    const fit = await page.evaluate(() => { const mid = document.getElementById('midbar').getBoundingClientRect(), cal = document.getElementById('btn-calibrate'); return { inner: innerWidth, docW: document.documentElement.scrollWidth, midW: Math.round(mid.width), midH: Math.round(mid.height), status: getComputedStyle(document.getElementById('statusbar')).display, fontBtn: getComputedStyle(document.getElementById('btn-font-down').parentElement).display, head: !!document.querySelector('#editor-pane .lv-head #status-pos'), nav: !!document.querySelector('#midbar .line-nav'), menu: ['btn-view', 'translit-badge', 'ed-zoom', 'btn-zoom-in', 'pdf-zoom', 'btn-pdf-mode', 'btn-rotate', 'btn-filters'].every((id) => !!document.getElementById(id).closest('#midbar details.more-menu')), cal: !cal.hidden && cal.textContent === '⌖' && !!cal.closest('#midbar .folio-nav') && cal.getBoundingClientRect().height >= 36, overScan: [...document.querySelectorAll('.pdf-tools > *')].filter((e) => !e.hidden).map((e) => e.id) }; });
+    T.check('the app is no wider than the phone, so the browser does not zoom the page out; the status bar makes way for the text: its position line at the top of the typing area, ↑ ↓ in the folio bar (one row), the rest in its ⋯ menu with the scan’s controls, the letter-size buttons left out; ⌖ Calibrate in the bar though the folio is calibrated; nothing over the scan', fit.inner === 390 && fit.docW <= 390 && fit.midW <= 390 && fit.midH <= 48 && fit.status === 'none' && fit.fontBtn === 'none' && fit.head && fit.nav && fit.menu && fit.cal && fit.overScan.length === 0, fit);
     let s = await scan();
-    T.check('on a calibrated folio the scan is zoomed to show about 22 letters of a line across the screen (' + s.lettersAcross + ')', s.narrow && s.lettersAcross > 19 && s.lettersAcross < 25.5 && !s.device, s);
+    T.check('on a calibrated folio the scan is zoomed to show two of the three parts of a line across the screen (' + s.partsAcross + ')', s.narrow && s.partsAcross > 1.95 && s.partsAcross < 2.3 && !s.device, s);
     // the line view: three strips, the scan three lines tall
     await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
     await sleep(500);
@@ -108,6 +110,44 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await sleep(400);
     at = await page.evaluate(() => { const l = ME.Editor.activeLine(); return l ? ME.Editor.posOf(l).i : null; });
     T.check('↑ twice goes two lines up', at === 1, at);
+    // the scan along the line: the first two parts while the letter typed is in the first half of the line (reckoned
+    // over the 66 letters expected), not sliding meanwhile; the last two once it passes the middle; a letter
+    // corrected there does not bring the first two back; the caret put back well before the middle does
+    const step = () => page.evaluate(() => {
+      const P = ME.PdfView, line = ME.Editor.activeLine(), pos = ME.Editor.posOf(line);
+      const rect = ME.Model.lineRect(ME.App.project, ME.App.entries[ME.App.idx], pos.box, pos.i);
+      const f = ME.Follow.along(ME.App.project, line, pos);
+      const scroller = document.querySelector('.pdf-scroller'), clip = document.querySelector('.pdf-clip'), stage = document.querySelector('.pdf-stage');
+      const ox = clip.offsetLeft + (parseFloat(stage.style.left) || 0), sw = parseFloat(stage.style.width), vw = scroller.clientWidth, padX = rect[2] * 0.01;
+      const x0 = ox + (rect[0] - padX) * sw - 10, x1 = ox + (rect[0] + rect[2] + padX) * sw + 10;
+      const x = ox + (rect[0] + f * rect[2]) * sw - scroller.scrollLeft;
+      return { f: +f.toFixed(3), n: ME.Follow.count(ME.Editor.unitText(line)), left: Math.round(scroller.scrollLeft), start: Math.round(Math.max(0, x0)), end: Math.round(x1 - vw), letterIn: x > 0 && x < vw, following: P.following };
+    });
+    const atStart = (w) => w.following && w.letterIn && Math.abs(w.left - w.start) <= 2, atEnd = (w) => w.following && w.letterIn && Math.abs(w.left - w.end) <= 2;
+    await page.keyboard.type('धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः मामकाः ');
+    await sleep(1000);
+    const s1 = await step();
+    await page.keyboard.type('पाण्डवाश्चैव किमकुर्वत ');
+    await sleep(1000);
+    const s2 = await step();
+    T.check('in the first half of the line (' + s1.n + ' then ' + s2.n + ' of 66 letters) the scan shows the first two parts, the start of the line at its left edge, and does not move', s1.f < 0.5 && s2.f < 0.5 && s2.f > 0.4 && atStart(s1) && atStart(s2) && s1.left === s2.left && s2.end > s2.start + 100, { s1, s2 });
+    await page.keyboard.type('सञ्जय धर्म');
+    await sleep(1000);
+    const s3 = await step();
+    T.check('past the middle (' + s3.n + ' letters) it shows the last two parts, the end of the line at its right edge', s3.f > 0.5 && atEnd(s3), s3);
+    for (let k = 0; k < 3; k++) await page.keyboard.press('Backspace');
+    await sleep(1000);
+    const s4 = await step();
+    await page.keyboard.type('र्म');
+    await sleep(1000);
+    const s5 = await step();
+    T.check('a letter corrected there (' + s4.n + ' letters, then ' + s5.n + ' again) does not move the scan to and fro', s4.n < s3.n && s5.n > s4.n && s4.f >= 0.44 && atEnd(s4) && atEnd(s5), { s3, s4, s5 });
+    await page.evaluate(() => { const l = ME.Editor.activeLine(); ME.Editor.setCaret(l, ME.Editor.unitText(l).indexOf('मामकाः')); });
+    await sleep(1000);
+    const s6 = await step();
+    T.check('the caret put back well before the middle (' + s6.n + ' letters before it): the first two parts again', s6.f < 0.35 && atStart(s6), s6);
+    await page.evaluate(() => ME.Editor.focusLine('main', 1, 'end'));
+    await sleep(300);
     // a long line: the caret stays in the middle half of the typing area
     await page.keyboard.type('धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः मामकाः पाण्डवाश्चैव किमकुर्वत सञ्जय धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः');
     await sleep(900);
@@ -137,7 +177,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
       return { open, closed };
     });
     T.check('with the keyboard open (362 px left, the page scrolled by 40): the app is 362 px tall, moved down by 40, and the top bar steps aside', kb.open.h === '362px' && kb.open.top === '40px' && kb.open.cls && kb.open.topbar === 'none' && kb.open.main === 362 && kb.open.mainTop === 40, kb.open);
-    T.check('with the keyboard open the scan keeps its three lines and the typing area shows three strips, all in sight above the keyboard', kb.open.near === '1,2,3' && kb.open.linesOfScan >= 2.95 && kb.open.linesOfScan <= 3.05 && kb.open.stripsIn, kb.open);
+    T.check('with the keyboard open the scan keeps its three lines and the typing area shows three strips at the least, all in sight above the keyboard', /(^|,)1,2,3(,|$)/.test(kb.open.near) && kb.open.linesOfScan >= 2.95 && kb.open.linesOfScan <= 3.05 && kb.open.stripsIn, kb.open);
     T.check('with the keyboard closed, all is as before, the strips as many as fit', !kb.closed.cls && kb.closed.topbar !== 'none' && kb.closed.main === 844 - 46 && kb.closed.near.split(',').length > 3, kb.closed);
     // a browser that shrinks the window for the keyboard (Chrome on Android): read as the keyboard too, and not as a phone held sideways
     await page.setViewport({ width: 390, height: 362, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
@@ -146,7 +186,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
     await sleep(700);
     const grown = await page.evaluate(() => ({ cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, near: [...document.querySelectorAll('.line.near')].map((l) => l.dataset.i).join(',') }));
-    T.check('the window shrunk to 390 × 362 for the keyboard: read as the keyboard (the top bar steps aside, three strips, the scan three lines), not as a phone held sideways; the window grown again, all as before', shrunk.cls && shrunk.topbar === 'none' && shrunk.main === 362 && shrunk.near === '1,2,3' && shrunk.grid === 'flex' && shrunk.docW <= 390 && Math.abs(shrunk.pdfH - 3 * shrunk.line) <= 2 && !grown.cls && grown.topbar !== 'none' && grown.near.split(',').length > 3, { shrunk, grown });
+    T.check('the window shrunk to 390 × 362 for the keyboard: read as the keyboard (the top bar steps aside, three strips, the scan three lines), not as a phone held sideways; the window grown again, all as before', shrunk.cls && shrunk.topbar === 'none' && shrunk.main === 362 && /(^|,)1,2,3(,|$)/.test(shrunk.near) && shrunk.grid === 'flex' && shrunk.docW <= 390 && Math.abs(shrunk.pdfH - 3 * shrunk.line) <= 2 && !grown.cls && grown.topbar !== 'none' && grown.near.split(',').length > 3, { shrunk, grown });
     // the page pinched larger by the browser: what can be seen shrinks too, but the app keeps its size
     const pinched = await page.evaluate(() => {
       const r = ME.Narrow.viewport({ height: 300, offsetTop: 120, scale: 2.8 });
