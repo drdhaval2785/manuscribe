@@ -195,6 +195,9 @@
   /* While calibrating: a zoom of its own, from the whole page (1) to eight times it, keeping the point under the
      cursor (or the middle of the pane) where it was, so that a block can be drawn closely on a small scan. */
   PdfView.calibScale = 1;
+  // px kept between the page and the screen's edges while calibrating on a touch screen (render): wider than the
+  // edge a phone's own gestures start from (about 20 px on iOS, 24 or more on Android, and the home bar below)
+  PdfView.CALIB_GUTTER = { x: 36, y: 48 };
   PdfView.calibZoom = function (z, at) {
     const z1 = U.clamp(z, 1, 8), z0 = PdfView.calibScale;
     if (z1 === z0) return Promise.resolve();
@@ -268,8 +271,11 @@
     const page = await PdfView.doc.getPage(entry.pdfPage);
     const vp1 = page.getViewport({ scale: 1, rotation: PdfView.rotation });
     const region = visibleRegion();
-    const availW = Math.max(200, scroller.clientWidth - 28);
-    const availH = Math.max(120, scroller.clientHeight - 36);
+    // while calibrating on a touch screen the page is kept away from the screen's edges, where a finger put down
+    // starts the phone's own gestures (back, the home screen) instead of a box: zoomed in too, at either end
+    const gut = PdfView.calibrating && ME.Device && ME.Device.touch() ? PdfView.CALIB_GUTTER : null;
+    const availW = Math.max(200, scroller.clientWidth - (gut ? 2 * gut.x : 28));
+    const availH = Math.max(120, scroller.clientHeight - (gut ? 14 + gut.y : 36));
     let fit = availW / (region[2] * vp1.width);
     // the whole page must be visible to draw on it, and is the point of "page" mode
     if (PdfView.calibrating || PdfView.mode === 'page') fit = Math.min(fit, availH / (region[3] * vp1.height));
@@ -292,11 +298,13 @@
     // half a pane of room above and below, so that any line can be brought to the middle; and, when the page is
     // wider than the pane, to the left and right too, so that the first and the last letter of a line can be
     const pad = PdfView.calibrating ? 14 : Math.round(scroller.clientHeight / 2);
-    const padX = !PdfView.calibrating && region[2] * r.w > scroller.clientWidth - 28 ? Math.round(scroller.clientWidth / 2) : null;
+    // (the gutter is measured from the pane's edge: the scroller's own padding is part of it)
+    const padX = gut ? (region[2] * r.w > scroller.clientWidth - 2 * gut.x ? Math.max(0, gut.x - (parseFloat(getComputedStyle(scroller).paddingLeft) || 0)) : null)
+      : !PdfView.calibrating && region[2] * r.w > scroller.clientWidth - 28 ? Math.round(scroller.clientWidth / 2) : null;
     const newPage = PdfView._shownKey !== entry.key;
     PdfView._shownKey = entry.key;
     clip.style.marginTop = pad + 'px';
-    clip.style.marginBottom = pad + 'px';
+    clip.style.marginBottom = (gut ? gut.y : pad) + 'px';
     clip.style.marginLeft = clip.style.marginRight = padX === null ? 'auto' : padX + 'px';
     if (newPage || (PdfView.calibrating && PdfView.calibScale === 1) || !PdfView.guide.rect) scroller.scrollTop = Math.max(0, pad - 14);
     pageInfo.textContent = 'PDF page ' + entry.pdfPage + ' / ' + PdfView.doc.numPages + (entry.half !== null && entry.half !== undefined ? (entry.half ? ' · lower half' : ' · upper half') : '');

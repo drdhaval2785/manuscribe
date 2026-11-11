@@ -173,8 +173,10 @@ and offers **Download .xml** and **Download .html**.
   button in the bar, calibrated or not, since
   some manuscripts need calibrating on every folio side (on a computer a calibrated folio's **Recalibrate** is in
   the Folio tab): nothing lies over a scan three lines tall but **↩ Follow**, which appears at its corner when
-  the scan has been moved by hand. While calibrating, the bar's wording is short, the whole
-  page is in view below the bar whatever height it has, and **Fit** brings it back after a pinch.
+  the scan has been moved by hand. While calibrating, the bar's wording is short, the whole page is in view below
+  the bar whatever height it has, **Fit** brings it back after a pinch, and the page is kept away from the
+  screen's edges (zoomed in too), where a finger put down starts the phone's own gestures, back or the home
+  screen, instead of a box.
 - **A phone held sideways** is a phone too: the scan at the left, the typing area beside it, as tall as the
   screen, in the line view. (A window a browser has shrunk for the keyboard is not taken for a phone held
   sideways: only one well wider than tall is.)

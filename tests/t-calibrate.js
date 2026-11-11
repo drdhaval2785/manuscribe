@@ -1,6 +1,7 @@
 // Calibration in one pane: while the leaf and the blocks are drawn, the PDF takes the whole window (the typing area,
 // which has nothing to show meanwhile, steps aside); it can be zoomed in to draw closely, and a box drawn when zoomed
-// in is where it was drawn on the page; on a touch screen two fingers move the page zoomed in on (one finger draws);
+// in is where it was drawn on the page; on a touch screen two fingers move the page zoomed in on (one finger draws),
+// and the page is kept away from the screen's edges, where a phone's own gestures start;
 // after it, the typing area is back as it was.
 const fs = require('fs'), path = require('path');
 const { launch, sleep, checks, ROOT } = require('./h');
@@ -9,7 +10,7 @@ const { launch, sleep, checks, ROOT } = require('./h');
   const T = checks('Calibration in one pane');
   const pdf = path.join(ROOT, 'linear.pdf');
   if (!fs.existsSync(pdf)) { T.skip('all', 'linear.pdf is not in the repository folder'); T.done(); return; }
-  const { browser, page } = await launch('calibrate');
+  const { browser, page } = await launch('calibrate', { touch: true });
   await page.setViewport({ width: 1280, height: 800 });
   await page.evaluate(async (b64) => {
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -76,22 +77,30 @@ const { launch, sleep, checks, ROOT } = require('./h');
     await wait(600);
     const m = () => { const bar = document.querySelector('.calib-bar').getBoundingClientRect(), st = document.querySelector('.pdf-stage').getBoundingClientRect(), sc = document.querySelector('.pdf-scroller').getBoundingClientRect(); const fitBtn = document.querySelector('.calib-fit-all'); return { barB: Math.round(bar.bottom), scrollerT: Math.round(sc.top), stageT: Math.round(st.top), stageB: Math.round(st.bottom), stageR: Math.round(st.right), W: innerWidth, H: innerHeight, zoom: document.querySelector('.calib-fit').textContent, fit: !!fitBtn && !fitBtn.hidden, label: document.querySelector('.calib-label').textContent.length }; };
     const s1 = m();
+    const edges = () => { const st = document.querySelector('.pdf-stage').getBoundingClientRect(); return { left: Math.round(st.left), right: Math.round(innerWidth - st.right), bottom: Math.round(innerHeight - st.bottom) }; };
+    const edge = edges();
     [...document.querySelectorAll('.calib-bar button')].find((b) => /Next|Skip/.test(b.textContent)).click();
     await wait(700);
     const s2 = m();
     await ME.PdfView.calibZoom(2.5);
     await wait(400);
     const z = m();
+    const sc = document.querySelector('.pdf-scroller');
+    sc.scrollLeft = 0; await wait(100);
+    const zLeft = edges();
+    sc.scrollLeft = sc.scrollWidth; await wait(100);
+    const zRight = edges();
     document.querySelector('.calib-fit-all').click();
     await wait(600);
     const back = m();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await done;
-    return { s1, s2, z, back };
+    return { s1, s2, z, back, edge, zLeft, zRight };
   });
   const below = (s) => s.scrollerT >= s.barB - 1 && s.stageT >= s.barB && s.stageB <= s.H + 1 && s.stageR <= s.W + 1 && s.label < 80;
   T.check('on a phone the whole page is in view below the bar at step 1 and at step 2, whatever height the bar has, with short wording', below(phone.s1) && below(phone.s2), phone);
   T.check('after a pinch, Fit brings the whole page back', phone.z.zoom !== '100%' && phone.z.fit && below(phone.back) && phone.back.zoom === '100%' && !phone.back.fit, { z: phone.z, back: phone.back });
+  T.check('on a phone the page is kept away from the screen’s edges while calibrating (36 px at the sides, 48 at the foot), so that a box drawn from its corner does not start the phone’s own gestures; zoomed in and moved to either end too', phone.edge.left >= 36 && phone.edge.right >= 36 && phone.edge.bottom >= 48 && phone.zLeft.left >= 36 && phone.zRight.right >= 36, { edge: phone.edge, zLeft: phone.zLeft, zRight: phone.zRight });
   await page.setViewport({ width: 1500, height: 1000, deviceScaleFactor: 1, isMobile: false, hasTouch: false });
   await sleep(500);
   T.check('afterwards the typing area is back as it was', after.editor.shown && Math.abs(after.pdf.h - before.pdf.h) < 3 && Math.abs(after.editor.w - before.editor.w) < 3 && Math.abs(after.canvas - before.canvas) < 3, { before, after });
