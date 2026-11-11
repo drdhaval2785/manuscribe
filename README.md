@@ -156,10 +156,25 @@ and offers **Download .xml** and **Download .html**.
   the top bar steps aside, so that the scan and the line being typed have the room above it. A dialog (New
   transcription, the settings) is a sheet the height of the screen, its body scrolling between the title and the
   buttons. The tags are behind one **Tags** button, which opens them from the bottom of the screen, as does a
-  finger held on the text for a moment; one chosen is applied to the selected text and the panel closes.
-- **A tablet held upright** (up to 900 px) keeps the whole folio, with the same **Tags** button.
-- **With a finger:** buttons are big enough to touch; the bar between the scan and the typing area can be
-  dragged; two fingers pinch to zoom the scan; while calibrating, one finger draws a box.
+  finger held on the text for a moment; one chosen is applied to the selected text and the panel closes. A
+  selection made by a finger is kept by Manuscribe from the moment it is made: a tap on **Tags**, on a tag, or
+  the finger held on the passage itself does not lose it (the browser's own selection may go; the passage stays
+  marked), and the sheet names what the tag will go round. The side panel (**◧**) is a sheet over the text,
+  closed by a tap beside it or by its **✕**; it does not open on its own on a phone, whatever the computer chose.
+  The PDF toolbar keeps **Calibrate** (or **Follow**) in view at its left, and its **View** menu opens within the
+  screen. While calibrating, the bar's wording is short, the whole page is in view below the bar whatever height
+  it has, and **Fit** brings it back after a pinch.
+- **A phone held sideways** is a phone too: the scan at the left, the typing area beside it, as tall as the
+  screen, in the line view.
+- **A tablet held upright** (up to 900 px) keeps the whole folio, with the same **Tags** button, the long press
+  and the side panel as a sheet; held sideways, it has the computer's layout with the side panel docked.
+- **With a finger:** every button, field, tick and fold is big enough to touch (36–40 px), fields are 16 px so
+  that Safari does not zoom in on them, no interface text is under 12 px, and the keyboard's help and the
+  shortcut letters are not shown; the bar between the scan and the typing area can be dragged; two fingers pinch
+  to zoom the scan; while calibrating, one finger draws a box.
+- **The edition on a phone:** the title has a row of its own; the Collate step's tools row scrolls sideways;
+  long explanations are clamped to two lines until tapped; in a block, the rows of buttons fold what does not fit
+  into **⋯** menus, Previous and Next staying, and the place opened comes into view under the text.
 - Wide tables of an edition scroll sideways in their box, with the column that names the row kept in view.
 - **Memory:** only the part of the page shown is drawn, at most 12 megapixels on a phone (24 on a computer), and two
   drawn pages are kept rather than five, so that a large scan does not exhaust a phone's memory.
@@ -1175,7 +1190,8 @@ app/js/
   site.js               where Manuscribe is published: the one place to change if it moves
   install.js            offline, updates, the Install button, files opened with the installed app
   safety.js             work kept safe outside the browser: back up everything, a backup folder, the reminder
-  narrow.js             phones: the line view, the Tags panel, the height that can be seen above the keyboard
+  device.js             what the screen is: narrow, sheets, tablet, touch, as classes on <body>
+  narrow.js             phones: the line view, the Tags panel, the long press, the height that can be seen above the keyboard
   util.js               DOM and string helpers
   tei.js                the tag set; stored TEI to editable HTML and back
   translit.js           the typing schemes

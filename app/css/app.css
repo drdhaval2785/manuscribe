@@ -1,5 +1,11 @@
 /* Tiro Devanagari Sanskrit, the font of Devanagari and Latin, is fetched once and kept in the browser (FontLib.loadTiro) */
 
+/* The screens (device.js keeps the same four as classes on <body>: narrow, sheets, tablet, touch):
+     (max-width: 700px), or a phone held sideways       narrow: a phone — the line view, one row of controls, folded rows
+     (max-width: 900px)                                  sheets: a phone or a tablet held upright — the side panel and the tags as sheets
+     (max-width: 1024px) with a finger                   tablet
+     (pointer: coarse)                                   touch: a finger — every control 36–40 px, no keyboard help */
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--ui); overflow: hidden; }
@@ -946,6 +952,8 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
      row; the block's text shorter, so that the place opened is in view under it; long explanations clamped to two
      lines until tapped */
   .ed-title { flex-basis: 100%; order: -1; }
+  .ed-status { flex-wrap: wrap; }
+  .ed-status > span { flex: 1 1 200px; }
   .cv-tools.in-view { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .cv-tools.in-view .btn { white-space: nowrap; }
   .nv-head select { max-width: 100%; }
