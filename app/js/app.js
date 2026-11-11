@@ -586,8 +586,8 @@
     Editor.render(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size), { keepMulti: !!(opts && opts.keepMulti) });
     if (ME.Narrow) ME.Narrow.fit();
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
-    // once a folio side is calibrated, Calibrate is in the Folio tab
-    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc;
+    // once a folio side is calibrated, Calibrate is in the Folio tab; on a phone it stays at the scan's corner
+    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc && !(ME.Narrow && ME.Narrow.on());
     PdfView.setGuide(null);
     App.refreshSidebar();
     updateStatus();
@@ -705,6 +705,7 @@
     const host = $('status-pos');
     host.innerHTML = '';
     host.append(...parts);
+    if (ME.Narrow && ME.Narrow.headLines) ME.Narrow.headLines(pos);
     const tl = p.settings.translit;
     const badge = $('translit-badge');
     badge.textContent = tl && tl !== 'off' ? Translit.SCHEMES[tl].short : 'Unicode';
@@ -782,8 +783,8 @@
     if (PdfView.doc) App.pdfShown = PdfView.show(e, g.leaf);
     Editor.render(App.project, e, App.pageSizes[e.pdfPage] || (App.project.pdf && App.project.pdf.size));
     $('calib-hint').hidden = g.calibrated || !PdfView.doc;
-    // once a folio side is calibrated, Calibrate is in the Folio tab
-    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc;
+    // once a folio side is calibrated, Calibrate is in the Folio tab; on a phone it stays at the scan's corner
+    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc && !(ME.Narrow && ME.Narrow.on());
     App.refreshSidebar();
     if (ME.Narrow) ME.Narrow.fit();
     if (pos && g.lines[pos.box] && Editor.lineEl(pos.box, Math.min(pos.i, g.lines[pos.box] - 1))) {

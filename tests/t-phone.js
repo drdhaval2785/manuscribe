@@ -2,8 +2,11 @@
 // one below - each a strip the width of the screen scrolling along its own text, with the notes of the line under it,
 // and the scan about three lines of the page (the whole folio a button away); on a calibrated folio the scan shows
 // about 22 letters of a line, unless the device has a zoom of its own; along a long line the caret is kept in the
-// middle of the strip; a long press opens the tags; ↑ and ↓ go to the line above or below without losing the caret;
-// on a computer the arrows are not shown. Uses linear.pdf.
+// middle of the strip; a long press opens the tags; ↑ and ↓ (in the folio bar) go to the line above or below without
+// losing the caret; the status bar makes way for the text, its position line fixed at the top of the typing area
+// with − / + for the lines; ⌖ Calibrate stays at the scan's corner though the folio is calibrated; with the keyboard
+// open (the window kept, or shrunk for it) the scan keeps three lines and the typing area three strips; on a
+// computer the arrows are not shown. Uses linear.pdf.
 const fs = require('fs'), path = require('path');
 const { launch, sleep, checks, ROOT } = require('./h');
 (async () => {
@@ -33,8 +36,8 @@ const { launch, sleep, checks, ROOT } = require('./h');
       const blockPx = r[2] * parseFloat(stage.style.width);
       return { zoom: +P.zoom.toFixed(2), blockPx: Math.round(blockPx), paneW: scroller.clientWidth, lettersAcross: +((66 * scroller.clientWidth) / blockPx).toFixed(1), device: ME.Narrow.state().pdf || null, narrow: ME.Narrow.on() };
     });
-    const fit = await page.evaluate(() => ({ inner: innerWidth, docW: document.documentElement.scrollWidth, statusW: Math.round(document.getElementById('statusbar').getBoundingClientRect().width), fontBtn: getComputedStyle(document.getElementById('btn-font-down').parentElement).display }));
-    T.check('the app is no wider than the phone, so the browser does not zoom the page out (the status bar fits, without the letter-size buttons)', fit.inner === 390 && fit.docW <= 390 && fit.statusW <= 390 && fit.fontBtn === 'none', fit);
+    const fit = await page.evaluate(() => { const mid = document.getElementById('midbar').getBoundingClientRect(), cal = document.getElementById('btn-calibrate'); return { inner: innerWidth, docW: document.documentElement.scrollWidth, midW: Math.round(mid.width), midH: Math.round(mid.height), status: getComputedStyle(document.getElementById('statusbar')).display, fontBtn: getComputedStyle(document.getElementById('btn-font-down').parentElement).display, head: !!document.querySelector('#editor-pane .lv-head #status-pos'), nav: !!document.querySelector('#midbar .line-nav'), menu: ['btn-view', 'translit-badge', 'ed-zoom'].every((id) => !!document.getElementById(id).closest('#midbar details.more-menu')), cal: !cal.hidden && cal.textContent === '⌖' && !!cal.closest('.pdf-tools') }; });
+    T.check('the app is no wider than the phone, so the browser does not zoom the page out; the status bar makes way for the text: its position line at the top of the typing area, ↑ ↓ in the folio bar (one row), the rest in its ⋯ menu, the letter-size buttons left out; ⌖ Calibrate at the scan’s corner though the folio is calibrated', fit.inner === 390 && fit.docW <= 390 && fit.midW <= 390 && fit.midH <= 48 && fit.status === 'none' && fit.fontBtn === 'none' && fit.head && fit.nav && fit.menu && fit.cal, fit);
     let s = await scan();
     T.check('on a calibrated folio the scan is zoomed to show about 22 letters of a line across the screen (' + s.lettersAcross + ')', s.narrow && s.lettersAcross > 19 && s.lettersAcross < 25.5 && !s.device, s);
     // the line view: three strips, the scan three lines tall
@@ -44,18 +47,37 @@ const { launch, sleep, checks, ROOT } = require('./h');
       const near = [...document.querySelectorAll('.line.near')].map((l) => ({ i: +l.dataset.i, shown: getComputedStyle(l).display !== 'none', w: Math.round(l.getBoundingClientRect().width) }));
       const others = [...document.querySelectorAll('.line:not(.mline):not(.near)')].filter((l) => getComputedStyle(l).display !== 'none').length;
       const pane = document.getElementById('pdf-pane').getBoundingClientRect(), line = ME.Narrow.scanLine();
-      return { view: ME.Editor.view, lineView: document.querySelector('.folio').classList.contains('line-view'), near, others, paneH: Math.round(pane.height), linesOfScan: line ? +(pane.height / line).toFixed(1) : null, fs: parseFloat(getComputedStyle(document.querySelector('.line.near')).fontSize), btn: document.getElementById('btn-view').textContent, edW: document.getElementById('editor-pane').clientWidth, docW: document.documentElement.scrollWidth };
+      const head = document.querySelector('#editor-pane .lv-head'), ed = document.getElementById('editor-pane').getBoundingClientRect();
+      return { view: ME.Editor.view, lineView: document.querySelector('.folio').classList.contains('line-view'), near, others, paneH: Math.round(pane.height), linesOfScan: line ? +(pane.height / line).toFixed(2) : null, fs: parseFloat(getComputedStyle(document.querySelector('.line.near')).fontSize), btn: document.getElementById('btn-view').textContent, edW: document.getElementById('editor-pane').clientWidth, docW: document.documentElement.scrollWidth, edH: Math.round(ed.height),
+        head: head ? { top: Math.round(head.getBoundingClientRect().top - ed.top), text: head.textContent.replace(/\s+/g, ' ').trim(), sticky: getComputedStyle(head).position, boxTag: getComputedStyle(document.querySelector('.folio .box-tag')).display, minis: head.querySelectorAll('.lv-lines .mini').length } : null };
     });
-    T.check('the typing area shows three strips, the line being typed between the one above and the one below, each the width of the screen, the other lines not drawn', lv.lineView && lv.view === 'lines' && lv.near.map((x) => x.i).join() === '1,2,3' && lv.near.every((x) => x.shown && x.w === lv.edW) && lv.others === 0 && lv.docW <= 390, lv);
-    T.check('the letters are a readable size (' + lv.fs + ' px) and the scan is about three lines tall (' + lv.linesOfScan + ')', lv.fs >= 17 && lv.fs <= 24 && lv.linesOfScan >= 2.8 && lv.linesOfScan <= 4.2 && lv.btn === 'Folio', lv);
+    const ids = lv.near.map((x) => x.i);
+    T.check('the typing area shows strips, the line being typed between the one above and the one below and as many more as fit (' + ids.length + ' here), each the width of the screen, the other lines not drawn', lv.lineView && lv.view === 'lines' && [1, 2, 3].every((i) => ids.includes(i)) && ids.length > 3 && ids.length <= 9 && lv.near.every((x) => x.shown && x.w === lv.edW) && lv.others === 0 && lv.docW <= 390, lv);
+    T.check('the letters are a readable size (' + lv.fs + ' px) and the scan is three lines tall (' + lv.linesOfScan + '): the line typed, one above, one below', lv.fs >= 17 && lv.fs <= 24 && lv.linesOfScan >= 2.95 && lv.linesOfScan <= 3.05 && lv.btn === 'Folio', lv);
+    T.check('the position is a line fixed at the top of the typing area, with − / + for the lines of the block; the block’s own tag is not drawn', !!lv.head && lv.head.top === 0 && lv.head.sticky === 'sticky' && /Folio 1r · Main text/.test(lv.head.text) && /line 3 of 8/.test(lv.head.text) && /8 lines/.test(lv.head.text) && lv.head.minis === 2 && lv.head.boxTag === 'none', lv.head);
+    const lines = await page.evaluate(async () => {
+      const w = (ms) => new Promise((r) => setTimeout(r, ms));
+      const count = () => ME.Model.lineCount(ME.App.project, ME.App.entries[ME.App.idx].label, 'main');
+      const said = () => { ME.Editor.focusLine('main', 2, 0); return (document.querySelector('.lv-head .lv-n') || {}).textContent; };
+      document.querySelector('.lv-head .lv-lines .mini:last-child').click();
+      await w(500);
+      const n1 = count(), t1 = said();
+      document.querySelector('.lv-head .lv-lines .mini:first-child').click();
+      await w(500);
+      return { n1, t1, n2: count(), t2: said() };
+    });
+    T.check('+ there adds a line to the block, − takes it away, and the count says so', lines.n1 === 9 && lines.t1 === '9 lines' && lines.n2 === 8 && lines.t2 === '8 lines', lines);
+    await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
+    await sleep(300);
     // the whole folio, a button away, and back
-    await page.click('#btn-view');
+    // (the button is in the folio bar's ⋯ menu)
+    await page.evaluate(() => document.getElementById('btn-view').click());
     await sleep(700);
-    const whole = await page.evaluate(() => ({ lineView: document.querySelector('.folio').classList.contains('line-view'), shown: [...document.querySelectorAll('.line:not(.mline)')].filter((l) => getComputedStyle(l).display !== 'none').length, zoom: ME.Editor.zoom, btn: document.getElementById('btn-view').textContent, saved: ME.Narrow.state().view }));
-    await page.click('#btn-view');
+    const whole = await page.evaluate(() => ({ lineView: document.querySelector('.folio').classList.contains('line-view'), shown: [...document.querySelectorAll('.line:not(.mline)')].filter((l) => getComputedStyle(l).display !== 'none').length, zoom: ME.Editor.zoom, btn: document.getElementById('btn-view').textContent, saved: ME.Narrow.state().view, minis: document.querySelectorAll('.lv-head .lv-lines:not([hidden]) .mini').length }));
+    await page.evaluate(() => document.getElementById('btn-view').click());
     await sleep(700);
     const back = await page.evaluate(() => ({ lineView: document.querySelector('.folio').classList.contains('line-view'), near: document.querySelectorAll('.line.near').length, saved: ME.Narrow.state().view }));
-    T.check('Folio shows the whole folio side with its letters enlarged, and 3 lines brings the strips back; the choice is kept for the device', !whole.lineView && whole.shown === 8 && whole.zoom > 1.5 && whole.btn === '3 lines' && whole.saved === 'folio' && back.lineView && back.near === 3 && back.saved === 'lines', { whole, back });
+    T.check('Folio shows the whole folio side with its letters enlarged (the blocks’ own − / + there), and 3 lines brings the strips back; the choice is kept for the device', !whole.lineView && whole.shown === 8 && whole.zoom > 1.5 && whole.btn === '3 lines' && whole.saved === 'folio' && whole.minis === 0 && back.lineView && back.near >= 3 && back.saved === 'lines', { whole, back });
     // a long press on the text opens the tags
     const pressed = await page.evaluate(async () => {
       const l = document.querySelector('.line.near'), r = l.getBoundingClientRect();
@@ -71,10 +93,10 @@ const { launch, sleep, checks, ROOT } = require('./h');
     T.check('a finger held on the text for a moment opens the tags; a tap does not', pressed.held && !pressed.quick, pressed);
     // ↑ and ↓
     const nav = await page.evaluate(() => {
-      const shown = (id) => getComputedStyle(document.getElementById(id)).display !== 'none';
+      const shown = (id) => { const e = document.getElementById(id); return getComputedStyle(e).display !== 'none' && !!e.closest('#midbar') && e.getBoundingClientRect().height >= 36; };
       return { up: shown('btn-line-up'), down: shown('btn-line-down') };
     });
-    T.check('↑ and ↓ are in the status bar', nav.up && nav.down, nav);
+    T.check('↑ and ↓ are in the folio bar, big enough for a finger', nav.up && nav.down, nav);
     await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
     await sleep(300);
     await page.click('#btn-line-down');
@@ -95,17 +117,36 @@ const { launch, sleep, checks, ROOT } = require('./h');
       return { caretX: Math.round(c.left - pane.left), paneW: Math.round(pane.width), lineW: Math.round(line.width), textW: el.scrollWidth, scrolled: Math.round(el.scrollLeft) };
     });
     T.check('along a text wider than the screen (' + caret.textW + ' px) the strip scrolls so that the caret is kept in its middle half', caret.textW > caret.paneW && caret.lineW <= caret.paneW && caret.caretX > caret.paneW * 0.2 && caret.caretX < caret.paneW * 0.8 && caret.scrolled > 0, caret);
-    // the keyboard: the app is as tall as can be seen, follows the browser's scrolling, and the top bar steps aside
-    const kb = await page.evaluate(() => {
+    // the keyboard: the app is as tall as can be seen, follows the browser's scrolling, and the top bar steps aside;
+    // the scan keeps its three lines, the typing area shows three strips, in sight above the keyboard
+    await page.evaluate(() => ME.Editor.focusLine('main', 2, 0));
+    await sleep(300);
+    const kb = await page.evaluate(async () => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 80)));
+      const near = () => [...document.querySelectorAll('.line.near')].map((l) => l.dataset.i).join(',');
       const r1 = ME.Narrow.viewport({ height: 362, offsetTop: 40 });
       const cs = getComputedStyle(document.documentElement);
       const open = { r: r1, h: cs.getPropertyValue('--app-h').trim(), top: cs.getPropertyValue('--app-top').trim(), cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height), mainTop: Math.round(document.getElementById('main').getBoundingClientRect().top) };
+      await frame();
+      const strips = [...document.querySelectorAll('.line.near')].map((l) => l.getBoundingClientRect());
+      const pane = document.getElementById('pdf-pane').getBoundingClientRect(), line = ME.Narrow.scanLine();
+      open.near = near(); open.linesOfScan = +(pane.height / line).toFixed(2); open.stripsIn = strips.every((b) => b.top >= 40 && b.bottom <= 40 + 362 + 1); open.stripBottom = Math.round(Math.max(...strips.map((b) => b.bottom)));
       const r2 = ME.Narrow.viewport({ height: 844, offsetTop: 0 });
-      const closed = { r: r2, cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height) };
+      await frame();
+      const closed = { r: r2, cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height), near: near() };
       return { open, closed };
     });
     T.check('with the keyboard open (362 px left, the page scrolled by 40): the app is 362 px tall, moved down by 40, and the top bar steps aside', kb.open.h === '362px' && kb.open.top === '40px' && kb.open.cls && kb.open.topbar === 'none' && kb.open.main === 362 && kb.open.mainTop === 40, kb.open);
-    T.check('with the keyboard closed, all is as before', !kb.closed.cls && kb.closed.topbar !== 'none' && kb.closed.main === 844 - 46, kb.closed);
+    T.check('with the keyboard open the scan keeps its three lines and the typing area shows three strips, all in sight above the keyboard', kb.open.near === '1,2,3' && kb.open.linesOfScan >= 2.95 && kb.open.linesOfScan <= 3.05 && kb.open.stripsIn, kb.open);
+    T.check('with the keyboard closed, all is as before, the strips as many as fit', !kb.closed.cls && kb.closed.topbar !== 'none' && kb.closed.main === 844 - 46 && kb.closed.near.split(',').length > 3, kb.closed);
+    // a browser that shrinks the window for the keyboard (Chrome on Android): read as the keyboard too, and not as a phone held sideways
+    await page.setViewport({ width: 390, height: 362, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+    await sleep(700);
+    const shrunk = await page.evaluate(() => ({ cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, main: Math.round(document.getElementById('main').getBoundingClientRect().height), near: [...document.querySelectorAll('.line.near')].map((l) => l.dataset.i).join(','), grid: getComputedStyle(document.getElementById('workspace')).display, docW: document.documentElement.scrollWidth, pdfH: Math.round(document.getElementById('pdf-pane').getBoundingClientRect().height), line: +ME.Narrow.scanLine().toFixed(1) }));
+    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+    await sleep(700);
+    const grown = await page.evaluate(() => ({ cls: document.body.classList.contains('keyboard-open'), topbar: getComputedStyle(document.getElementById('topbar')).display, near: [...document.querySelectorAll('.line.near')].map((l) => l.dataset.i).join(',') }));
+    T.check('the window shrunk to 390 × 362 for the keyboard: read as the keyboard (the top bar steps aside, three strips, the scan three lines), not as a phone held sideways; the window grown again, all as before', shrunk.cls && shrunk.topbar === 'none' && shrunk.main === 362 && shrunk.near === '1,2,3' && shrunk.grid === 'flex' && shrunk.docW <= 390 && Math.abs(shrunk.pdfH - 3 * shrunk.line) <= 2 && !grown.cls && grown.topbar !== 'none' && grown.near.split(',').length > 3, { shrunk, grown });
     // the page pinched larger by the browser: what can be seen shrinks too, but the app keeps its size
     const pinched = await page.evaluate(() => {
       const r = ME.Narrow.viewport({ height: 300, offsetTop: 120, scale: 2.8 });
@@ -162,8 +203,8 @@ const { launch, sleep, checks, ROOT } = require('./h');
     // on a computer: no arrows
     await page.setViewport({ width: 1280, height: 800 });
     await sleep(600);
-    const wide = await page.evaluate(() => ({ up: getComputedStyle(document.querySelector('.line-nav')).display, narrow: ME.Narrow.on() }));
-    T.check('on a computer the arrows are not shown', !wide.narrow && wide.up === 'none', wide);
+    const wide = await page.evaluate(() => { const s = document.getElementById('statusbar'), t = document.querySelector('.pdf-tools'); return { up: getComputedStyle(document.querySelector('.line-nav')).display, narrow: ME.Narrow.on(), status: getComputedStyle(s).display !== 'none' && s.contains(document.getElementById('status-pos')) && s.contains(document.getElementById('btn-view')) && s.contains(document.getElementById('ed-zoom')), head: !document.querySelector('.lv-head'), tools: t.firstElementChild.id === 'btn-zoom-out' && !t.querySelector('.pdf-more') && !t.querySelector('.pdf-view').hidden && t.querySelector('.pdf-view .menu-items').contains(document.getElementById('btn-rotate')) && document.getElementById('btn-calibrate').textContent === '⌖ Calibrate' && t.contains(document.getElementById('filters-pop')), menu: !document.querySelector('#midbar .more-menu') }; });
+    T.check('on a computer the arrows are not shown, and everything is back where it was: the status bar with its controls, the scan’s toolbar with its zoom and View menu, no line atop the typing area', !wide.narrow && wide.up === 'none' && wide.status && wide.head && wide.tools && wide.menu, wide);
     T.done(page);
   } finally { await browser.close(); }
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

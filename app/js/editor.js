@@ -111,15 +111,17 @@
   };
 
   const LINE_VIEW_FS = 19; // px, at zoom 1: letters that can be read on a phone
-  /* In the line view, the lines near the one being typed (the one above and the one below, in its block) are the
-     ones shown, with the notes of the line under it. */
+  /* In the line view, the lines near the one being typed (the one above and the one below, in its block; more when
+     the screen has room: Editor.nearK, set by Narrow) are the ones shown, with the notes of the line under it. */
+  Editor.nearK = 1;
   function markNear(line) {
     if (!folio || Editor.view !== 'lines') return;
     const cur = line || activeLine() || folio.querySelector('.line.current:not(.mline)') || folio.querySelector('.box-main .line:not(.mline)') || folio.querySelector('.line:not(.mline)');
     if (!cur || isM(cur)) return;
     const box = cur.closest('.box'), i = +cur.dataset.i;
     U.$$('.line.near, .mnote.near', folio).forEach((l) => l.classList.remove('near'));
-    if (box) for (const l of U.$$('.line:not(.mline)', box)) if (Math.abs(+l.dataset.i - i) <= 1) l.classList.add('near');
+    const k = Editor.nearK || 1;
+    if (box) for (const l of U.$$('.line:not(.mline)', box)) if (Math.abs(+l.dataset.i - i) <= k) l.classList.add('near');
     for (const m of U.$$('.mnote', folio)) { const chip = m._body && m._body._chip; if (chip && chip.closest('.line') === cur) m.classList.add('near'); }
   }
   Editor.markNear = markNear;
@@ -227,7 +229,7 @@
     const g = Editor.geom;
     if (Editor.view === 'lines') {
       // the strips are the width of the pane, their letters a readable size, whatever the folio's proportions
-      wrap.style.padding = '6px 0 12px';
+      wrap.style.padding = '2px 0 8px';
       folio.style.width = '';
       folio.style.height = '';
       const fs = LINE_VIEW_FS * Editor.zoom * (Editor.project.settings.textScale || 1);

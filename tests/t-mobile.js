@@ -1,8 +1,9 @@
 // Phones and tablets. On a phone (390 × 844, touch), transcription is a line view: the letters of the typing area
 // and the scan enlarged together until they can be read, with the device's own sizes (the project's are left as
 // they are); the folio bar on one row, the tags in a panel from the bottom of the screen that closes when one is
-// chosen; buttons big enough for a finger; no page that scrolls sideways; wide tables with the column that names the
-// row in view; calibration by touch: a finger draws, two fingers pinch to zoom. On a tablet held upright (820 ×
+// chosen; buttons big enough for a finger; the scan's controls one ⋯ at its corner, ⌖ Calibrate beside it; no page
+// that scrolls sideways; wide tables with the column that names the row in view; calibration by touch: a finger
+// draws, two fingers pinch to zoom. On a tablet held upright (820 ×
 // 1180) the folio keeps the project's sizes and the tags are in the same panel. On a computer, nothing of this.
 const { launch, sleep, checks, audit } = require('./h');
 const { LANGS, make, buildInPage } = require('./languages');
@@ -56,6 +57,8 @@ function scanPdf() {
         edZoom: ME.Editor.zoom, pdfZoom: ME.PdfView.zoom, lineView: !!document.querySelector('.folio.line-view'), mid: r('#midbar').height, tags: shown(document.getElementById('btn-tags')), toolbar: shown(document.getElementById('toolbar')),
         // (buttons for a finger where the pointer is one: Playwright's Firefox and WebKit here are not touch screens)
         small: matchMedia('(pointer: coarse)').matches ? small : [], projectUi: { ed: ME.App.project.ui.editorZoom || 1, pdf: ME.App.project.ui.pdfZoom || 1 },
+        // the computer's layout: the status bar with its controls, the scan's zoom buttons and View menu, no ⋯ menus
+        computer: (() => { const s = document.getElementById('statusbar'), t = document.querySelector('.pdf-tools'); return getComputedStyle(s).display !== 'none' && s.contains(document.getElementById('status-pos')) && s.contains(document.getElementById('btn-view')) && t.firstElementChild.id === 'btn-zoom-out' && !t.querySelector('.pdf-more') && !document.querySelector('.more-menu') && !document.querySelector('.lv-head'); })(),
       };
     });
 
@@ -119,23 +122,27 @@ function scanPdf() {
     });
     T.check('calibration by touch: a finger draws the box, two fingers pinch to zoom (and draw nothing)', cal.touchAction === 'none' && cal.drawn && cal.z1 > cal.z0 * 1.3 && cal.rects === 1, cal);
 
-    // the PDF toolbar and its menu stay within the phone; Calibrate (and Follow) in view
+    // the scan's controls: one ⋯ at its corner, its menu whole and within the phone; ⌖ Calibrate beside it, and Follow
     const tools = await page.evaluate(async () => {
       const W = innerWidth, r = (e) => e.getBoundingClientRect();
       const cal = document.getElementById('btn-calibrate');
-      const d = document.querySelector('.pdf-tools details.menu');
+      const d = document.querySelector('.pdf-tools details.pdf-more');
       d.open = true;
-      await new Promise((res) => setTimeout(res, 80));
-      const m = r(d.querySelector('.menu-items'));
+      await new Promise((res) => setTimeout(res, 120));
+      const items = d.querySelector('.menu-items');
+      const m = r(items);
+      const inMenu = ['btn-zoom-out', 'pdf-zoom', 'btn-zoom-in', 'btn-pdf-mode', 'btn-rotate', 'btn-filters'].every((id) => items.contains(document.getElementById(id)));
+      const whole = m.top >= r(d).bottom && m.bottom <= innerHeight && m.height > 150; // not cut off by a scan three lines tall
+      const zoomed = document.getElementById('btn-zoom-in').getBoundingClientRect().height >= 36;
       d.open = false;
       const follow = document.getElementById('btn-follow');
       follow.hidden = false;
       const f = r(follow);
       follow.hidden = true;
-      const t = r(document.querySelector('.pdf-tools'));
-      return { calIn: !cal.hidden && r(cal).left >= 0 && r(cal).right <= W, menuIn: m.right <= W + 0.5 && m.left >= -0.5, toolsIn: t.left >= 0 && t.right <= W, followIn: f.left >= 0 && f.right <= W, W };
+      const t = r(document.querySelector('.pdf-tools')), pdf = r(document.getElementById('pdf-pane'));
+      return { calIn: !cal.hidden && cal.textContent === '⌖' && r(cal).left >= 0 && r(cal).right <= W && r(cal).height >= 36, menuIn: m.right <= W + 0.5 && m.left >= -0.5, inMenu, whole, zoomed, toolsIn: t.left >= 0 && t.right <= W && t.width < pdf.width / 2, followIn: f.left >= 0 && f.right <= W, view: document.querySelector('.pdf-tools details.pdf-view').hidden, W };
     });
-    T.check('the PDF toolbar is within the phone, Calibrate and Follow in view, and the View menu opens within the screen', tools.calIn && tools.menuIn && tools.toolsIn && tools.followIn, tools);
+    T.check('the scan’s controls are one ⋯ at its corner (zoom, leaf or page, rotation, brightness), its menu whole and within the screen, ⌖ Calibrate beside it and Follow in view, the View menu of the computer put away', tools.calIn && tools.menuIn && tools.inMenu && tools.whole && tools.zoomed && tools.toolsIn && tools.followIn && tools.view, tools);
 
     // a selection made by a finger is kept: a tap on Tags or on a tag, or a long press, does not lose it
     const keptSel = await page.evaluate(async () => {
@@ -257,7 +264,7 @@ function scanPdf() {
     // a computer: as before
     await open(1500, 1000, false);
     const desk = await look();
-    T.check('on a computer, nothing of this: the toolbar as before, the project’s sizes', desk.edZoom === 1 && !desk.tags && desk.toolbar, desk);
+    T.check('on a computer, nothing of this: the toolbar as before, the project’s sizes, the status bar and the scan’s toolbar as they were', desk.edZoom === 1 && !desk.tags && desk.toolbar && desk.computer, desk);
 
     // the edition's wide tables on a phone
     // (a page made mobile is loaded again: first the size, then the edition)

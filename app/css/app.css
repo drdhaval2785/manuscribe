@@ -920,7 +920,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 }
 /* a phone held sideways: the scan at the left, the typing area beside it (there is no height for one above the
    other); the line view as upright (narrow.js) */
-@media (max-height: 460px) and (max-width: 900px) and (pointer: coarse) {
+@media (max-height: 460px) and (min-aspect-ratio: 4/3) and (max-width: 900px) and (pointer: coarse) {
   body:not(.calibrating) #workspace { display: grid; grid-template-columns: 42% minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
   body:not(.calibrating) #pdf-pane { grid-row: 1 / 4; grid-column: 1; height: auto !important; min-height: 0; }
   body:not(.calibrating) #midbar { grid-row: 1; grid-column: 2; }
@@ -929,8 +929,8 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   #midbar-grip { display: none; }
   #topbar { min-height: 40px; }
 }
-/* a phone: the line view (narrow.js), and a header of icons */
-@media (max-width: 700px) {
+/* a phone, upright or held sideways: the line view (narrow.js), and a header of icons */
+@media (max-width: 700px), ((max-height: 460px) and (min-aspect-ratio: 4/3) and (pointer: coarse)) {
   /* while the keyboard is open, the top bar gives its room to the typing area */
   body.keyboard-open #topbar { display: none; }
   body.keyboard-open #main { height: var(--app-h, 100dvh); }
@@ -962,19 +962,45 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .ct-text { max-height: 30vh; }
   .cv-head .cv-count { flex-basis: 100%; order: 9; }
   #edition-view p.help:not(.open), .modal p.help:not(.open) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
-  /* the PDF toolbar across the pane: Calibrate (or Follow) at its left, in view whatever else is there */
-  .pdf-tools { left: 8px; right: 8px; justify-content: flex-end; flex-wrap: nowrap; }
-  .pdf-tools #btn-calibrate, .pdf-tools #btn-follow { order: -1; margin-right: auto; }
-  #statusbar .ed-zoom-ctl .sbtn.zoom { min-width: 44px; }
-  .line-nav { display: inline-flex; }
+  /* the scan's controls (narrow.js, Narrow.layout): ⋯ at the corner, ⌖ Calibrate beside it, Follow when needed; the
+     menu dark, as the pane; the brightness pop-up floating under the scan; no page number over three lines of scan */
+  .pdf-tools { top: 6px; right: 6px; padding: 2px; gap: 2px; flex-wrap: nowrap; background: rgba(32, 26, 21, .9); -webkit-backdrop-filter: none; backdrop-filter: none; z-index: 8; /* its menu above the folio bar */ }
+  .pdf-tools .pbtn { padding: 4px 6px; }
+  details.menu.pdf-more > summary::after, details.menu.more-menu > summary::after { content: none; }
+  .pdf-more > summary, .more-menu > summary { font-size: 20px; line-height: 1; }
+  /* (fixed, placed by narrow.js: the pane, three lines tall, would cut it off) */
+  details.menu.pdf-more .menu-items { position: fixed; left: auto !important; right: 6px !important; background: #2a231d; border-color: rgba(255, 255, 255, .12); color: #eee5d6; min-width: 210px; padding: 8px; gap: 2px; z-index: 40; }
+  details.menu.pdf-more .menu-items > .pbtn { text-align: left; min-height: 40px; }
+  .pm-zoom { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid rgba(255, 255, 255, .12); padding-bottom: 6px; margin-bottom: 4px; }
+  .pm-zoom .pbtn { flex: 1; text-align: center; }
+  .filters-pop.pf-float { position: fixed; right: 8px; left: auto; z-index: 40; }
+  .pdf-pageinfo { display: none; }
+  /* the folio bar: one row, the folio's name giving way to the buttons; ↑ ↓ and ⋯ at its end (the status bar's
+     controls, narrow.js); the status bar itself is not shown */
+  #midbar { gap: 4px; padding: 2px 6px; z-index: 6; }
+  .folio-nav { flex: 1; min-width: 0; gap: 4px; }
+  .folio-nav select { flex: 1 1 60px; min-width: 0; max-width: none; }
+  .tags-btn { padding: 0 10px; }
+  .line-nav { display: inline-flex; flex: none; }
   .line-nav .sbtn { font-size: 18px; }
-  #btn-view { display: inline-block; font-size: 12px; }
-  .status-pos { font-size: 12px; }
-  /* the status bar must never be wider than the phone, or the browser zooms the whole page out to fit it: the
-     letter-size buttons go (the folio's − / + enlarge the letters too), and the rest may shrink */
-  #statusbar { overflow: hidden; gap: 6px; padding: 0 6px; }
-  #statusbar .status-right { min-width: 0; flex-shrink: 1; gap: 4px; }
-  #statusbar .ed-zoom-ctl:has(#font-size) { display: none; }
+  details.menu.more-menu .menu-items { min-width: 220px; gap: 8px; padding: 10px; }
+  .more-menu .menu-items > * { width: 100%; box-sizing: border-box; }
+  .more-menu .menu-items .ed-zoom-ctl .sbtn.zoom { flex: 1; min-width: 44px; }
+  .more-menu .menu-items .ed-zoom-ctl .sbtn { min-height: 40px; }
+  #btn-view { display: inline-block; font-size: 13px; min-height: 40px; border: 1px solid var(--line-2); border-radius: 7px; }
+  .badge { min-height: 40px; }
+  /* the letter-size buttons are left out (the folio's − / + enlarge the letters too) */
+  .ed-zoom-ctl:has(#font-size) { display: none; }
+  #statusbar { display: none; }
+  /* the position (Folio 1r · Main text · line 3 of 8), fixed at the top of the typing area, with − / + for the lines
+     of the block; the block's own tag, which would float with the strips, is not drawn in the line view */
+  .lv-head { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 10px; background: rgba(250, 244, 232, .94); border-bottom: 1px solid rgba(110, 70, 30, .18); font-size: 12px; color: var(--muted); }
+  #editor-pane .folio.line-view .line.near { padding-top: 2px; padding-bottom: 2px; }
+  .lv-head .status-pos { flex: 1; min-width: 0; font-size: 12px; }
+  .lv-lines { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+  .lv-lines .lv-n { font-variant-numeric: tabular-nums; padding: 0 4px; white-space: nowrap; font-size: 12px; }
+  .lv-lines .mini { width: 36px; height: 36px; border: 1px solid var(--line-2); background: #fff; border-radius: 50%; font-size: 16px; line-height: 1; padding: 0; color: var(--ink); cursor: pointer; }
+  .folio.line-view .box-tag { display: none; }
 }
 
 /* wide tables on a narrow screen: they scroll sideways in their box, the column that names the row staying in view */
