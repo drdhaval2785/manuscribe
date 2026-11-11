@@ -66,7 +66,9 @@ const { LANGS, make, buildInPage } = require('./languages');
   server = await serve(0);
   const web = await browser.newPage();
   await web.goto('http://127.0.0.1:' + server.address().port + '/manuscribe/app/index.html', { waitUntil: 'load' });
-  await sleep(700);
+  // the storage open before anything is asked of it (a slow computer takes longer than a fixed wait)
+  await web.evaluate(() => Promise.race([window.ME && ME.Store && ME.Store.ready, new Promise((r) => setTimeout(r, 30000))]));
+  await sleep(200);
   const f = await web.evaluate(async () => {
     const { Safety, Store, Zip, Model } = ME;
     const lone = Model.newProject({ meta: { title: 'Web', siglum: 'W' }, layoutType: 'linear', lines: { main: 2 }, folios: {} });

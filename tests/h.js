@@ -78,7 +78,8 @@ async function launch(name, opts) {
   page.errors = [];
   // a font the tests do not give (see fontsFor) is not an error of the page
   page.on('console', (m) => { if (m.type() === 'error' && !(/Failed to load resource/.test(m.text()) && /cdn\.jsdelivr\.net|raw\.githubusercontent\.com/.test((m.location() || {}).url || ''))) page.errors.push(m.text()); });
-  page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + e.message));
+  // (with the first line of where it happened, when the engine says)
+  page.on('pageerror', (e) => page.errors.push('PAGEERROR ' + (e.stack && /:\d+:\d+/.test(e.stack) ? String(e.stack).split('\n').slice(0, 2).map((l) => l.trim()).join(' — ') : e.message)));
   page.on('dialog', (d) => d.accept());
   // and no look at the website for a newer version (install.js): the tests stay off the internet
   await page.evaluateOnNewDocument((level) => { try { if (!localStorage.getItem('manuscribe.ui')) localStorage.setItem('manuscribe.ui', JSON.stringify({ level })); localStorage.setItem('manuscribe.lastCheck', String(Date.now())); } catch (e) { /* none */ } }, level);

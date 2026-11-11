@@ -14,10 +14,12 @@ class EngineOnly extends Error { constructor(what) { super(what + ' is only in C
 const call = (fn, args) => ({ f: fn.toString(), a: args });
 const run = ({ f, a }) => (0, eval)('(' + f + ')').apply(null, a); // eslint-disable-line no-eval
 
-/* A Playwright page with the calls the tests make, as Puppeteer has them. */
-function wrapPage(pw, context) {
+/* A Playwright page with the calls the tests make, as Puppeteer has them. reborn() gives a context that runs no
+   script, for setJavaScriptEnabled(false). */
+function wrapPage(pw0, context, reborn) {
+  let pw = pw0;
   const page = {
-    _pw: pw,
+    get _pw() { return pw; },
     errors: [],
     evaluate: (fn, ...args) => (typeof fn === 'string' ? pw.evaluate(fn) : pw.evaluate(run, call(fn, args))),
     evaluateOnNewDocument: (fn, ...args) => pw.addInitScript({ content: '(' + fn.toString() + ').apply(null, ' + JSON.stringify(args) + ');' }),
@@ -25,6 +27,9 @@ function wrapPage(pw, context) {
     reload: (o) => pw.reload({ waitUntil: (o && o.waitUntil) || 'load' }),
     setContent: (html, o) => pw.setContent(html, { waitUntil: (o && o.waitUntil) || 'load' }),
     setViewport: (v) => pw.setViewportSize({ width: v.width, height: v.height }),
+    // Puppeteer's switch for a page's script: Playwright gives it to a context at its birth only, so a page asked to
+    // run no script is born again in such a context (the page it was is closed)
+    setJavaScriptEnabled: async (on) => { if (on) return; const p = await (await reborn()).newPage(); await pw.close(); pw = p; },
     click: (sel) => pw.click(sel),
     hover: (sel) => pw.hover(sel),
     $: (sel) => pw.$(sel),
@@ -69,13 +74,19 @@ async function launchOther(dir, viewport, touch) {
   const type = ENGINE === 'firefox' ? firefox : webkit;
   const context = await type.launchPersistentContext(dir, { headless: true, viewport, serviceWorkers: 'block', acceptDownloads: true, hasTouch: !!touch });
   const first = context.pages()[0] || (await context.newPage());
+  // a second browser, whose context runs no script: made when a page asks for it (setJavaScriptEnabled)
+  let spare = null;
+  const reborn = async () => {
+    if (!spare) { const b = await type.launch({ headless: true }); spare = { b, context: await b.newContext({ viewport, hasTouch: !!touch, javaScriptEnabled: false, serviceWorkers: 'block' }) }; }
+    return spare.context;
+  };
   const browser = {
     _context: context,
-    newPage: async () => wrapPage(await context.newPage(), context),
-    close: () => context.close(),
-    once: (ev, fn) => { if (ev === 'targetcreated') context.once('page', (p) => fn({ page: async () => wrapPage(p, context) })); },
+    newPage: async () => wrapPage(await context.newPage(), context, reborn),
+    close: async () => { await context.close(); if (spare) await spare.b.close(); },
+    once: (ev, fn) => { if (ev === 'targetcreated') context.once('page', (p) => fn({ page: async () => wrapPage(p, context, reborn) })); },
   };
-  return { browser, page: wrapPage(first, context) };
+  return { browser, page: wrapPage(first, context, reborn) };
 }
 
 module.exports = { ENGINE, OTHER, EngineOnly, launchOther };

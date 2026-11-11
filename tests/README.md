@@ -24,7 +24,8 @@ What only Chrome has (its own PDF of a page, its service worker driven by hand i
 A test of the phone asks `launch` for a touch screen (`touch: true`): Playwright can give Firefox and WebKit one
 only as they start, and then `(pointer: coarse)` holds and Touch events exist, as on a phone; Chrome gets it page by
 page from `setViewport`. WebKit lets no script make a Touch, so the swipe on the strips is checked in Chrome and
-Firefox. Every test also checks, as it starts, that the browser has all Manuscribe needs (`Install.missing`). On GitHub, the
+Firefox. A page asked to run no script (`setJavaScriptEnabled(false)`: the reader page as a phone's file preview shows
+it) is born again in a context without script, Playwright giving a context that at its birth only. Every test also checks, as it starts, that the browser has all Manuscribe needs (`Install.missing`). On GitHub, the
 Tests workflow (`.github/workflows/tests.yml`) runs them on Windows, macOS and Linux in all three, and in Microsoft
 Edge (`MANUSCRIBE_ENGINE=edge`, with `CHROME` set to where Edge is: the same tests as in Chrome), after each push.
 
@@ -42,7 +43,7 @@ apart from `t-features.js`, which starts at the default.
 | `t-apparatus.js` | The proposal by majority and trust; faulty entries caught; decisions never moved silently; witnesses read back from the TEI |
 | `t-engines.js` | The methods of lining up witnesses: every token kept in order on hard random text, very long blocks, changing method, one block its own way, comparing and taking places, scoring on blocks read through |
 | `t-deleted.js` | Text deleted from the transcriptions after collation: gone from what is shown and exported, its saved tables cleared by the next Collate, and a warning when blocks have changed since they were collated |
-| `t-progress.js` | Export shows a bar that moves through its stages and goes away, and the page is not frozen while a PDF is made |
+| `t-progress.js` | Export shows a bar that moves through its stages and goes away, and the page is not frozen while a PDF is made (the print page lays out its indices with rests, as it does the blocks, and a long entry may break inside its column) |
 | `t-select.js` | A selection that runs on: through an addition in the margin (a tag over it goes into the addition), and over the end of a folio side on to the next; a marker inside a tag cuts it in two after a question, at its edge goes outside; a marker inside an addition cuts it at export |
 | `t-scan.js` | What is drawn of a scan: only the part shown, placed on the page, the whole page in page mode; a bounded cache whose evicted canvases are freed, smaller on a phone; the leaf detection and the paper colour still right |
 | `t-phone.js` | Typing on a phone: the line view (three strips the width of the screen, the scan three lines tall, the whole folio a button away, a long press opening the tags), the scan showing two of the three parts of a line and moving once to the last two as the letter typed passes the middle (not sliding meanwhile, nor back for a letter corrected there), the caret kept in the middle of its strip, the status bar making way (its position line fixed atop the typing area with − / + for the lines, ↑ ↓ in the folio bar, the rest in its ⋯ menu), ⌖ Calibrate in the folio bar though the folio is calibrated, the scan's controls in the bar's ⋯ menu and nothing over the scan, the keyboard (brought over the page, or the window shrunk for it) leaving three strips and three lines of scan, the page pinched larger, a transliterating keyboard, dialogs as sheets within the screen, a swipe up or down on the strips going to the line below or above, the top bar staying while the keyboard is open |

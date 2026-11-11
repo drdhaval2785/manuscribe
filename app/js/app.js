@@ -777,6 +777,7 @@
   // focus: {box, i, offset: number | 'start' | 'end'}; default keeps the current line
   function rerender(focus) {
     const e = entry();
+    if (!e) return; // nothing in view yet (a project opening, its folios not listed): the opening draws it
     const pos = focus || Editor.current;
     const g = Model.geometry(App.project, e, App.pageSizes[e.pdfPage] || (App.project.pdf && App.project.pdf.size));
     screenFonts(folioText());

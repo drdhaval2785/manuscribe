@@ -195,18 +195,22 @@
     // ---- the edition ----
     pg = newPage(true);
     const measure = el('div', 'body measure');
-    // a long edition: the page says how far it has got, and lets others draw
+    // a long edition: the page says how far it has got, and lets others draw. Its work is the blocks, then the
+    // indices a dozen entries at a time; rest(done) says how many of those units are done
     const channel = new MessageChannel();
+    const IX = D.indices || {};
+    const ixItems = (IX.padas || []).length + (IX.words || []).length + (IX.quotes || []).length + (IX.byWork || []).reduce((a, [, qs]) => a + 1 + qs.length, 0);
+    const units = D.blocks.length + Math.ceil(ixItems / 12);
     let slice = performance.now(), blockNo = -1; // the block being laid out, from 0
-    const rest = async (within) => {
+    const rest = async (done) => {
       if (performance.now() - slice <= 40) return;
-      window.__paginating = (blockNo + within) / D.blocks.length;
+      window.__paginating = Math.min(1, done / units);
       await new Promise((resolve) => { channel.port1.onmessage = resolve; channel.port2.postMessage(0); });
       slice = performance.now();
     };
     for (const b of D.blocks) {
       blockNo++;
-      await rest(0);
+      await rest(blockNo);
       // the whole block, at the width of the page, to find its lines
       const page0 = pg.el;
       measure.style.width = pg.body.getBoundingClientRect().width + 'px';
@@ -281,7 +285,7 @@
       // finds a place by the page, its lines and the notes' numbers
       let at = 0;
       while (at < items.length) {
-        await rest(at / items.length);
+        await rest(blockNo + at / items.length);
         const a = items[at].line;
         const headEl = null;
         let best = -1, shown = null;
@@ -365,12 +369,15 @@
       for (const s of D.stars) { const x = el('p', 'star'); x.lang = D.lang; x.dir = 'auto'; x.textContent = s.id + ' (' + s.wits + '): ' + s.text; pg.body.appendChild(x); if (!fits(pg)) { pg.body.removeChild(x); pg = newPage(true); pg.body.appendChild(x); } }
     }
     // ---- the indices, at the back: each from a new page, in columns, as many entries to a page as fit ----
-    const IX = D.indices || {};
-    const item = (text, ref, cls) => { const li = el('li', cls); li.lang = D.lang; li.dir = 'auto'; li.textContent = text; if (ref) { const r = el('span', 'ref'); r.textContent = ' ' + ref; li.appendChild(r); } return li; };
-    const flow = (items, wide) => {
+    // (an entry is kept whole in its column; a long one, a word with hundreds of references, may break, else it
+    // would fit nowhere and have a page to itself, cut off)
+    const item = (text, ref, cls) => { const li = el('li', [cls, text.length + (ref || '').length > 300 ? 'long' : ''].filter(Boolean).join(' ')); li.lang = D.lang; li.dir = 'auto'; li.textContent = text; if (ref) { const r = el('span', 'ref'); r.textContent = ' ' + ref; li.appendChild(r); } return li; };
+    let batches = 0;
+    const flow = async (items, wide) => {
       let ul = el('ul', 'idx' + (wide ? ' wide' : ''));
       pg.body.appendChild(ul);
       for (let i = 0; i < items.length;) {
+        await rest(D.blocks.length + batches++);
         // a dozen at a time, then measured
         const from = i;
         for (const upTo = Math.min(items.length, i + 12); i < upTo; i++) ul.appendChild(items[i]);
@@ -386,11 +393,11 @@
       }
       if (!ul.childElementCount) pg.body.removeChild(ul);
     };
-    const section = (title, items, wide) => { if (!items.length) return; pg = newPage(true); pg.body.appendChild(el('h2', null, title)); flow(items, wide); };
-    section('Index of pādas', (IX.padas || []).map(([p, r]) => item(p, r)));
-    section('Index of words', (IX.words || []).map(([w, r]) => item(w, r.join(', '))));
-    section('Index of quotations', (IX.quotes || []).map(([t, r, w, n]) => item(t, r + (w ? ' (' + w + (n ? ' ' + n : '') + ')' : ''))), true);
-    section('Quotations by work', (IX.byWork || []).flatMap(([w, qs]) => [item(w || 'Work not named', '', 'idx-work')].concat(qs.map(([t, r, n]) => item(t, r + (n ? ' ' + n : ''))))), true);
+    const section = async (title, items, wide) => { if (!items.length) return; pg = newPage(true); pg.body.appendChild(el('h2', null, title)); await flow(items, wide); };
+    await section('Index of pādas', (IX.padas || []).map(([p, r]) => item(p, r)));
+    await section('Index of words', (IX.words || []).map(([w, r]) => item(w, r.join(', '))));
+    await section('Index of quotations', (IX.quotes || []).map(([t, r, w, n]) => item(t, r + (w ? ' (' + w + (n ? ' ' + n : '') + ')' : ''))), true);
+    await section('Quotations by work', (IX.byWork || []).flatMap(([w, qs]) => [item(w || 'Work not named', '', 'idx-work')].concat(qs.map(([t, r, n]) => item(t, r + (n ? ' ' + n : ''))))), true);
     // for checking: on each page, the markers in its text and the notes at its foot
     for (const p of document.querySelectorAll('.page')) {
       const inText = [...p.querySelectorAll('.body .an')].map((x) => x.closest('[data-block]').dataset.block + '#' + x.dataset.k);
@@ -453,6 +460,7 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
 .idx { columns: 3; column-gap: 5mm; list-style: none; margin: 0; padding: 0; font-size: calc(var(--size) * 0.8); line-height: 1.45; }
 .idx.wide { columns: 2; }
 .idx li { break-inside: avoid; padding-inline-start: 1.2em; text-indent: -1.2em; }
+.idx li.long { break-inside: auto; }
 .idx .ref { color: #6b5a3e; font-size: 0.9em; }
 .idx .idx-work { font-weight: 600; margin-top: 0.6em; padding-inline-start: 0; text-indent: 0; break-after: avoid; }
 @media print { html, body { background: #fff; } #book { display: block; padding: 0; } .page { box-shadow: none; margin: 0; } }
