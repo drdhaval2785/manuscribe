@@ -166,4 +166,31 @@ function serve(port, over) {
 }
 const stop = (s) => new Promise((r) => { s.closeAllConnections && s.closeAllConnections(); s.close(() => r()); });
 
-module.exports = { exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME, serve, stop, fileUrl, CHROME_ARGS, ENGINE: ENGINE.ENGINE, OTHER: ENGINE.OTHER };
+/* An audit of the screen as it is, for a phone or a tablet: what runs past the right edge (not what scrolls sideways
+   by design: a scan, a wide table in its box, a folio), the controls too small for a finger (under 36 px, where the
+   pointer is a finger), and interface text under 12 px (not the text of a folio or of a block). allow: selectors of
+   elements not to count. -> {W, docW, coarse, over, small, tiny} */
+async function audit(page, allow) {
+  return page.evaluate((allow) => {
+    const skipText = '.folio, .pdf-scroller, .line, .ct-text, .tb-btn, .ap-text, .lw-text, .cv-detail .cv-t, .pf-pop' + (allow && allow.length ? ', ' + allow.join(', ') : '');
+    const skipOver = '.pdf-scroller, .ed-scroll, .folio-wrap, .line, canvas, .cv-tools.in-view, .folio' + (allow && allow.length ? ', ' + allow.join(', ') : '');
+    const inClosed = (e) => { for (let d = e.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) { const sm = d.querySelector(':scope > summary'); if (!d.open && !(sm && sm.contains(e))) return true; } return false; };
+    const vis = (e) => { const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return false; const cs = getComputedStyle(e); return cs.visibility !== 'hidden' && cs.display !== 'none' && !e.closest('[hidden]') && !inClosed(e); };
+    // with a dialog open, the dialog is the screen
+    const dialogs = document.querySelectorAll('.modal-backdrop');
+    const root = dialogs.length ? dialogs[dialogs.length - 1] : document.body;
+    const desc = (e) => (e.id ? '#' + e.id : e.tagName.toLowerCase()) + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : '') + (e.textContent && e.textContent.trim() ? ' “' + e.textContent.trim().slice(0, 16) + '”' : '');
+    const W = innerWidth;
+    const all = [...root.querySelectorAll('*')].filter(vis);
+    const over = all.filter((e) => { const r = e.getBoundingClientRect(); return r.right > W + 1 && r.left < W && !e.closest(skipOver); }).map((e) => desc(e) + ' right=' + Math.round(e.getBoundingClientRect().right)).slice(0, 12);
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    // a tick or a radio counts with its label, which is what the finger lands on
+    const box = (e) => { if (!e.matches('input[type=checkbox], input[type=radio]')) return e; const l = e.closest('label'); if (l) return l; const td = e.closest('td, th'); return td && td.querySelectorAll('button, input, select, a, summary').length === 1 ? td : e; };
+    const targets = all.filter((e) => e.matches('button, select, input:not([type=hidden]):not([type=range]), a[href], summary, textarea') && !e.closest('.line, .folio' + (allow && allow.length ? ', ' + allow.join(', ') : '')));
+    const small = coarse ? targets.filter((e) => { const r = box(e).getBoundingClientRect(); return r.height < 36 || r.width < 36; }).map((e) => { const r = box(e).getBoundingClientRect(); return desc(e) + ' ' + Math.round(r.width) + '×' + Math.round(r.height); }).slice(0, 14) : [];
+    const tiny = all.filter((e) => e.children.length === 0 && e.textContent.trim() && !e.closest(skipText)).filter((e) => { const fs = parseFloat(getComputedStyle(e).fontSize); return fs > 0 && fs < 12; }).map((e) => desc(e) + ' ' + getComputedStyle(e).fontSize).slice(0, 10);
+    return { W, docW: document.documentElement.scrollWidth, coarse, over, small, tiny };
+  }, allow || []);
+}
+
+module.exports = { audit, exportVia, launch, sleep, checks, importSample, sampleProjects, ROOT, WORK, SAMPLE, CHROME, serve, stop, fileUrl, CHROME_ARGS, ENGINE: ENGINE.ENGINE, OTHER: ENGINE.OTHER };

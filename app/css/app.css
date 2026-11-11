@@ -837,7 +837,36 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .calib-bar .btn, .calib-bar input { min-height: 40px; }
   #midbar-grip { top: -12px; height: 24px; }
   #midbar-grip::after { top: 9px; width: 56px; margin-left: -28px; }
+  /* every button, field and tick of the screens and dialogs big enough for a finger; 16 px in a field, so that Safari
+     does not zoom in on it; the smallest interface text 12 px */
+  .btn, details.menu > summary.btn { min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
+  .btn.small { font-size: 13px; padding-inline: 12px; min-width: 40px; }
+  .btn.small.icon, .btn.icon { min-width: 40px; width: auto; }
+  .calib-bar .btn { min-width: 40px; }
+  .modal .icon-btn { width: 40px; height: 40px; }
+  .badge { min-height: 36px; font-size: 12px; }
+  body.tags-open #toolbar .tb-btn { min-width: 44px; }
+  #edition-view table button, .modal table button { min-height: 36px; min-width: 36px; font-size: 12px; }
+  #edition-view td, .modal td { padding-top: 8px; padding-bottom: 8px; }
+  select, textarea, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]) { min-height: 40px; font-size: 16px; }
+  input[type=checkbox], input[type=radio] { width: 20px; height: 20px; margin: 0 6px 0 0; flex: none; }
+  label:has(> input[type=checkbox]), label:has(> input[type=radio]) { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
+  .mini { width: 36px; height: 36px; font-size: 16px; }
+  .side-tab { min-height: 44px; font-size: 13px; }
+  .ed-step { min-height: 40px; }
+  button.link { min-height: 36px; min-width: 36px; padding: 6px 2px; }
+  details:not(.menu) > summary { min-height: 40px; box-sizing: border-box; padding-top: 10px; padding-bottom: 10px; }
+  .side-panel h4, .insp-xml-title, .pending-status, .inline-field label, .ms-fold summary, .lc-desc, .pc-siglum, .field.small > span, .crumb, .work-count, .work-abbr, .ts-loc, .ts-more, .cv-tlabel, .lw-id, table.sources td .help, .ft-row .btn, .tl-badge, kbd { font-size: 12px; }
+  .ed-tag, .ed-step-n, .pdf-pageinfo, .box-tag-name, .box-tag-n, .pc-siglum, .lc-desc, .brand-ver, .status-pos { font-size: 12px; }
+  .ed-step-n { width: 22px; height: 22px; }
+  .cv-detail, .cv-unitbox { font-size: 14px; }
+  .ct-text { line-height: 2.2; }
+  /* no keyboard: the keys are not explained, and the tag buttons carry no shortcut letters */
+  body.touch .ct-keys, body.touch .tb-btn sup { display: none; }
+  body.touch .tb-btn u { text-decoration: none; }
+  body.touch .ct-touch { display: block; }
 }
+.ct-touch { display: none; }
 /* a phone or a tablet held upright: the tags open from the bottom of the screen */
 @media (max-width: 900px) {
   #midbar { flex-wrap: nowrap; gap: 6px; padding: 4px 6px; }
@@ -905,7 +934,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .line-nav { display: inline-flex; }
   .line-nav .sbtn { font-size: 18px; }
   #btn-view { display: inline-block; font-size: 12px; }
-  .status-pos { font-size: 11px; }
+  .status-pos { font-size: 12px; }
   /* the status bar must never be wider than the phone, or the browser zooms the whole page out to fit it: the
      letter-size buttons go (the folio's − / + enlarge the letters too), and the rest may shrink */
   #statusbar { overflow: hidden; gap: 6px; padding: 0 6px; }

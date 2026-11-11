@@ -4,7 +4,7 @@
 // chosen; buttons big enough for a finger; no page that scrolls sideways; wide tables with the column that names the
 // row in view; calibration by touch: a finger draws, two fingers pinch to zoom. On a tablet held upright (820 ×
 // 1180) the folio keeps the project's sizes and the tags are in the same panel. On a computer, nothing of this.
-const { launch, sleep, checks } = require('./h');
+const { launch, sleep, checks, audit } = require('./h');
 const { LANGS, make, buildInPage } = require('./languages');
 
 // a scan, drawn here: a leaf with eight lines of "text", as a one-page PDF
@@ -59,8 +59,11 @@ function scanPdf() {
       };
     });
 
+    // every screen of the phone passes the audit: nothing past the right edge, no control under 36 px, no text under 12 px
+    const clean = async (name, allow) => { const a = await audit(page, allow); T.check(name + ': fits the phone, its controls big enough for a finger, its text readable', a.docW <= a.W && !a.over.length && !a.small.length && !a.tiny.length, a); };
     // a phone
     await open(390, 844, true);
+    await clean('the transcription on a phone');
     const phone = await look();
     T.check('on a phone the typing area is the line view, its letters a size that can be read (' + phone.font.toFixed(1) + ' px)', phone.lineView && phone.font >= 15 && phone.edZoom === 1, phone);
     T.check('the folio bar is one row, with a Tags button; buttons are big enough for a finger; no page scrolls sideways', phone.mid <= 56 && phone.tags && !phone.toolbar && !phone.small.length && phone.docW <= phone.vw, phone);
@@ -81,6 +84,9 @@ function scanPdf() {
       await new Promise((r) => setTimeout(r, 150));
       return Object.assign(open, { closed: !document.body.classList.contains('tags-open') && getComputedStyle(tb).display === 'none', tagged: /<del/.test(ME.App.project.pages[ME.Model.entries(ME.App.project)[0].label].boxes.main[1] || '') || !!document.querySelector('#editor-pane .line [data-t="del"], #editor-pane .line .t-del, #editor-pane del') });
     });
+    await page.evaluate(() => ME.Narrow.toggleTags(true));
+    await clean('the tag sheet');
+    await page.evaluate(() => ME.Narrow.toggleTags(false));
     T.check('the tags open from the bottom of the screen, as big buttons; one chosen is applied, and the panel closes', sheet.shown && sheet.atBottom && sheet.n > 15 && sheet.big && sheet.closed && sheet.tagged, sheet);
     // zooming on the phone: kept for this device
     const kept = await page.evaluate(() => { document.getElementById('btn-ed-in').click(); return { st: JSON.parse(localStorage.getItem('manuscribe.narrow') || '{}'), project: ME.App.project.ui.editorZoom || 1 }; });
@@ -204,6 +210,30 @@ function scanPdf() {
       return { closedAtOpen, opened, shown, closeBtn, closed, setting };
     });
     T.check('on a phone the side panel is a sheet: closed when the project opens whatever the computer chose, opened by ◧, closed by its backdrop or ✕, the computer’s setting kept', side.closedAtOpen && side.opened && side.shown && side.closeBtn && side.closed && side.setting, side);
+    for (const tab of ['tag', 'folio', 'works', 'ms']) {
+      await page.evaluate((tab) => { ME.App.toggleSidebar(true); [...document.querySelectorAll('.side-tab')].find((x) => x.dataset.tab === tab).click(); }, tab);
+      await sleep(300);
+      await clean('the side panel, ' + tab);
+    }
+    await page.evaluate(() => ME.App.toggleSidebar(false));
+    await page.evaluate(() => document.getElementById('btn-settings').click());
+    await sleep(400);
+    await clean('Settings');
+    await page.evaluate(() => { [...document.querySelectorAll('.modal .st-tabs .btn')].find((b) => b.dataset.k === 'interface').click(); });
+    await sleep(300);
+    await clean('Settings, Interface');
+    await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+    await sleep(300);
+    await page.evaluate(() => document.getElementById('btn-export').click());
+    await sleep(500);
+    await clean('Export, a transcription');
+    await page.evaluate(() => document.querySelector('.modal-foot .btn').click());
+    await sleep(300);
+    const calAudit = page.evaluate(async () => { const done = ME.App.calibrate(); for (let k = 0; k < 30 && !document.querySelector('.calib-bar:not([hidden]) .calib-step'); k++) await new Promise((r) => setTimeout(r, 100)); await new Promise((r) => setTimeout(r, 400)); window.__calDone = done; });
+    await calAudit;
+    await clean('calibration');
+    await page.evaluate(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await window.__calDone; });
+    await sleep(300);
 
     // a tablet held upright
     await page.evaluate(() => localStorage.removeItem('manuscribe.narrow'));
@@ -235,6 +265,33 @@ function scanPdf() {
       return { sticky: getComputedStyle(first).position, scrolls: box.scrollWidth > box.clientWidth, docW: document.documentElement.scrollWidth, vw: window.innerWidth };
     });
     T.check('the edition’s wide tables scroll sideways in their box, the column naming the block staying in view', tbl.sticky === 'sticky' && tbl.docW <= tbl.vw, tbl);
+    // the edition's screens on the phone
+    await page.evaluate(() => ME.Features.save({ level: 'full' }));
+    for (const step of ['witnesses', 'collate', 'publish']) {
+      await page.evaluate(async (step) => { ME.Edition.stepOf[ME.Edition.current.id] = step; await ME.Edition.draw(); }, step);
+      await sleep(600);
+      await clean('the edition, ' + step);
+    }
+    await page.evaluate(async () => { ME.Edition.stepOf[ME.Edition.current.id] = 'collate'; await ME.Edition.draw(); });
+    await sleep(500);
+    await page.evaluate(() => document.querySelector('#edition-view [data-action="open-block"]').click());
+    await sleep(1200);
+    await clean('a block');
+    await page.evaluate(() => { const u = document.querySelector('.ct-text .ct-u:not(.d-same)') || document.querySelector('.ct-text .ct-u'); if (u) u.click(); });
+    await sleep(500);
+    await clean('a block, a place opened');
+    await page.evaluate(() => { const b = [...document.querySelectorAll('.modal-foot .btn')].pop(); if (b) b.click(); });
+    await sleep(400);
+    await page.evaluate(() => document.querySelector('#edition-view [data-action="work-apparatus"]').click());
+    await sleep(1200);
+    await clean('the work apparatus');
+    await page.evaluate(() => { const b = [...document.querySelectorAll('.modal-foot .btn')].pop(); if (b) b.click(); });
+    await sleep(300);
+    await page.evaluate(() => document.querySelector('.ed-bar [data-action="export"]').click());
+    await sleep(600);
+    await clean('Export, an edition');
+    await page.evaluate(() => { const b = [...document.querySelectorAll('.modal-foot .btn')].pop(); if (b) b.click(); });
+    await page.evaluate(() => ME.Features.save({ level: 'simple' }));
     T.done(page);
   } finally { await browser.close(); }
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.stack); process.exitCode = 1; });

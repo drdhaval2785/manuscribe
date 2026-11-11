@@ -1594,6 +1594,7 @@
         U.el('kbd', null, 'E'), ' emend, ', U.el('kbd', null, 'Enter'), ' to put it in · ', U.el('kbd', null, 'Delete'), ' withdraw · ',
         'drag or ', U.el('kbd', null, 'Shift'), '+click: several words as one · ', U.el('kbd', null, ']'), ' ', U.el('kbd', null, '['), ' next or previous block. ',
         'The bar above counts the places you have decided.'),
+      U.el('p', { class: 'help ct-touch' }, 'Tap a coloured word to see what the witnesses read there and to choose; tap a plain word to emend it. The bar above counts the places you have decided.'),
       textBox, textPanel, textScan,
       U.el('p', { class: 'nv-legend' }, U.el('span', { class: 'ct-u d-majority' }, 'most witnesses'), ' ', U.el('span', { class: 'ct-u d-plurality' }, 'most votes, not most witnesses'), ' ', U.el('span', { class: 'ct-u d-trust' }, 'a tie, settled by trust'), ' ', U.el('span', { class: 'ct-u d-chosen' }, 'your choice'), ' ', U.el('span', { class: 'ct-u d-lost' }, 'a witness cannot be read here'), ' · ⌀ the proposed reading omits the word'));
     const letterPane = U.el('div', { class: 'cv-letters', hidden: true });
