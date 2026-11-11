@@ -6,7 +6,7 @@ abstract: "A browser workbench for transcribing Sanskrit manuscripts into TEI an
 authors:
   - given-names: Dhaval
     family-names: Patel
-version: 0.10.4
+version: 0.10.5
 license: GPL-3.0
 repository-code: "https://github.com/drdhaval2785/manuscribe"
 keywords:
