@@ -63,6 +63,7 @@
     if (pageSize) Editor.pageSize = pageSize;
     Editor.current = null;
     if (!(opts && opts.keepMulti)) Editor.multi = null;
+    Editor.kept = null;
     paintMulti([]);
     folioIdx = new Map(Model.entries(project).map((e, k) => [e.label, k]));
     tlReset();
@@ -84,6 +85,7 @@
     folio.addEventListener('focusin', onFocusIn);
     folio.addEventListener('focusout', onFocusOut);
     folio.addEventListener('mousedown', onMouseDown);
+    folio.addEventListener('beforeinput', () => Editor.clearKept());
     folio.addEventListener('dblclick', onDblClick);
     folio.addEventListener('click', onClick);
     folio.addEventListener('dragstart', (e) => e.preventDefault());
@@ -770,9 +772,10 @@
   const sameLine = (p, q) => p.label === q.label && p.box === q.box && p.i === q.i;
 
   // The selection as ranges on this folio's lines, one for each stretch of a line's own text or of an addition's.
-  function multiRanges() {
-    if (!Editor.multi) return [];
-    let { a, f } = Editor.multi;
+  const multiRanges = () => (Editor.multi ? rangesOf(Editor.multi) : []);
+  // the DOM ranges of a pair of positions {a, f} on this folio, line by line
+  function rangesOf(pair) {
+    let { a, f } = pair;
     if (before(f, a)) [a, f] = [f, a];
     const label = Editor.entry.label;
     const s = Model.LAYOUTS[Editor.geom.type].streams.find((x) => x.key === streamKeyOf(a));
@@ -836,6 +839,45 @@
     paintMulti([]);
     hook('onMulti');
   };
+
+  /* ---------- a selection kept for a finger ---------- */
+  /* On a touch screen the browser's selection goes with the first tap on anything else (a button of the tag sheet,
+     the text itself held for the tags), so a selection made by a finger within a line is kept here, as positions,
+     from the moment it is made: the tags then work on it (Commands), and it is painted while the browser's own
+     selection is gone. Cleared by a tap elsewhere in the text, by typing, by Escape, by a tag applied, and when the
+     folio is drawn again. */
+  Editor.kept = null;
+  function keepFromSelection() {
+    const sel = getSelection();
+    if (!folio || !sel.rangeCount || sel.isCollapsed) return;
+    const r = sel.getRangeAt(0);
+    const line = lineOf(r.startContainer);
+    if (!line || !folio.contains(line) || !line.contains(r.endContainer) || isM(line)) return;
+    const pos = Object.assign({ label: Editor.entry.label }, posOf(line));
+    const a = Spans.offsetOf(line, sel.anchorNode, sel.anchorOffset), f = Spans.offsetOf(line, sel.focusNode, sel.focusOffset);
+    if (a === f) return;
+    Editor.kept = { a: Object.assign({}, pos, { offset: a }), f: Object.assign({}, pos, { offset: f }) };
+  }
+  const paintKept = () => { if (!Editor.multi) paintMulti(Editor.kept ? rangesOf(Editor.kept) : []); };
+  Editor.clearKept = function () { if (!Editor.kept) return; Editor.kept = null; paintKept(); };
+  // the kept selection as one DOM range in its line, or null
+  Editor.keptRange = function () {
+    if (!Editor.kept || !Editor.entry || Editor.kept.a.label !== Editor.entry.label) return null;
+    const rs = rangesOf(Editor.kept);
+    if (!rs.length) return null;
+    const r = document.createRange();
+    r.setStart(rs[0].startContainer, rs[0].startOffset);
+    r.setEnd(rs[rs.length - 1].endContainer, rs[rs.length - 1].endOffset);
+    return r;
+  };
+  Editor.keptText = () => { const r = Editor.keptRange(); return r ? r.toString() : ''; };
+  // is this point (a tap) on the kept passage?
+  const onKept = (x, y) => { const r = Editor.keptRange(); return !!r && [...r.getClientRects()].some((b) => x >= b.left - 8 && x <= b.right + 8 && y >= b.top - 6 && y <= b.bottom + 6); };
+  document.addEventListener('selectionchange', () => {
+    if (!ME.Device || !ME.Device.touch() || !folio) return;
+    const sel = getSelection();
+    if (sel.rangeCount && !sel.isCollapsed) { keepFromSelection(); if (!Editor.multi) paintMulti([]); } else if (Editor.kept) paintKept();
+  });
 
   // The next / previous line of the same text on this folio, also in its next block
   // (e.g. from the top commentary to the bottom commentary).
@@ -1096,7 +1138,9 @@
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key;
     if (isM(line) && marginKey(e, line)) return;
-    if (k === 'Escape') { Editor.clearMulti(); if (Editor.pending) { Editor.setPending(null); U.toast('Tag start cancelled'); } return; }
+    if (k === 'Escape') { Editor.clearMulti(); Editor.clearKept(); if (Editor.pending) { Editor.setPending(null); U.toast('Tag start cancelled'); } return; }
+    // typing lets a kept selection go (a tag's shortcut, with Alt, does not: it is for the kept passage)
+    if (Editor.kept && !mod && !e.altKey && (k.length === 1 || k === 'Backspace' || k === 'Delete' || k === 'Enter')) Editor.clearKept();
     if (mod && !e.altKey && (k === 'z' || k === 'Z')) { e.preventDefault(); if (e.shiftKey) Editor.redo(); else Editor.undo(); return; }
     if (mod && !e.altKey && (k === 'y' || k === 'Y')) { e.preventDefault(); Editor.redo(); return; }
     if (mod && !e.altKey && /^[biu]$/i.test(k)) { e.preventDefault(); return; }
@@ -1355,6 +1399,8 @@
   function onMouseDown(e) {
     tlReset();
     const line = e.target.closest && e.target.closest('.line');
+    // a tap away from the kept passage lets it go; one on it (to hold it for the tags) keeps it
+    if (Editor.kept && !onKept(e.clientX, e.clientY)) Editor.clearKept();
     if (!line) { Editor.clearMulti(); return; }
     const active = activeLine();
     if (e.shiftKey && active && !isM(active) && !isM(line) && (active !== line || Editor.multi)) {

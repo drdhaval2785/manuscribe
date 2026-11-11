@@ -45,6 +45,12 @@ button { font-family: inherit; }
 }
 #sidebar { width: 340px; flex: none; background: var(--panel); border-left: 1px solid var(--line); display: none; flex-direction: column; min-height: 0; }
 body.sidebar-open #sidebar { display: flex; }
+/* on a phone or a tablet held upright the panel is a sheet: a backdrop closes it, and so does its own ✕ */
+.side-backdrop, .side-close { display: none; }
+@media (max-width: 900px) {
+  body.sidebar-open .side-backdrop { display: block; position: fixed; left: 0; right: 0; top: 46px; bottom: 0; z-index: 24; background: rgba(30, 22, 14, .28); }
+  .side-close { display: inline-block; flex: 0 0 44px; border: 0; background: transparent; font-size: 18px; color: var(--muted); cursor: pointer; }
+}
 
 /* ---------------- PDF viewer ---------------- */
 #pdf-view { position: absolute; inset: 0; }
@@ -91,7 +97,7 @@ body.sidebar-open #sidebar { display: flex; }
   display: flex; gap: 10px; align-items: center; background: #fffaf0; color: var(--ink);
   box-shadow: 0 4px 18px rgba(0,0,0,.4); padding: 0 12px 0 14px; font-size: 13px;
 }
-#pdf-view.calibrating .pdf-scroller { top: 48px; }
+#pdf-view.calibrating .pdf-scroller { top: var(--calib-bar-h, 48px); }
 #pdf-pane:has(.calibrating) .pdf-tools { display: none; }
 /* calibrating: the PDF alone, in the whole window */
 body.calibrating #midbar, body.calibrating #editor-pane, body.calibrating #statusbar, body.calibrating #sidebar { display: none !important; }
@@ -709,6 +715,7 @@ details.menu { position: relative; display: inline-block; }
 details.menu > summary { list-style: none; }
 details.menu > summary::-webkit-details-marker { display: none; }
 details.menu > summary::after { content: ' ▾'; }
+details.menu .menu-items.flip { left: auto; right: 0; }
 details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 160px; }
 
 /* the table window: tool groups, the folded decision panel */
@@ -827,6 +834,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   #statusbar { height: auto; min-height: 40px; }
   .badge { min-height: 32px; padding: 0 12px; }
   .tb-btn { height: 34px; padding: 0 6px; font-size: 13px; line-height: 32px; }
+  .calib-bar .btn, .calib-bar input { min-height: 40px; }
   #midbar-grip { top: -12px; height: 24px; }
   #midbar-grip::after { top: 9px; width: 56px; margin-left: -28px; }
 }
@@ -841,6 +849,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
     padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
   }
   body.tags-open #toolbar .tb-group { border-left: 0; flex-wrap: wrap; gap: 6px; padding: 0; }
+  body.tags-open #toolbar .tb-head { flex-basis: 100%; font: 600 13px var(--ui); color: var(--muted); padding: 0 4px 2px; }
   body.tags-open #toolbar .tb-btn { height: 42px; padding: 0 12px; font-size: 15px; line-height: 40px; border: 1px solid var(--line); background: #fff; }
 }
 /* a phone or a tablet: the app follows the browser's own scrolling when the keyboard opens (narrow.js) */
@@ -889,8 +898,9 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .calib-hint { font-size: 12.5px; padding: 6px 10px; }
   .calib-bar { height: auto; min-height: 48px; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; }
   .calib-label { flex-basis: 100%; order: 3; font-size: 12.5px; }
-  #pdf-view.calibrating .pdf-scroller { top: 112px; }
-  .calib-touch { order: 4; }
+  /* the PDF toolbar across the pane: Calibrate (or Follow) at its left, in view whatever else is there */
+  .pdf-tools { left: 8px; right: 8px; justify-content: flex-end; flex-wrap: nowrap; }
+  .pdf-tools #btn-calibrate, .pdf-tools #btn-follow { order: -1; margin-right: auto; }
   #statusbar .ed-zoom-ctl .sbtn.zoom { min-width: 44px; }
   .line-nav { display: inline-flex; }
   .line-nav .sbtn { font-size: 18px; }

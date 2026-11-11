@@ -43,6 +43,18 @@
     emptyEl = U.el('div', { class: 'pdf-empty' });
     calibBar = U.el('div', { class: 'calib-bar', hidden: true });
     root.append(scroller, pageInfo, emptyEl, calibBar);
+    /* While calibrating, the scan begins under the bar, whatever height the bar has (on a phone it wraps to several
+       rows): its height is kept in --calib-bar-h, and the page is fitted to the room left when it changes. */
+    PdfView.barHeight = function () {
+      if (!PdfView.calibrating) return;
+      const h = Math.ceil(calibBar.getBoundingClientRect().height);
+      if (h === PdfView._barH) return;
+      PdfView._barH = h;
+      root.style.setProperty('--calib-bar-h', h + 'px');
+      if (PdfView._barH0 !== undefined) PdfView.render();
+      PdfView._barH0 = h;
+    };
+    PdfView.barWatch = window.ResizeObserver ? new ResizeObserver(() => PdfView.barHeight()) : null;
 
     // drag to pan; two fingers pinch to zoom (the stage is scaled while the fingers move, and drawn afresh when they lift)
     let pan = null, pinch = null;
@@ -441,7 +453,11 @@
     return new Promise((resolve) => {
       PdfView.calibrating = true;
       PdfView.calibScale = 1;
+      PdfView._barH = 0; PdfView._barH0 = undefined;
       root.classList.add('calibrating');
+      if (PdfView.barWatch) PdfView.barWatch.observe(calibBar);
+      // on a touch screen, how to get about, said once
+      if (ME.Device && ME.Device.touch()) U.toast('One finger draws a box; two fingers zoom the page and move it.', 'info', 4500);
       // the PDF takes the whole window while the boxes are drawn: the typing area has nothing to show meanwhile
       document.body.classList.add('calibrating');
       const prevMode = PdfView.mode;
@@ -468,6 +484,8 @@
         document.body.classList.remove('calibrating');
         PdfView.calibScale = 1;
         calibBar.hidden = true;
+        if (PdfView.barWatch) PdfView.barWatch.unobserve(calibBar);
+        root.style.removeProperty('--calib-bar-h');
         Object.values(shapes).forEach((s) => s.remove());
         overlay.removeEventListener('pointerdown', onDown);
         window.removeEventListener('pointermove', onTouchMove);
@@ -498,18 +516,20 @@
         calibBar.append(...[
           U.el('span', { class: 'calib-step' }, 'Step ' + (i + 1) + ' / ' + steps.length),
           U.el('span', { class: 'calib-swatch', style: { background: st.color } }),
-          U.el('span', { class: 'calib-label' }, st.label),
+          // on a phone, the short wording, so that the bar leaves room for the page
+          U.el('span', { class: 'calib-label' }, ME.Device && ME.Device.narrow() && st.short ? st.short : st.label),
           linesCtl,
           U.el('span', { class: 'calib-zoom', title: 'Zoom in to draw closely (Ctrl+wheel); the page scrolls' },
             U.el('button', { class: 'btn small', title: 'Zoom out', onclick: () => PdfView.calibZoom(PdfView.calibScale / 1.25) }, '−'),
             U.el('button', { class: 'btn small calib-fit', title: 'The whole page', onclick: () => PdfView.calibZoom(1) }, Math.round(PdfView.calibScale * 100) + '%'),
             U.el('button', { class: 'btn small', title: 'Zoom in', onclick: () => PdfView.calibZoom(PdfView.calibScale * 1.25) }, '+')),
+          // after a pinch or a zoom, the whole page again
+          U.el('button', { class: 'btn small calib-fit-all', title: 'The whole page in view again', hidden: Math.abs(PdfView.calibScale - 1) < 0.01, onclick: () => PdfView.calibZoom(1) }, 'Fit'),
           U.el('button', { class: 'btn small' + (rects[st.key] ? ' primary' : ''), onclick: () => { i++; showStep(); } }, rects[st.key] ? (i === steps.length - 1 ? 'Finish' : 'Next') : 'Skip'),
           i > 0 ? U.el('button', { class: 'btn small', onclick: () => { i--; showStep(); } }, 'Back') : null,
           U.el('button', { class: 'btn small ghost', onclick: () => finish(false) }, 'Cancel'),
-          // on a touch screen, how to get about: one finger draws
-          window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? U.el('span', { class: 'calib-touch' }, 'One finger draws a box; two fingers zoom the page and move it.') : null,
         ].filter(Boolean));
+        PdfView.barHeight();
       };
 
       let drag = null;
@@ -581,7 +601,7 @@
       window.addEventListener('pointermove', onTouchMove);
       window.addEventListener('pointerup', onTouchEnd);
       window.addEventListener('pointercancel', onTouchEnd);
-      PdfView.cb.onCalibZoom = (z) => { const b = calibBar.querySelector('.calib-fit'); if (b) b.textContent = Math.round(z * 100) + '%'; };
+      PdfView.cb.onCalibZoom = (z) => { const b = calibBar.querySelector('.calib-fit'); if (b) b.textContent = Math.round(z * 100) + '%'; const f = calibBar.querySelector('.calib-fit-all'); if (f) f.hidden = Math.abs(z - 1) < 0.01; };
       PdfView.mode = 'page';
       PdfView.render().then(showStep);
     });

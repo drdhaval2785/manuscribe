@@ -14,8 +14,11 @@
   function ctx(quiet) {
     const sel = getSelection();
     const folio = Editor.folioEl();
-    if (!sel.rangeCount || !folio) { if (!quiet) U.toast('Click in a line of the transcription first', 'warn'); return null; }
-    const r = sel.getRangeAt(0);
+    let r = sel.rangeCount ? sel.getRangeAt(0) : null;
+    // a selection made by a finger is kept by the editor after the browser's own has gone (a tap on a button takes
+    // it): that one is meant
+    if (Editor.keptRange && (!r || r.collapsed || !folio || !folio.contains(r.startContainer))) { const k = Editor.keptRange(); if (k) r = k; }
+    if (!r || !folio) { if (!quiet) U.toast('Click in a line of the transcription first', 'warn'); return null; }
     const line = Editor.lineOf(r.startContainer);
     if (!line || !folio.contains(line)) { if (!quiet) U.toast('Click in a line of the transcription first', 'warn'); return null; }
     if (!line.contains(r.endContainer)) { U.toast('A selection must stay within one line', 'warn'); return null; }
@@ -104,6 +107,7 @@
     const res = Spans.apply(project(), rng.start, rng.end, build);
     if (res.error) { U.toast(res.error, 'warn'); return null; }
     afterSpan(res.changed, res.end);
+    if (Editor.clearKept) Editor.clearKept();
     return res;
   }
 
@@ -936,6 +940,7 @@
       class: 'tb-btn tb-' + c.id, dataset: { cmd: c.id },
       title: c.label + (c.tag ? ' <' + c.tag + '>' : '') + '  —  ' + keyLabel(c.key) + (c.shiftRun ? '   (' + keyLabel(c.key, true) + (c.group === 'structure' ? ': end' : ': choose attributes') + ')' : '') + '\n' + c.desc,
       onmousedown: (e) => e.preventDefault(),
+      onpointerdown: (e) => e.preventDefault(), // a finger on the button: the caret and the selection stay (Safari)
       onclick: (e) => { if (e.shiftKey && c.shiftRun) c.shiftRun(); else c.run(); },
     }, extra || {}), content);
     for (const [g, title] of GROUPS) {

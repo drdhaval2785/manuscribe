@@ -828,8 +828,8 @@
       main: type === 'linear' ? 'the block of text lines' : type === 'interlinear' ? 'the text block, including the interlinear commentary lines' : 'the central block of the main text',
       top: 'the top block of commentary', bottom: 'the bottom block of commentary', left: 'the left block of commentary', right: 'the right block of commentary',
     };
-    const steps = [{ key: 'leaf', title: 'Leaf', color: Model.BOX_COLOR.leaf, label: 'Drag a rectangle around the leaf — the folio itself, without the scanner background or page header.' }]
-      .concat(boxes.map((b) => ({ key: b, title: Model.BOX_LABEL[b], color: Model.BOX_COLOR[b], lines: Model.lineCount(p, e.label, b), label: 'Drag a rectangle tightly around ' + blockText[b] + ' (top of its first line to bottom of its last line), then check the number of lines.' })));
+    const steps = [{ key: 'leaf', title: 'Leaf', color: Model.BOX_COLOR.leaf, label: 'Drag a rectangle around the leaf — the folio itself, without the scanner background or page header.', short: 'Draw a box round the leaf: the folio itself.' }]
+      .concat(boxes.map((b) => ({ key: b, title: Model.BOX_LABEL[b], color: Model.BOX_COLOR[b], lines: Model.lineCount(p, e.label, b), short: 'Draw a box tightly round ' + blockText[b] + '; then the number of lines.', label: 'Drag a rectangle tightly around ' + blockText[b] + ' (top of its first line to bottom of its last line), then check the number of lines.' })));
     const reg = Model.regions(p, e);
     const existing = reg ? Object.assign({ leaf: reg.leaf }, reg.boxes || {}) : {};
     if (!existing.leaf) { const leaf = PdfView.detectLeaf(); if (leaf) existing.leaf = leaf; }
@@ -1384,11 +1384,22 @@
 
   /* ---------- chrome ---------- */
 
+  /* The side panel: shown or hidden. On a computer the choice is the project's; on a phone or a tablet held upright
+     the panel is a sheet over the text for this visit only, and the computer's setting is left as it is. */
+  App.toggleSidebar = function (open) {
+    const on = open === undefined ? !document.body.classList.contains('sidebar-open') : !!open;
+    document.body.classList.toggle('sidebar-open', on);
+    if (!App.project || (ME.Device && ME.Device.sheets())) return;
+    App.project.ui.sidebar = on;
+    App.changed(true);
+  };
+
   function applyUiState() {
     const p = App.project;
     const ui = p.ui;
     $('pdf-pane').style.height = Math.round(U.clamp(ui.split || 0.46, 0.12, 0.85) * 100) + '%';
-    document.body.classList.toggle('sidebar-open', !!ui.sidebar);
+    // on a phone or a tablet held upright the panel is a sheet, opened by hand: the computer's setting is not applied
+    document.body.classList.toggle('sidebar-open', !!ui.sidebar && !(ME.Device && ME.Device.sheets()));
     $('sel-layout').value = p.layout.type;
     PdfView.mode = ui.pdfMode || 'leaf';
     PdfView.zoom = ui.pdfZoom || 1;
@@ -1418,7 +1429,9 @@
     $('btn-export').onclick = () => { App.flush(); ME.ExportView.open({ kind: 'project', project: App.project, entry: entry() }); };
     $('btn-settings').onclick = () => App.showSettings();
     $('btn-help').onclick = () => App.showHelp();
-    $('btn-sidebar').onclick = () => { App.project.ui.sidebar = !App.project.ui.sidebar; document.body.classList.toggle('sidebar-open', App.project.ui.sidebar); App.changed(true); };
+    $('btn-sidebar').onclick = () => App.toggleSidebar();
+    $('side-backdrop').onclick = () => App.toggleSidebar(false);
+    $('side-close').onclick = () => App.toggleSidebar(false);
     $('sel-layout').innerHTML = '';
     for (const [k, L] of Object.entries(Model.LAYOUTS)) $('sel-layout').appendChild(U.el('option', { value: k }, L.label));
     $('sel-layout').onchange = (e) => App.setLayout(e.target.value, 'default');

@@ -113,6 +113,98 @@ function scanPdf() {
     });
     T.check('calibration by touch: a finger draws the box, two fingers pinch to zoom (and draw nothing)', cal.touchAction === 'none' && cal.drawn && cal.z1 > cal.z0 * 1.3 && cal.rects === 1, cal);
 
+    // the PDF toolbar and its menu stay within the phone; Calibrate (and Follow) in view
+    const tools = await page.evaluate(async () => {
+      const W = innerWidth, r = (e) => e.getBoundingClientRect();
+      const cal = document.getElementById('btn-calibrate');
+      const d = document.querySelector('.pdf-tools details.menu');
+      d.open = true;
+      await new Promise((res) => setTimeout(res, 80));
+      const m = r(d.querySelector('.menu-items'));
+      d.open = false;
+      const follow = document.getElementById('btn-follow');
+      follow.hidden = false;
+      const f = r(follow);
+      follow.hidden = true;
+      const t = r(document.querySelector('.pdf-tools'));
+      return { calIn: !cal.hidden && r(cal).left >= 0 && r(cal).right <= W, menuIn: m.right <= W + 0.5 && m.left >= -0.5, toolsIn: t.left >= 0 && t.right <= W, followIn: f.left >= 0 && f.right <= W, W };
+    });
+    T.check('the PDF toolbar is within the phone, Calibrate and Follow in view, and the View menu opens within the screen', tools.calIn && tools.menuIn && tools.toolsIn && tools.followIn, tools);
+
+    // a selection made by a finger is kept: a tap on Tags or on a tag, or a long press, does not lose it
+    const keptSel = await page.evaluate(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      if (!matchMedia('(pointer: coarse)').matches) ME.Device.force(true);
+      ME.Editor.focusLine('main', 0, 0);
+      const line = document.activeElement;
+      const tn = [...line.childNodes].find((n) => n.nodeType === 3);
+      getSelection().setBaseAndExtent(tn, 0, tn, 4);
+      await wait(150);
+      const kept1 = !!ME.Editor.kept && ME.Editor.keptText() === 'श्री';
+      // the browser's selection goes, as with a tap on a button: the passage stays kept, and is painted
+      getSelection().collapseToStart();
+      await wait(150);
+      const painted = !!(CSS.highlights && CSS.highlights.get('lipi-multi')) || !!document.querySelector('.line.in-multi');
+      document.getElementById('btn-tags').click();
+      await wait(100);
+      const head = (document.querySelector('#toolbar .tb-head') || {}).textContent || '';
+      document.querySelector('#toolbar .tb-hi, #toolbar [data-cmd="hi"]').click();
+      await wait(250);
+      const label = ME.Model.entries(ME.App.project)[0].label;
+      const stored1 = ME.App.project.pages[label].boxes.main[0];
+      // (the selection is put back round the tagged text, as on a computer, and so is kept again)
+      const gone = !ME.Editor.kept || ME.Editor.keptText() === 'श्री';
+      // a long press on a kept passage (the finger moves the caret, as the browser does) opens the tags for it
+      const line2 = document.querySelector('#editor-pane .line:not(.mline)');
+      const last = [...line2.childNodes].filter((n) => n.nodeType === 3).pop();
+      getSelection().setBaseAndExtent(last, 0, last, 4);
+      await wait(150);
+      const rg = document.createRange(); rg.setStart(last, 1); rg.setEnd(last, 2);
+      const b = rg.getBoundingClientRect();
+      line2.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: b.left + 1, clientY: b.top + b.height / 2, button: 0, bubbles: true }));
+      getSelection().collapse(last, 1);
+      await wait(750);
+      const sheetOpen = document.body.classList.contains('tags-open');
+      const head2 = (document.querySelector('#toolbar .tb-head') || {}).textContent || '';
+      line2.dispatchEvent(new PointerEvent('pointerup', { pointerId: 9, pointerType: 'touch', isPrimary: true, bubbles: true }));
+      document.querySelector('#toolbar .tb-del, #toolbar [data-cmd="del"]').click();
+      await wait(250);
+      const stored2 = ME.App.project.pages[label].boxes.main[0];
+      // a tap elsewhere lets a kept passage go
+      getSelection().setBaseAndExtent(last, 0, last, 2);
+      await wait(150);
+      const keptAgain = !!ME.Editor.kept;
+      const far = document.querySelector('#editor-pane .line:not(.mline):nth-of-type(2)') || line2;
+      far.dispatchEvent(new MouseEvent('mousedown', { clientX: 5, clientY: far.getBoundingClientRect().bottom - 2, bubbles: true }));
+      const cleared = !ME.Editor.kept;
+      ME.Device.force(null);
+      return { kept1, painted, head, stored1, gone, sheetOpen, head2, stored2, keptAgain, cleared };
+    });
+    T.check('a selection made by a finger is kept after the browser’s own goes, painted, and named in the sheet; the tag goes round it', keptSel.kept1 && keptSel.painted && /Tag the selected text: «श्री»/.test(keptSel.head) && /^<hi[^>]*>श्री<\/hi>/.test(keptSel.stored1) && keptSel.gone, keptSel);
+    T.check('a long press on the kept passage opens the tags for it, and a tap elsewhere lets it go', keptSel.sheetOpen && /Tag the selected text/.test(keptSel.head2) && /<del[^>]*>[^<]{1,6}<\/del>/.test(keptSel.stored2) && keptSel.keptAgain && keptSel.cleared, keptSel);
+
+    // the side panel is a sheet: not opened by the computer's setting, closed by its backdrop, the setting left alone
+    const side = await page.evaluate(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      ME.App.project.ui.sidebar = true;
+      await ME.Store.putProject(ME.App.project);
+      await ME.App.open(ME.App.project.id);
+      await wait(500);
+      const closedAtOpen = !document.body.classList.contains('sidebar-open');
+      document.getElementById('btn-sidebar').click();
+      const opened = document.body.classList.contains('sidebar-open');
+      const backdrop = document.getElementById('side-backdrop');
+      const shown = getComputedStyle(backdrop).display !== 'none';
+      const closeBtn = getComputedStyle(document.getElementById('side-close')).display !== 'none';
+      backdrop.click();
+      const closed = !document.body.classList.contains('sidebar-open');
+      const setting = ME.App.project.ui.sidebar === true;
+      ME.App.project.ui.sidebar = false;
+      await ME.Store.putProject(ME.App.project);
+      return { closedAtOpen, opened, shown, closeBtn, closed, setting };
+    });
+    T.check('on a phone the side panel is a sheet: closed when the project opens whatever the computer chose, opened by ◧, closed by its backdrop or ✕, the computer’s setting kept', side.closedAtOpen && side.opened && side.shown && side.closeBtn && side.closed && side.setting, side);
+
     // a tablet held upright
     await page.evaluate(() => localStorage.removeItem('manuscribe.narrow'));
     await open(820, 1180, true);

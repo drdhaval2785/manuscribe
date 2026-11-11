@@ -119,6 +119,14 @@
     document.body.classList.toggle('tags-open', on);
     const b = document.getElementById('btn-tags');
     if (b) b.setAttribute('aria-expanded', String(on));
+    // the sheet says what a tag will go round: the passage kept (Editor.kept), or the cursor
+    const tb = document.getElementById('toolbar');
+    let head = tb && tb.querySelector('.tb-head');
+    if (on && tb) {
+      const kept = ME.Editor && ME.Editor.keptText ? ME.Editor.keptText().replace(/\s+/g, ' ').trim() : '';
+      if (!head) { head = ME.U.el('div', { class: 'tb-head' }); tb.prepend(head); }
+      head.textContent = kept ? 'Tag the selected text: «' + (kept.length > 36 ? kept.slice(0, 36) + '…' : kept) + '»' : 'Tag at the cursor; select text first for a tag round it';
+    } else if (head) head.remove();
   };
 
   /* ---------- the height that can be seen ---------- */
@@ -148,23 +156,28 @@
     if (window.visualViewport) { window.visualViewport.addEventListener('resize', seen); window.visualViewport.addEventListener('scroll', seen); }
     window.addEventListener('resize', seen);
     const b = document.getElementById('btn-tags');
-    if (b) b.addEventListener('click', () => Narrow.toggleTags());
+    if (b) { b.addEventListener('click', () => Narrow.toggleTags()); b.addEventListener('pointerdown', (e) => e.preventDefault()); } // the selection stays
     const v = document.getElementById('btn-view');
     if (v) { v.addEventListener('click', () => Narrow.setView(Narrow.view() === 'lines' ? 'folio' : 'lines')); Narrow.viewButton(); }
-    // a long press on the text (a finger held still for a moment) opens the tags, for the selection or the caret
+    /* A long press on the text (a finger held still for a moment) opens the tags, for the passage kept by the editor
+       (a selection made by finger, which the press itself does not lose) or for the caret: on a phone, and on a
+       tablet held upright, wherever the tags are a sheet. While the phone is selecting text itself under the finger
+       (the selection is growing), the press is let be. */
     const pane = document.getElementById('editor-pane');
     if (pane) {
       let press = null;
       const stop = () => { if (press) { clearTimeout(press.t); press = null; } };
+      const sheets = () => (ME.Device ? ME.Device.sheets() : Narrow.on());
       pane.addEventListener('pointerdown', (e) => {
-        if (!Narrow.on() || e.pointerType !== 'touch' || !e.target.closest || !e.target.closest('.line')) return;
+        if (!sheets() || e.pointerType !== 'touch' || !e.target.closest || !e.target.closest('.line')) return;
         stop();
         press = { x: e.clientX, y: e.clientY, t: setTimeout(() => { press = null; Narrow.toggleTags(true); }, 600) };
       });
       pane.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) stop(); });
       pane.addEventListener('pointerup', stop);
       pane.addEventListener('pointercancel', stop);
-      pane.addEventListener('contextmenu', (e) => { if (Narrow.on() && e.target.closest && e.target.closest('.line')) e.preventDefault(); });
+      document.addEventListener('selectionchange', () => { if (press && !getSelection().isCollapsed) stop(); });
+      pane.addEventListener('contextmenu', (e) => { if (sheets() && ME.Device && ME.Device.touch() && e.target.closest && e.target.closest('.line')) e.preventDefault(); });
     }
     // a tag chosen closes the panel, the cursor still where it was
     const tb = document.getElementById('toolbar');

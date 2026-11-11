@@ -160,8 +160,9 @@ const { launch, sleep, checks } = require('./h');
   // the screens
   await page.evaluate(() => { ME.CollateView.workApparatus(window.__ed, window.__list, 'main'); });
   await sleep(800);
-  const shown = await page.evaluate(() => ({ tiers: [...document.querySelectorAll('.ap-tier')].map((x) => x.textContent), folds: [...document.querySelectorAll('.modal summary')].map((x) => x.textContent) }));
+  const shown = await page.evaluate(() => ({ tiers: [...document.querySelectorAll('.ap-tier')].map((x) => x.textContent), folds: [...document.querySelectorAll('.modal summary')].map((x) => x.textContent), stray: /\bnull\b/.test(document.querySelector('.ap-list').textContent) }));
   T.check('the apparatus window has a testimonia tier', shown.tiers.includes('Testimonia'), shown);
+  T.check('and no stray “null” under a block id', !shown.stray);
   T.check('and the registers, the concordance and the indices', ['Testimonia and parallels', 'Concordance', 'Indices'].every((w) => shown.folds.some((f) => f.startsWith(w))), shown.folds);
   await page.evaluate(() => { const d = [...document.querySelectorAll('.modal summary')].find((x) => x.textContent.startsWith('Concordance')); d.click(); });
   await sleep(500);

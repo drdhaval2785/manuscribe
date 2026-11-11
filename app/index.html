@@ -90,12 +90,14 @@
     </footer>
   </section>
 
+  <div id="side-backdrop" class="side-backdrop" title="Close the panel"></div>
   <aside id="sidebar">
     <nav class="side-tabs">
       <button class="side-tab sel" data-tab="tag">Tag</button>
       <button class="side-tab" data-tab="folio">Folio</button>
       <button class="side-tab" data-tab="works">Cited works</button>
       <button class="side-tab" data-tab="ms">Manuscript</button>
+      <button id="side-close" class="side-close" title="Close the panel">✕</button>
     </nav>
     <div id="tab-tag" class="side-panel"></div>
     <div id="tab-folio" class="side-panel" hidden></div>
@@ -131,6 +133,7 @@
 
 <script src="vendor/pdf.min.js"></script>
 <script src="js/util.js"></script>
+<script src="js/device.js"></script>
 <script src="js/site.js"></script>
 <script src="js/install.js"></script>
 <script src="js/tei.js"></script>

@@ -5,6 +5,18 @@
   const UI = {};
 
   UI.isModalOpen = () => !!document.querySelector('.modal-backdrop');
+
+  /* A menu (details.menu) opens under its button, to the right; one that would run past the right edge of the screen
+     (on a phone, a menu at the right of a bar) opens leftwards instead. */
+  document.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('menu') || !d.open) return;
+    const items = d.querySelector('.menu-items');
+    if (!items) return;
+    items.classList.remove('flip');
+    const r = items.getBoundingClientRect();
+    if (r.right > window.innerWidth - 4 && r.left > window.innerWidth / 3) items.classList.add('flip');
+  }, true);
   UI.translitBadge = () => ''; // set by the app: the active typing scheme
 
   // buttons: [{label, value, kind: 'primary'|'danger'|'ghost', validate?: () => bool}]

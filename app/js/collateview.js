@@ -625,7 +625,7 @@
       // the base text this block comments on
       const link = layered && layered.links.find((l) => l.unit === b.table.unit);
       const baseText = link ? link.base.map((x) => layered.texts[x]).filter(Boolean) : [];
-      list.append(U.el('h3', null, b.table.unit), baseText.length ? U.el('blockquote', { class: 'ap-base', title: layered.title + ' ' + link.base.join(', ') }, baseText.join(' ')) : null, U.el('p', { class: 'ap-text', html: html.trim() }));
+      list.append(...[U.el('h3', null, b.table.unit), baseText.length ? U.el('blockquote', { class: 'ap-base', title: layered.title + ' ' + link.base.join(', ') }, baseText.join(' ')) : null, U.el('p', { class: 'ap-text', html: html.trim() })].filter(Boolean));
       const entry = (e) => U.el('li', { class: e.review ? 'ap-bad' : e.decision ? 'ap-decided' : '', dataset: { link: linkOf(e) } }, U.el('button', { class: 'link', title: 'Show this place', onclick: () => goRef && goRef(e) }, e.ref), ' ', U.el('span', { class: 'ap-entry', html: U.escXml(A.format(ed, e)).replace(/&lt;sup&gt;/g, '<sup>').replace(/&lt;\/sup&gt;/g, '</sup>') }));
       if (variants.length) list.append(U.el('ul', { class: 'ap-entries' }, variants.map(entry)));
       if (singular.length) list.append(U.el('div', { class: 'ap-tier' }, 'Singular readings'), U.el('ul', { class: 'ap-entries' }, singular.map(entry)));
