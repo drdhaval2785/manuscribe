@@ -716,6 +716,10 @@ details.menu > summary { list-style: none; }
 details.menu > summary::-webkit-details-marker { display: none; }
 details.menu > summary::after { content: ' ▾'; }
 details.menu .menu-items.flip { left: auto; right: 0; }
+/* a row that folds (UI.foldRow): its ⋯ menu lists what did not fit, each on a line of its own */
+.fold-menu .menu-items { min-width: 200px; }
+.fold-menu .menu-items > * { width: 100%; text-align: left; justify-content: flex-start; margin: 0; }
+.fold-menu .menu-items .cv-spacer, .fold-menu .menu-items .cv-count { display: none; }
 details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 160px; }
 
 /* the table window: tool groups, the folded decision panel */
@@ -833,7 +837,7 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .sbtn { min-height: 36px; min-width: 36px; }
   #statusbar { height: auto; min-height: 40px; }
   .badge { min-height: 32px; padding: 0 12px; }
-  .tb-btn { height: 34px; padding: 0 6px; font-size: 13px; line-height: 32px; }
+  .tb-btn { height: 40px; padding: 0 8px; font-size: 13px; line-height: 38px; }
   .calib-bar .btn, .calib-bar input { min-height: 40px; }
   #midbar-grip { top: -12px; height: 24px; }
   #midbar-grip::after { top: 9px; width: 56px; margin-left: -28px; }
@@ -908,6 +912,17 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .file-row .file-name { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
   .new-project .field { margin: 6px 0; }
 }
+/* a phone held sideways: the scan at the left, the typing area beside it (there is no height for one above the
+   other); the line view as upright (narrow.js) */
+@media (max-height: 460px) and (max-width: 900px) and (pointer: coarse) {
+  body:not(.calibrating) #workspace { display: grid; grid-template-columns: 42% minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+  body:not(.calibrating) #pdf-pane { grid-row: 1 / 4; grid-column: 1; height: auto !important; min-height: 0; }
+  body:not(.calibrating) #midbar { grid-row: 1; grid-column: 2; }
+  body:not(.calibrating) #editor-pane { grid-row: 2; grid-column: 2; min-height: 0; }
+  body:not(.calibrating) #statusbar { grid-row: 3; grid-column: 2; }
+  #midbar-grip { display: none; }
+  #topbar { min-height: 40px; }
+}
 /* a phone: the line view (narrow.js), and a header of icons */
 @media (max-width: 700px) {
   /* while the keyboard is open, the top bar gives its room to the typing area */
@@ -927,6 +942,18 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
   .calib-hint { font-size: 12.5px; padding: 6px 10px; }
   .calib-bar { height: auto; min-height: 48px; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; }
   .calib-label { flex-basis: 100%; order: 3; font-size: 12.5px; }
+  /* the edition on a phone: the title on a row of its own; the tools row scrolls sideways; a select as wide as the
+     row; the block's text shorter, so that the place opened is in view under it; long explanations clamped to two
+     lines until tapped */
+  .ed-title { flex-basis: 100%; order: -1; }
+  .cv-tools.in-view { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cv-tools.in-view .btn { white-space: nowrap; }
+  .nv-head select { max-width: 100%; }
+  .ct-head label:has(> select) { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; }
+  .ct-head label:has(> select) > select { flex: 1; }
+  .ct-text { max-height: 30vh; }
+  .cv-head .cv-count { flex-basis: 100%; order: 9; }
+  #edition-view p.help:not(.open), .modal p.help:not(.open) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
   /* the PDF toolbar across the pane: Calibrate (or Follow) at its left, in view whatever else is there */
   .pdf-tools { left: 8px; right: 8px; justify-content: flex-end; flex-wrap: nowrap; }
   .pdf-tools #btn-calibrate, .pdf-tools #btn-follow { order: -1; margin-right: auto; }
@@ -984,3 +1011,10 @@ details.menu .menu-items { position: absolute; z-index: 5; top: 100%; left: 0; m
 @keyframes xp-shine { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 @media (prefers-reduced-motion: reduce) { .xp-shine { animation-duration: 4s; } }
 .xp-progress-text { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* for a finger, last so that nothing above overrides it: the smallest texts 12 px, every tag button wide enough */
+@media (pointer: coarse) {
+  .brand-ver, .sbtn.font, .status-pos, .pdf-pageinfo { font-size: 12px; }
+  .tb-btn { min-width: 40px; }
+  .ts-loc { min-height: 36px; padding: 6px 8px; font-size: 12px; }
+}

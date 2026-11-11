@@ -239,6 +239,20 @@ function scanPdf() {
     await page.evaluate(() => localStorage.removeItem('manuscribe.narrow'));
     await open(820, 1180, true);
     const tab = await look();
+    await clean('the transcription on a tablet held upright');
+    // a phone held sideways: the scan at the left, the typing area beside it, the line view
+    await page.evaluate(() => localStorage.removeItem('manuscribe.narrow'));
+    await open(844, 390, true);
+    const side2 = await page.evaluate(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const p = r('pdf-pane'), e = r('editor-pane'), m = r('midbar'); return { pdfLeft: p.right <= e.left + 1 && p.right <= m.left + 1, pdfTall: p.height >= innerHeight - 46 - 2, lineView: !!document.querySelector('.folio.line-view'), narrow: ME.Narrow.on(), docW: document.documentElement.scrollWidth, vw: innerWidth }; });
+    T.check('a phone held sideways: the scan at the left, the typing area beside it, as tall as the screen, in the line view', side2.pdfLeft && side2.pdfTall && side2.lineView && side2.narrow && side2.docW <= side2.vw, side2);
+    await clean('the transcription on a phone held sideways');
+    // a tablet held sideways: the computer's layout, the side panel docked, the toolbar in view, buttons for a finger
+    await page.evaluate(() => localStorage.removeItem('manuscribe.narrow'));
+    await open(1180, 820, true);
+    const wide = await page.evaluate(() => { ME.App.toggleSidebar(true); const s = document.getElementById('sidebar'); return { docked: getComputedStyle(s).position !== 'fixed' && getComputedStyle(s).display !== 'none', toolbar: getComputedStyle(document.getElementById('toolbar')).display !== 'none', btn: document.getElementById('btn-sidebar').getBoundingClientRect().height >= 40 }; });
+    T.check('a tablet held sideways: the computer’s layout with the side panel docked and the toolbar in view, buttons for a finger', wide.docked && wide.toolbar && wide.btn, wide);
+    await clean('the transcription on a tablet held sideways');
+    await page.evaluate(() => ME.App.toggleSidebar(false));
     T.check('on a tablet held upright the folio keeps the project’s sizes, the tags are in the panel, and no page scrolls sideways', tab.edZoom === 1 && tab.tags && !tab.toolbar && tab.mid <= 56 && !tab.small.length && tab.docW <= tab.vw, tab);
     // a computer: as before
     await open(1500, 1000, false);
@@ -274,9 +288,13 @@ function scanPdf() {
     }
     await page.evaluate(async () => { ME.Edition.stepOf[ME.Edition.current.id] = 'collate'; await ME.Edition.draw(); });
     await sleep(500);
+    const clamp = await page.evaluate(() => { const p = document.querySelector('#edition-view .ed-stepbody p.help'); const before = getComputedStyle(p).webkitLineClamp; p.click(); const after = getComputedStyle(p).webkitLineClamp; p.click(); return { before, after, title: getComputedStyle(document.querySelector('.ed-title')).order }; });
+    T.check('on a phone the edition’s long explanations are clamped to two lines, a tap opens one, and the title has a row of its own', clamp.before === '2' && clamp.after === 'none' && clamp.title === '-1', clamp);
     await page.evaluate(() => document.querySelector('#edition-view [data-action="open-block"]').click());
     await sleep(1200);
     await clean('a block');
+    const fold = await page.evaluate(() => { const h = document.querySelector('.cv-head'), f = h.querySelector('.fold-menu'); const t = document.querySelector('.ct-head'), g = t.querySelector('.fold-menu'); return { folded: !!f && !f.hidden && !!f.querySelector('[data-action="block-next"]'), rows: Math.round(h.getBoundingClientRect().height), textFolded: !!g && !g.hidden && [...g.querySelectorAll('button')].some((b) => /Undo/.test(b.textContent)), keysHidden: getComputedStyle(document.querySelector('.ct-keys')).display === 'none', touchHelp: getComputedStyle(document.querySelector('.ct-touch')).display !== 'none' }; });
+    T.check('on a phone the block window folds its buttons into ⋯ menus, the tabs and Previous / Next staying; the keyboard help gives way to a line about tapping', fold.folded && fold.rows <= 130 && fold.textFolded && fold.keysHidden && fold.touchHelp, fold);
     await page.evaluate(() => { const u = document.querySelector('.ct-text .ct-u:not(.d-same)') || document.querySelector('.ct-text .ct-u'); if (u) u.click(); });
     await sleep(500);
     await clean('a block, a place opened');

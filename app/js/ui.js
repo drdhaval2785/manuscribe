@@ -6,6 +6,43 @@
 
   UI.isModalOpen = () => !!document.querySelector('.modal-backdrop');
 
+  /* A row of controls (a flex row that wraps) that folds: when the row does not fit on one line, its last children go
+     into a ⋯ menu at its end, one by one, until it does or only the first `keep` are left; measured again whenever
+     the row changes size (a phone turned, a window narrowed), and everything comes back when there is room.
+     -> the menu element */
+  UI.foldRow = function (row, opts) {
+    const keep = (opts && opts.keep) || 0;
+    const items = U.el('div', { class: 'menu-items' });
+    const menu = U.el('details', { class: 'menu fold-menu', hidden: true }, U.el('summary', { class: 'btn small', title: 'More' }, '⋯'), items);
+    const all = [...row.children];
+    row.appendChild(menu);
+    let busy = false;
+    const fit = () => {
+      if (busy || !row.isConnected) return;
+      busy = true;
+      try {
+        // everything back in the row; then, while it wraps, the last ones out
+        for (const c of all) if (c.parentNode !== row) row.insertBefore(c, menu);
+        menu.hidden = true;
+        menu.open = false;
+        const tallest = () => Math.max(1, ...all.filter((c) => c.parentNode === row).map((c) => c.getBoundingClientRect().height));
+        const wraps = () => row.getBoundingClientRect().height > tallest() * 1.6;
+        for (let k = all.length - 1; k >= keep && wraps(); k--) { menu.hidden = false; items.insertBefore(all[k], items.firstChild); }
+      } finally { busy = false; }
+    };
+    if (window.ResizeObserver) new ResizeObserver(() => fit()).observe(row);
+    requestAnimationFrame(fit);
+    menu.fit = fit;
+    return menu;
+  };
+
+  // on a phone the longer explanations are clamped to two lines (app.css): a tap opens one, another closes it
+  document.addEventListener('click', (e) => {
+    if (!ME.Device || !ME.Device.narrow() || !e.target.closest) return;
+    const p = e.target.closest('p.help');
+    if (p && !e.target.closest('a, button, input, select, label, summary')) p.classList.toggle('open');
+  });
+
   /* A menu (details.menu) opens under its button, to the right; one that would run past the right edge of the screen
      (on a phone, a menu at the right of a bar) opens leftwards instead. */
   document.addEventListener('toggle', (e) => {

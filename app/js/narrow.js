@@ -11,7 +11,8 @@
    not cover the line being typed. */
 (function (ME) {
   const Narrow = {};
-  const mq = window.matchMedia ? window.matchMedia('(max-width: 700px)') : { matches: false, addEventListener() {} };
+  // a phone: narrow, or held sideways (no taller than 460 px, with a finger)
+  const mq = window.matchMedia ? window.matchMedia('(max-width: 700px), ((max-height: 460px) and (pointer: coarse))') : { matches: false, addEventListener() {} };
   const KEY = 'manuscribe.narrow';
   const LEGIBLE = 16; // px: the size the letters are brought to
   Narrow.LETTERS_IN_VIEW = 22; // akṣaras of the scan across the screen: readable, with room for the guess of where the letter is

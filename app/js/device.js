@@ -6,7 +6,8 @@
 (function (ME) {
   const D = {};
   const q = (s) => (window.matchMedia ? window.matchMedia(s) : { matches: false, addEventListener() {} });
-  const narrow = q('(max-width: 700px)'), sheets = q('(max-width: 900px)'), tablet = q('(max-width: 1024px)'), coarse = q('(pointer: coarse)');
+  // narrow: a phone upright, or held sideways (no taller than 460 px, with a finger)
+  const narrow = q('(max-width: 700px), ((max-height: 460px) and (pointer: coarse))'), sheets = q('(max-width: 900px)'), tablet = q('(max-width: 1024px)'), coarse = q('(pointer: coarse)');
   D.NARROW = 700; D.SHEETS = 900; D.TABLET = 1024;
   // forced on by a test, or by a computer with a touch screen the browser does not report
   let forced = null;

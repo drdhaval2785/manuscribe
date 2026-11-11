@@ -1375,6 +1375,7 @@
           U.el('details', { class: 'ct-help' }, U.el('summary', null, 'What these mean'),
             U.el('dl', null, ['crux', 'lacuna', 'sure', 'why', ...REASONS, 'emend', 'conj', 'source', 'join', 'withdraw'].filter((k) => HELP[k]).flatMap((k) => [U.el('dt', null, HELP[k][2] || k), U.el('dd', null, HELP[k][0], ' ', U.el('span', { class: 'ct-eg' }, HELP[k][1]))]))));
         more.addEventListener('toggle', () => { CollateView.moreOpen = more.open; });
+        if (ME.Device && ME.Device.narrow()) setTimeout(() => textPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
         textPanel.append(...[
           U.el('div', { class: 'ct-settled' }, d ? DECIDED[d.type] || SETTLED.chosen : (SETTLED[u.decided] || '') + (!u.differs ? ' If they are all wrong here, Emend… gives your own text; to emend several words as one, drag across them or Shift+click the last.' : ''), !d && u.decided === 'trust' ? ' Your trust order: ' + Collate.trustOrder(ed).join(' › ') + '.' : ''),
           u.review && u.review.conflict ? conflictBox(u) : u.review ? U.el('div', { class: 'nv-warn' }, 'Your decision here is waiting for review: ' + u.review.why + '. Decide again to settle it.') : null,
@@ -1416,6 +1417,7 @@
         const fields = emendFields(null, apply);
         fields.input.value = proposed;
         textPanel.innerHTML = '';
+        if (ME.Device && ME.Device.narrow()) setTimeout(() => textPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
         textPanel.append(...[
           U.el('div', { class: 'ct-settled' }, units.length + ' words chosen, to be emended as one place. Drag, or Shift+click, to change the stretch; Esc to leave it.'),
           decided ? U.el('div', { class: 'nv-warn' }, 'Your decisions on ' + decided + ' of these words give way to this one; withdrawing it brings them back.') : null,
@@ -1580,7 +1582,7 @@
       }, list));
     };
     const textPane = U.el('div', { class: 'ct-pane' },
-      U.el('div', { class: 'nv-head' },
+      U.el('div', { class: 'nv-head ct-head' },
         U.el('button', { class: 'btn small', title: 'P', onclick: () => text.jump(-1) }, '‹ Previous'),
         U.el('button', { class: 'btn small', title: 'N', onclick: () => text.jump(1) }, 'Next ›'),
         U.el('label', null, 'Go through ', filterSel),
@@ -1640,7 +1642,7 @@
         U.el('span', { class: 'cv-key v' }, 'differs'), ' ', U.el('span', { class: 'cv-key by-rule' }, 'changed by a rule'), ' ', U.el('span', { class: 'cv-key gap' }, Norm.GAP), ' text lost, not an omission · ', U.el('span', { class: 'cv-key lk' }, 'locked'), ' · ', U.el('span', { class: 'cv-key linked' }, 'transposition'), ' · ',
         (table.imported ? 'Imported: ' + table.imported + '. Tokens by ' : table.oneWitness ? 'One witness, by ' : 'Aligned by ' + params.aligner.tool + ' ' + params.aligner.version + (params.aligner.base ? ' against ' + params.aligner.base : '') + ', by ') + params.tokens + ', profile ' + params.profile + '. ' + (table.oneWitness ? '' : params.aligner.tool === Collate.ENGINES.saktumiva.tool ? 'Rows follow the aligner’s guide tree, so similar witnesses sit together.' : 'Rows are in the order of trust.'))]);
     body.append(...[
-      U.el('div', { class: 'nv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, againBtn, compareBtn, checkBtn,
+      U.el('div', { class: 'nv-head cv-head' }, textTab, letterTab, appTab, progressBox, status, U.el('span', { class: 'cv-spacer' }), prevBlock, nextBlock, againBtn, compareBtn, checkBtn,
         U.el('button', { class: 'btn small', title: 'Export this block, or the whole work', dataset: { action: 'export-block' }, onclick: () => ME.ExportView.open({ kind: 'edition', ed, list, tables: [table], workId, redraw }) }, 'Export…')),
       stale.cls === 'warn' && !table.imported ? U.el('div', { class: 'nv-warn cv-stale' }, 'This table may not match the witnesses as they stand now (' + stale.text + '). Click Collate to bring it up to date. Your corrections stay.') : null,
       textPane, letterPane, appPane].filter(Boolean));
@@ -1648,6 +1650,10 @@
       title: 'Collation: ' + table.unit, body, wide: true, className: 'cv-modal', buttons: [{ label: 'Close', value: null }],
       onOpen: () => {
         setMode('text');
+        // on a narrow screen the rows of buttons fold what does not fit into a ⋯ menu: the tabs stay, and the way
+        // from place to place
+        UI.foldRow(body.querySelector('.cv-head'), { keep: 6 });
+        UI.foldRow(body.querySelector('.ct-head'), { keep: 3 });
         // the keys work at once
         setTimeout(() => { if (state.mode === 'text') textBox.focus({ preventScroll: true }); }, 0);
         /* where to land: the first or last place to decide (coming from the block before or after), or one place,
