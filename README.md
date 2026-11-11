@@ -725,8 +725,8 @@ Every output below is in **Export…**, by block or by work. The dialog asks fir
 the options of that kind; it remembers your choice in each.
 
 **Versions.** Every page of the PDF, the print page and the LaTeX edition carries, in small type at its foot, the
-edition's version and Manuscribe's: *Draft of 8 November 2026 · Manuscribe 0.10.5*, or *Version 1.0, issued 8
-November 2026 · Manuscribe 0.10.5* once a version is issued (Publish › Issue). The citation on the front page, the
+edition's version and Manuscribe's: *Draft of 8 November 2026 · Manuscribe 0.10.6*, or *Version 1.0, issued 8
+November 2026 · Manuscribe 0.10.6* once a version is issued (Publish › Issue). The citation on the front page, the
 reader, the plain text and the TEI (`editionStmt`, `appInfo`) carry them too, and so do a transcription's TEI and
 HTML page (Manuscribe's). On screen, Manuscribe's version is beside its name, and an edition's under its title.
 
