@@ -11,12 +11,16 @@ const { launch, checks } = require('./h');
       tripatha: [{ top: 2, main: 2, bottom: 2 }, { '1r': { boxes: { top: ['<x-marker type="p-start" id="c1"/>उपरि एक ', 'उपरि द्वि '], main: ['<x-marker type="p-start" id="p1"/>मूल एक ', 'मूल द्वि<x-marker type="p-end"/> '], bottom: ['अधो एक ', 'अधो द्वि<x-marker type="p-end"/>'] } } }],
       pancapatha: [{ top: 2, left: 2, main: 2, right: 2, bottom: 2 }, { '1r': { boxes: { top: ['<x-marker type="p-start" id="c1"/>उ '], right: ['द '], left: ['वा '], bottom: ['अ<x-marker type="p-end"/> '], main: ['<x-marker type="p-start" id="p1"/>मू<x-marker type="p-end"/> '] } } }],
       interlinear: [{ main: 2 }, { '1r': { boxes: { main: ['<x-marker type="p-start" id="p1"/>मूल एक ', 'मूल द्वि<x-marker type="p-end"/> '], gloss: ['टीका एक ', 'टीका द्वि '] } } }],
+      // paragraph boundaries at line ends: a paragraph ending with a space after its marker (the file drops it), one
+      // ending and the next beginning with no space; two spaces at the end of a line
+      boundaries: [{ main: 5 }, { '1r': { boxes: { main: ['<x-marker type="p-start" id="p1"/>पहिला वाक्य  ', 'दूसरी पंक्ति<x-marker type="p-end"/> ', '<x-marker type="p-start" id="p2"/>तीसरी<x-marker type="p-end"/><x-marker type="p-start" id="p3"/>', 'चौथी पंक्ति ', 'पांचवी<x-marker type="p-end"/>'] } } }, 'linear'],
     };
-    for (const [type, [lines, pages]] of Object.entries(cases)) {
-      const p = Model.upgrade(Model.newProject({ meta: { title: 'T', siglum: 'T' }, layoutType: type, lines, folios: {} }));
+    for (const [type, [lines, pages, layout]] of Object.entries(cases)) {
+      const lt = layout || type;
+      const p = Model.upgrade(Model.newProject({ meta: { title: 'T', siglum: 'T' }, layoutType: lt, lines, folios: {} }));
       p.pdf = { name: 'x', pages: 2 }; p.pages = pages;
       const x1 = Export.build(p, {}).xml;
-      const f = Model.upgrade(Model.newProject({ meta: { title: 'i' }, layoutType: type, lines, folios: {} }));
+      const f = Model.upgrade(Model.newProject({ meta: { title: 'i' }, layoutType: lt, lines, folios: {} }));
       f.pdf = { name: 'x', pages: 2 };
       Importer.apply(f, Importer.parse(x1, {}), '1r', { fresh: true });
       const x2 = Export.build(f, {}).xml;
@@ -32,7 +36,7 @@ const { launch, checks } = require('./h');
     out.tagProblems = Importer.tagProblems('<TEI><text><body><p><note>open <lb/>never closed</p></body></text></TEI>').length > 0;
     return out;
   });
-  for (const t of ['linear', 'tripatha', 'pancapatha', 'interlinear']) T.check(t + ': export, import, export gives the same body', r[t]);
+  for (const t of ['linear', 'tripatha', 'pancapatha', 'interlinear', 'boundaries']) T.check(t + ': export, import, export gives the same body', r[t]);
   T.check('pañcapāṭha commentary is top, right, left, bottom', r.pancaOrder === 'top,right,left,bottom', r.pancaOrder);
   T.check('recto and verso numbering', r.recto === 'p1 5r 5v 6r 6v', r.recto);
   T.check('page numbering', r.page === 'p1 9 10 11 12', r.page);

@@ -36,7 +36,7 @@ apart from `t-features.js`, which starts at the default.
 
 | File | What it checks |
 |---|---|
-| `t-xml.js` | XML out and back in gives the same text in all four layouts; folio and page numbering |
+| `t-xml.js` | XML out and back in gives the same text in all four layouts, and where paragraphs begin or end at the end of a line (no space added there, no `break="no"` after it, the spaces at a line end kept as they are); folio and page numbering |
 | `t-normalize.js` | Tokens map back to their lines; before- and after-correction layers; the rules and their published examples |
 | `t-collate.js` | Editing operations and undo; on the sample, tokens back to their lines, identical re-runs, exchange formats, and locks that survive random edits |
 | `t-calibrate.js` | Calibration in one pane: the PDF takes the whole window while the boxes are drawn, zooms in to draw closely, a box drawn zoomed in lands where it was drawn, and the typing area comes back as it was; on a phone the whole page is in view below the bar at both steps, whatever height the bar has, Fit brings it back after a pinch, and the page is kept away from the screen's edges, zoomed in too (skipped without `linear.pdf`) |

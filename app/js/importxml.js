@@ -197,7 +197,20 @@
         if (c.t) break;
       }
     }
+    // a paragraph or verse begins or ends at the end of the line (the markers come before the <lb/>)
+    const BLOCK_MARK = /^<x-marker\b[^>]*\btype="(p-start|p-end|lg-start|lg-end|l)"/;
+    function blockEnds() {
+      for (let k = cur.chunks.length - 1; k >= 0; k--) {
+        const c = cur.chunks[k];
+        if (c.x !== undefined) { if (BLOCK_MARK.test(c.x)) return true; continue; }
+        if (c.t !== undefined && c.t) return false;
+      }
+      return false;
+    }
+    // the words of two lines are kept apart by a space at the end of the first, unless a paragraph or verse
+    // boundary stands there (the export writes none, and the boundary keeps them apart)
     function ensureSpace() {
+      if (blockEnds()) return;
       const c = tailText();
       if (!c || !/[\s|।॥]$/.test(c.t)) cur.chunks.push({ t: ' ' });
     }
@@ -213,10 +226,11 @@
           applyPending();
         }
         if (hasLb[seg]) {
-          // a carriage return just before <lb/> or <pb/> is only the layout of the file; a space typed before it counts
+          // a carriage return just before <lb/> or <pb/> is only the layout of the file; the spaces typed before it
+          // count, as many as there are
           const nx = toks[ti + 1];
           const atBreak = nx && nx.t === 'empty' && (nx.name === 'lb' || nx.name === 'pb' || nx.name === 'cb');
-          const t = (atBreak ? k.s.replace(/\s*\n\s*$/, (m) => (/^[ \t]/.test(m) ? ' ' : '')) : k.s).replace(/\s*\n\s*/g, ' ');
+          const t = (atBreak ? k.s.replace(/([ \t]*)\n\s*$/, '$1') : k.s).replace(/\s*\n\s*/g, ' ');
           addText(cur.hasText ? t : t.replace(/^\s+/, ''));
         } else {
           k.s.split('\n').forEach((part, j) => {

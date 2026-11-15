@@ -68,18 +68,31 @@
 
   /* ---------- token streams ---------- */
 
-  /* Does a line end a word? A line ending in a space (or a daṇḍa) does; otherwise its last word
-     continues on the next line, which then starts with <lb break="no"/>. Notes, additions written
-     outside the line and markers at the end of a line do not count. An explicit break="no" is kept
-     unless the line now really ends in a space. */
+  /* Does a line end a word? A line ending in a space (or a daṇḍa) does, and so does one at whose end a
+     paragraph or verse begins or ends; otherwise its last word continues on the next line, which then
+     starts with <lb break="no"/>. Notes, additions written outside the line and markers at the end of a
+     line do not count as text. An explicit break="no" is kept unless the line now really ends in a space. */
+  const BLOCK_MARK = new Set(['p-start', 'p-end', 'lg-start', 'lg-end', 'l']);
+  const aside = (n) => ['note', 'metamark', 'pc', 'milestone', 'corr'].includes(n.nodeName) || (n.nodeName === 'add' && TEI.placeOf('add', TEI.attrsOf(n)) !== 'inline');
+  function endsAtBlock(r) {
+    for (let n = r.lastChild; n; n = n.previousSibling) {
+      if (n.nodeType === 3) { if (/\S/.test(n.nodeValue.replace(/\u200B/g, ''))) return false; continue; }
+      if (n.nodeType !== 1) continue;
+      if (n.nodeName === 'x-marker') { if (BLOCK_MARK.has(n.getAttribute('type'))) return true; continue; }
+      if (aside(n)) continue;
+      return false;
+    }
+    return false;
+  }
   function lineEnd(tei) {
     const r = TEI.parse(tei);
     if (!r) return { open: false, spaced: true, rawSpaced: true };
+    const atBlock = endsAtBlock(r);
     for (const el of Array.from(r.querySelectorAll('note, metamark, x-marker, pc, milestone, corr, add'))) {
       if (el.nodeName !== 'add' || TEI.placeOf('add', TEI.attrsOf(el)) !== 'inline') el.remove();
     }
     const text = r.textContent.replace(/\u200B/g, '');
-    const spaced = !text.trim() || /\s$/.test(text);
+    const spaced = !text.trim() || /\s$/.test(text) || atBlock;
     return { open: !spaced && !/[|।॥]$/.test(text), spaced, rawSpaced: /\s(?:<[^>]+>)*$/.test(tei) };
   }
 

@@ -120,7 +120,8 @@ whole manuscript, and you can recalibrate a single folio later.
 **3. Type.** Click a line and type. Press **Enter** at the end of each line of the manuscript.
 
 A line that does not end in a space continues its word on the next line, and the export marks this
-as `<lb n="…" break="no"/>`. A line ending in a space or a daṇḍa gives a plain `<lb n="…"/>`.
+as `<lb n="…" break="no"/>`. A line ending in a space or a daṇḍa gives a plain `<lb n="…"/>`, and so does
+a line at whose end a paragraph or verse begins or ends.
 
 **4. Tag.** Select some text and press a shortcut, or click the toolbar. On a Mac the default is
 **⌃⌥ + letter**, and on Windows and Linux **Alt + letter**. **⌃⌥D** or **Alt+D** marks a deletion.
@@ -1072,7 +1073,10 @@ folios are left alone.
 - `<pb n="0005_1"/>` is folio 5, first side (5r), and `<pb n="0005_2"/>` is its back (5v). The export
   writes them back in the same form.
 - `<lb n="18"/>` and `<lb n="18" break="no"/>` start a new line and keep their number and meaning. The
-  lines after one are counted on from it.
+  lines after one are counted on from it. Before a plain `<lb/>` a line that ends without a space is given
+  one, so that its last word stays apart from the next line's first, except where a paragraph or verse begins
+  or ends at that line end; the spaces at the end of a line are kept as they are. A file the export wrote
+  comes back as it was.
 - On a side with no `<lb/>`, each carriage return is a line. A space before the carriage return gives
   `<lb n="18"/>`, and no space gives `<lb n="18" break="no"/>`.
 - A tag open across a line break, such as `<hi>`, stays one element and shows on both lines.
