@@ -122,9 +122,22 @@
     let pageNo = 0;
     const report = { pages: 0, overfull: 0, pagesInfo: [] };
     let pg = null, textLines = 0;
+    /* A page that is finished is checked (its markers and notes, its text clear of its notes), and then taken out of
+       the layout until the end: the browser lays out only the page being filled, however long the edition, and has
+       nothing to lay out again when it is short of memory and drops what it had measured. */
+    function shut(page) {
+      const p = page.el;
+      const inText = [...p.querySelectorAll('.body .an')].map((x) => x.closest('[data-block]').dataset.block + '#' + x.dataset.k);
+      const inFoot = [...new Set([...p.querySelectorAll('.foot .note')].map((x) => x.dataset.k))];
+      const body = page.body.getBoundingClientRect(), fr = page.foot.getBoundingClientRect(), pr = p.getBoundingClientRect();
+      report.pagesInfo.push({ inText, inFoot, clear: !page.foot.childElementCount || body.bottom <= fr.top + 0.5, within: fr.bottom <= pr.bottom + 0.5 });
+      if (page.onShut) page.onShut();
+      p.classList.add('off');
+    }
     function newPage(running) {
       // the lines of the page before go into the count through the text
       if (pg && pg.lines) textLines += pg.lines;
+      if (pg) shut(pg);
       const p = el('section', 'page');
       pageNo++;
       p.id = 'page-' + pageNo;
@@ -194,7 +207,6 @@
     }
     // ---- the edition ----
     pg = newPage(true);
-    const measure = el('div', 'body measure');
     // a long edition: the page says how far it has got, and lets others draw. Its work is the blocks, then the
     // indices a dozen entries at a time; rest(done) says how many of those units are done
     const channel = new MessageChannel();
@@ -211,19 +223,17 @@
     for (const b of D.blocks) {
       blockNo++;
       await rest(blockNo);
-      // the whole block, at the width of the page, to find its lines
-      const page0 = pg.el;
-      measure.style.width = pg.body.getBoundingClientRect().width + 'px';
-      page0.appendChild(measure);
+      /* The whole block, to find its lines: set on the page itself, where it will stand if it fits whole, as most
+         blocks do. It is then laid out once, not once to be measured and again in its place. */
       const depthCls = b.depth ? ' d' + Math.min(b.depth, 6) : '';
-      const full = el('p', 'txt' + depthCls);
+      const full = el('p', 'txt' + depthCls + ' first');
       full.lang = D.lang; full.dir = 'auto';
+      full.dataset.from = 0; full.dataset.block = b.id;
       full.innerHTML = b.html;
       // measured with the numbers its markers will have on this page, so that renumbering them cannot make a line
       // longer (on the next page they start again from 1, and are no wider)
       if (D.byMarkers) { let k = pg.notes.length; for (const sup of full.querySelectorAll('.an sup')) sup.textContent = String(++k); }
-      measure.innerHTML = '';
-      measure.appendChild(full);
+      pg.body.appendChild(full);
       if (!textDir) textDir = getComputedStyle(full).direction;
       // cut its text into words, each in a span, so that each knows its line
       const items = [];
@@ -254,7 +264,7 @@
         it.line = Math.max(0, line);
       }
       const nLines = line + 1;
-      page0.removeChild(measure);
+      const lineH = parseFloat(getComputedStyle(full).lineHeight) || 0;
       const notesByK = new Map(b.notes.map((n) => [n.k, n]));
       const noteOf = (k) => notesByK.get(k);
       // where each line's pieces begin: a long block is not searched for each fragment of it
@@ -288,7 +298,9 @@
         await rest(blockNo + at / items.length);
         const a = items[at].line;
         const headEl = null;
-        let best = -1, shown = null;
+        // at the start of the block, what is shown is the block itself (put back, if it was sent on to a new page)
+        if (at === 0 && !full.isConnected) pg.body.appendChild(full);
+        let best = -1, shown = at === 0 ? full : null;
         const tryUpTo = (to) => {
           const p = fragment(at, to);
           if (shown) shown.replaceWith(p); else pg.body.appendChild(p);
@@ -300,10 +312,32 @@
           pg.notes = kept;
           return ok;
         };
-        // the most lines that fit: by leaps, doubling, and then halving the gap between what fits and what does not
-        for (let lo = a - 1, hi = nLines, leap = 1; lo + 1 < hi;) {
-          const z = hi === nLines ? Math.min(lo + leap, nLines - 1) : (lo + hi) >> 1;
-          if (tryUpTo(endOf(z))) { lo = best = z; leap *= 2; } else hi = z;
+        /* The most lines that fit. The first guess is what the room left on the page holds, at the height of a line:
+           it is right, or a line out, nearly always. Then by leaps, doubling, and halving the gap between what fits
+           and what does not. */
+        let whole = false;
+        if (at === 0) {
+          // does the block fit as it stands, with its notes?
+          const kept = pg.notes;
+          pg.notes = kept.concat(notesIn(0, items.length));
+          drawNotes(pg, true);
+          whole = fits(pg);
+          pg.notes = kept;
+          if (whole) best = nLines - 1;
+        }
+        if (!whole) {
+          // (a block that did not fit whole: its last line is known not to)
+          let lo = a - 1, hi = at === 0 ? nLines - 1 : nLines;
+          if (lineH && lo + 1 < hi) {
+            const page = pg.el.getBoundingClientRect(), from = shown ? shown.getBoundingClientRect().top : pg.body.getBoundingClientRect().bottom;
+            const limit = pg.foot.childElementCount ? pg.foot.getBoundingClientRect().top - 8 : page.bottom - parseFloat(getComputedStyle(pg.el).paddingBottom);
+            const guess = Math.max(a, Math.min(hi - 1, a - 1 + Math.floor((limit - from) / lineH)));
+            if (tryUpTo(endOf(guess))) lo = best = guess; else hi = guess;
+          }
+          for (let leap = 1; lo + 1 < hi;) {
+            const z = hi === nLines ? Math.min(lo + leap, nLines - 1) : (lo + hi) >> 1;
+            if (tryUpTo(endOf(z))) { lo = best = z; leap *= 2; } else hi = z;
+          }
         }
         if (best < 0) {
           shown.remove();
@@ -325,7 +359,7 @@
         let to = endOf(best);
         /* Set in place the text can take up a little less room than it was measured to, and the last line then comes out
            short and is stretched across the page. So as many pieces of the next line as still leave it the same height. */
-        if (to < items.length) {
+        if (!whole && to < items.length) {
           tryUpTo(to);
           const height = shown.getBoundingClientRect().height;
           for (let lo = to, hi = endOf(best + 1); lo + 1 < hi;) {
@@ -333,8 +367,8 @@
             if (tryUpTo(mid) && shown.getBoundingClientRect().height <= height + 0.5) { lo = to = mid; } else hi = mid;
           }
         }
-        const p = fragment(at, to);
-        shown.replaceWith(p);
+        const p = whole ? full : fragment(at, to);
+        if (!whole) shown.replaceWith(p);
         pg.notes = pg.notes.concat(notesIn(at, to));
         drawNotes(pg);
         numberLines(pg, p);
@@ -373,38 +407,77 @@
     // would fit nowhere and have a page to itself, cut off)
     const item = (text, ref, cls) => { const li = el('li', [cls, text.length + (ref || '').length > 300 ? 'long' : ''].filter(Boolean).join(' ')); li.lang = D.lang; li.dir = 'auto'; li.textContent = text; if (ref) { const r = el('span', 'ref'); r.textContent = ' ' + ref; li.appendChild(r); } return li; };
     let batches = 0;
+    /* An index is long, and a list in columns is laid out whole, several times over, whenever it is measured: so it
+       is measured as little as may be. Every entry's height is taken once, in a single column as wide as a column of
+       the list, a great many entries to one layout. Each page then takes the entries whose heights add up to its
+       columns, and the browser checks that: the list is given the height of the room on the page and filled column
+       after column, which is one pass of layout, and an entry that does not fit shows in a column beyond the last.
+       When a page is done its list is left to balance its columns, as it is printed. */
     const flow = async (items, wide) => {
-      let ul = el('ul', 'idx' + (wide ? ' wide' : ''));
-      pg.body.appendChild(ul);
-      for (let i = 0; i < items.length;) {
-        await rest(D.blocks.length + batches++);
-        // a dozen at a time, then measured
-        const from = i;
-        for (const upTo = Math.min(items.length, i + 12); i < upTo; i++) ul.appendChild(items[i]);
-        if (fits(pg)) continue;
-        // more than fits: back off to what does, and on upon a new page; one entry that fits nowhere is set anyway
-        while (i > from && !fits(pg)) { ul.removeChild(ul.lastElementChild); i--; }
-        while (ul.childElementCount && !fits(pg)) { ul.removeChild(ul.lastElementChild); i--; }
-        if (!ul.childElementCount && pg.body.childElementCount === 1) { ul.appendChild(items[i]); i++; report.overfull++; }
-        if (!ul.childElementCount) pg.body.removeChild(ul);
-        pg = newPage(true);
-        ul = el('ul', 'idx' + (wide ? ' wide' : ''));
-        pg.body.appendChild(ul);
+      if (!items.length) return;
+      const cls = 'idx' + (wide ? ' wide' : '');
+      const newList = () => { const x = el('ul', cls); pg.body.appendChild(x); return x; };
+      let ul = newList();
+      const cs = getComputedStyle(ul);
+      const ncol = parseInt(cs.columnCount, 10) || (wide ? 2 : 3), gap = parseFloat(cs.columnGap) || 0;
+      const colW = (ul.getBoundingClientRect().width - gap * (ncol - 1)) / ncol;
+      const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.45;
+      // 1. the height of each entry
+      const probe = el('ul', cls);
+      probe.style.cssText = 'columns:auto;position:absolute;visibility:hidden;left:0;top:0;width:' + colW + 'px';
+      pg.el.appendChild(probe);
+      const h = new Float64Array(items.length + 1);
+      for (let s = 0; s < items.length; s += 1500) {
+        await rest(D.blocks.length + batches);
+        const part = items.slice(s, s + 1500);
+        for (const li of part) probe.appendChild(li);
+        part.forEach((li, k) => { h[s + k] = li.getBoundingClientRect().height + (li.classList.contains('idx-work') ? parseFloat(getComputedStyle(li).marginTop) || 0 : 0); });
+        probe.textContent = '';
       }
-      if (!ul.childElementCount) pg.body.removeChild(ul);
+      probe.remove();
+      // 2. page by page
+      const limitOf = (page) => (page.foot.childElementCount ? page.foot.getBoundingClientRect().top - 8 : page.el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(page.el).paddingBottom));
+      // has the last entry run past the foot of the last column?
+      const over = () => {
+        const last = ul.lastElementChild;
+        if (!last) return false;
+        const u = ul.getBoundingClientRect(), rs = last.getClientRects(), r = rs[rs.length - 1];
+        return !r || r.right > u.right + 0.5 || r.left < u.left - 0.5 || r.bottom > u.bottom + 0.5;
+      };
+      for (let i = 0; i < items.length;) {
+        await rest(D.blocks.length + batches);
+        const room = limitOf(pg) - ul.getBoundingClientRect().top;
+        // the entries that fill the columns, by their heights; a long entry, or one taller than a column, breaks at a line
+        let col = 0, used = 0, j = i, left = h[i];
+        while (j < items.length && col < ncol) {
+          if (used + left <= room + 0.5) { used += left; j++; left = h[j]; continue; }
+          if (items[j].classList.contains('long') || used === 0) left -= Math.max(0, Math.floor((room - used + 0.5) / lh)) * lh;
+          col++; used = 0;
+        }
+        let n = j - i;
+        ul.style.height = Math.max(0, room) + 'px'; ul.style.columnFill = 'auto';
+        for (let k = 0; k < n; k++) ul.appendChild(items[i + k]);
+        // the browser has the last word: fewer if they run over, more while they fit
+        while (n && over()) { ul.removeChild(ul.lastElementChild); n--; }
+        if (n === j - i) while (i + n < items.length) { ul.appendChild(items[i + n]); if (over()) { ul.removeChild(ul.lastElementChild); break; } n++; }
+        // one entry that fits nowhere is set anyway
+        if (!n && pg.body.childElementCount === 1) { ul.appendChild(items[i]); n = 1; report.overfull++; }
+        batches += Math.ceil(n / 12) || 1;
+        i += n;
+        if (!n) pg.body.removeChild(ul);
+        else { const list = ul; pg.onShut = () => { list.style.height = ''; list.style.columnFill = ''; }; }
+        if (i < items.length) { pg = newPage(true); ul = newList(); }
+      }
     };
     const section = async (title, items, wide) => { if (!items.length) return; pg = newPage(true); pg.body.appendChild(el('h2', null, title)); await flow(items, wide); };
     await section('Index of pādas', (IX.padas || []).map(([p, r]) => item(p, r)));
     await section('Index of words', (IX.words || []).map(([w, r]) => item(w, r.join(', '))));
     await section('Index of quotations', (IX.quotes || []).map(([t, r, w, n]) => item(t, r + (w ? ' (' + w + (n ? ' ' + n : '') + ')' : ''))), true);
     await section('Quotations by work', (IX.byWork || []).flatMap(([w, qs]) => [item(w || 'Work not named', '', 'idx-work')].concat(qs.map(([t, r, n]) => item(t, r + (n ? ' ' + n : ''))))), true);
-    // for checking: on each page, the markers in its text and the notes at its foot
-    for (const p of document.querySelectorAll('.page')) {
-      const inText = [...p.querySelectorAll('.body .an')].map((x) => x.closest('[data-block]').dataset.block + '#' + x.dataset.k);
-      const inFoot = [...new Set([...p.querySelectorAll('.foot .note')].map((x) => x.dataset.k))];
-      const body = p.querySelector('.body').getBoundingClientRect(), foot = p.querySelector('.foot'), fr = foot.getBoundingClientRect(), pr = p.getBoundingClientRect();
-      report.pagesInfo.push({ inText, inFoot, clear: !foot.childElementCount || body.bottom <= fr.top + 0.5, within: fr.bottom <= pr.bottom + 0.5 });
-    }
+    // the last page is checked as each one before it was; then all are shown again, to read and to print, unless
+    // they are to be taken one at a time (D.hold: the PDF captured from the page, Capture.pdf)
+    shut(pg);
+    if (!D.hold) for (const p of document.querySelectorAll('.page.off')) p.classList.remove('off');
     report.pages = pageNo;
     window.__paginated = report;
     if (D.autoPrint) setTimeout(() => window.print(), 300);
@@ -422,7 +495,7 @@ body { font-family: var(--font); color: #1d1a16; }
 .body { font-size: var(--size); line-height: 1.55; }
 /* the edition's version and Manuscribe's, under the notes of every page */
 .versions { position: absolute; left: 20mm; right: 18mm; bottom: 8mm; text-align: center; font-size: calc(var(--size) * 0.6); color: #8a7c66; }
-.measure { position: absolute; visibility: hidden; left: 0; top: 0; }
+.page.off { display: none; }
 .txt { margin: 0 0 0.4em; text-align: justify; hyphens: auto; overflow-wrap: break-word; }
 .txt.cont { text-align-last: justify; }
 .bid { font-size: calc(var(--size) * 0.72); color: #6b5a3e; margin-top: 0.7em; }
@@ -470,6 +543,7 @@ h2 { font-size: calc(var(--size) * 1.1); font-weight: 600; margin: 6mm 0 2mm; }
   P.html = function (ed, list, built, opts) {
     const d = P.data(ed, list, built, opts);
     d.autoPrint = !!(opts && opts.autoPrint);
+    d.hold = !!(opts && opts.hold);
     const s = P.settings(ed);
     const faces = ((opts && opts.fonts) || []).map((f) => "@font-face { font-family: '" + f.name.replace(/'/g, '') + "'; src: url(data:font/" + (f.format || 'ttf') + ';base64,' + f.data + "); }").join('\n');
     // the edition's font file, then the fonts the editor names, then Manuscribe's own, then the browser's

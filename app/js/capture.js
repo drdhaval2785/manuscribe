@@ -25,7 +25,8 @@
     await ME.Shaper.load();
     const embedded = await ME.PrintHTML.fonts(ed, built, list);
     say(0.22, 'Laying out the pages…');
-    const html = ME.PrintHTML.html(ed, list, built, { fonts: embedded, bare: !!o.bare });
+    // hold: the pages stay out of the layout when they are done, and are taken one at a time below
+    const html = ME.PrintHTML.html(ed, list, built, { fonts: embedded, bare: !!o.bare, hold: true });
     // the fonts Manuscribe can set text in: those of the page that are TrueType, in the page's order
     // (Tiro is among them where the edition has Devanagari); the first is the document's own font
     const tiro = embedded.some((f) => f.kind === 'tiro') ? await ME.Publish.font() : null;
@@ -79,11 +80,15 @@
         return null;
       };
       const onePage = (pageEl, pi) => {
+        // only this page is laid out while it is read
+        pageEl.classList.remove('off');
         const pr = pageEl.getBoundingClientRect();
         const k = W / pr.width; // points to the CSS pixel
         const page = doc.page(W, H);
         // rules: the lines under the running head and over the notes
         for (const el of pageEl.querySelectorAll('*')) {
+          // a word of the text (a span the page cut it into) has no rule of its own: most of the page is passed over
+          if (el.className === 'w') continue;
           const st = win.getComputedStyle(el);
           const r = el.getBoundingClientRect();
           if (!r.width) continue;
@@ -193,16 +198,22 @@
           const tp = target.closest('.page');
           const ti = pageEls.indexOf(tp);
           if (ti < 0) continue;
+          const away = tp.classList.contains('off');
+          if (away) tp.classList.remove('off');
           const r = a.getBoundingClientRect(), tr = target.getBoundingClientRect(), tpr = tp.getBoundingClientRect();
+          if (away) tp.classList.add('off');
           page.link((r.left - pr.left) * k - 1, (r.top - pr.top) * k, (r.right - pr.left) * k + 1, (r.bottom - pr.top) * k, ti, Math.max(0, (tr.top - tpr.top) * (W / tpr.width) - 6));
         }
         void pi;
+        pageEl.classList.add('off');
       };
       const breathe = ME.U.breather();
       for (let pi = 0; pi < pageEls.length; pi++) {
         onePage(pageEls[pi], pi);
         if (await breathe()) say(0.6 + 0.34 * ((pi + 1) / pageEls.length), 'Writing page ' + (pi + 1) + ' of ' + pageEls.length);
       }
+      // a caller that keeps the page (o.keep) has it whole again, to look at
+      if (o.keep) for (const p of pageEls) p.classList.remove('off');
       say(0.95, 'Compressing the PDF…');
       const blob = await doc.save();
       return { blob, pages: pageEls.length, words: count, report: win.__paginated };

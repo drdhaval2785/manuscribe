@@ -74,14 +74,26 @@
   /* Each format: {id, group, label, desc, on: (ctx) -> shown?, scopes: which, make(ctx) -> file | null (it opened a screen)} */
   /* The PDF is one choice. It is made from the print page as this browser lays it out, captured without a print
      dialog (Capture): in any script, the page as shown. The print dialog stays for those who want to print on paper,
-     or to save the PDF themselves. */
-  X.pdfRoute = (ctx) => (ctx.pdfRoute === 'print' || (!ctx.pdfRoute && last.pdfRoute === 'print') ? 'print' : 'direct');
+     or to save the PDF themselves. An edition in Devanagari and Latin has a third way, the quickest by far for a
+     long one: Manuscribe's own typesetter (Typeset), which sets the pages itself in its own font, a book in seconds.
+     That is the way taken where it can be, unless the edition is to be printed in a font of its own (which only the
+     browser's page can set), or the editor has chosen another way in Export (last.pdfChosen: a choice made there,
+     not the way last taken, which before the typesetter was offered was always one of the other two). */
+  X.canTypeset = (ctx) => { const f = X.FORMATS.find((x) => x.id === 'pdf-direct'); try { return !!(f && f.on(ctx)); } catch (e) { return false; } };
+  X.pdfRoute = (ctx) => {
+    const want = ctx.pdfRoute || (last.pdfChosen ? last.pdfRoute : null);
+    if (want === 'print') return 'print';
+    if (!X.canTypeset(ctx)) return 'direct';
+    if (want) return want === 'typeset' ? 'typeset' : 'direct';
+    const ps = ctx.ed && ME.PrintHTML ? ME.PrintHTML.settings(ctx.ed) : {};
+    return ps.font || ps.fontId ? 'direct' : 'typeset';
+  };
 
   X.FORMATS = [
     // an edition
     { id: 'pdf', for: 'edition', group: 'print', label: 'PDF', desc: 'The print edition as a PDF file, saved at once, in any script: the page as this browser lays it out, with its text searchable.',
       opensWindow: (ctx) => X.pdfRoute(ctx) === 'print',
-      make: (ctx) => X.format(X.pdfRoute(ctx) === 'print' ? 'pdf-any' : 'pdf-capture').make(ctx) },
+      make: (ctx) => X.format({ print: 'pdf-any', typeset: 'pdf-direct', direct: 'pdf-capture' }[X.pdfRoute(ctx)]).make(ctx) },
     { id: 'pdf-capture', hidden: true, for: 'edition', group: 'print', label: 'PDF, captured from the page',
       make: async (ctx) => { const s = await scoped(ctx); const r = await ME.Capture.pdf(ctx.ed, ctx.list, s.built, bare(ctx)); if (r.words.pictures) U.toast(r.words.pictures + ' word(s) in a script Manuscribe has no font for were put in as the browser drew them, with their text searchable. A font file under Paper and fonts for printing makes them text.', 'info', 7000); return file(base(ctx) + '.pdf', r.blob, 'application/pdf'); } },
     // the two routes, for the code that asks for one of them
@@ -187,8 +199,9 @@
       // the PDF: made by Manuscribe or by this browser, where both can make it
       let extra = null;
       if (f.id === 'pdf') {
-        const sel = U.el('select', { 'aria-label': 'How', dataset: { action: 'pdf-route' }, onchange: () => { ctx.pdfRoute = sel.value; last.pdfRoute = sel.value; } },
-          U.el('option', { value: 'direct', selected: X.pdfRoute(ctx) === 'direct' }, 'saved at once, as a file'),
+        const sel = U.el('select', { 'aria-label': 'How', dataset: { action: 'pdf-route' }, onchange: () => { ctx.pdfRoute = sel.value; last.pdfRoute = sel.value; last.pdfChosen = true; } },
+          U.el('option', { value: 'direct', selected: X.pdfRoute(ctx) === 'direct' }, 'as this browser lays out the page'),
+          X.canTypeset(ctx) ? U.el('option', { value: 'typeset', selected: X.pdfRoute(ctx) === 'typeset' }, 'set by Manuscribe itself, in seconds') : null,
           U.el('option', { value: 'print', selected: X.pdfRoute(ctx) === 'print' }, 'through this browser’s print dialog'));
         extra = U.el('span', { class: 'xp-route' }, ' ', sel);
       }

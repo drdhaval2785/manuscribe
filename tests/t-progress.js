@@ -19,11 +19,13 @@ const { LANGS, make, buildInPage } = require('./languages');
       const realDownload = U.download;
       U.download = (name, blob) => { saved.push({ name, size: blob.size }); };
       // makes a format through the dialog, watching the bar and the page's heartbeat
-      const run = async (format) => {
+      const run = async (format, route) => {
         let open = X.open({ kind: 'edition', ed, list, workId: 'main' });
         await wait(() => document.querySelector('[data-action="export-go"]'));
         const row = document.querySelector('.xp-row[data-format="' + format + '"] input[type=radio]');
         row.click();
+        // the PDF: by the way named (the browser's page, 'direct'), or the way Export takes of itself
+        if (route) { const sel = document.querySelector('[data-action="pdf-route"]'); sel.value = route; sel.dispatchEvent(new Event('change')); }
         const seen = { texts: [], widths: [], shown: false, worst: 0 };
         let last = performance.now(), on = true;
         const beat = () => { const n = performance.now(); seen.worst = Math.max(seen.worst, n - last); last = n; if (on) requestAnimationFrame(beat); };
@@ -47,7 +49,10 @@ const { LANGS, make, buildInPage } = require('./languages');
         await open;
         return seen;
       };
-      const pdf = await run('pdf');
+      // a Devanagari edition is set by Manuscribe itself unless another way is chosen: that says its blocks
+      const quick = await run('pdf');
+      ok('the PDF Manuscribe sets itself says the block it is at', quick.atClick && quick.texts.some((t) => /Setting block \d+ of \d+/.test(t)) && !quick.after && quick.saved && /\.pdf$/.test(quick.saved.name), quick.texts);
+      const pdf = await run('pdf', 'direct');
       ok('the PDF shows a bar as soon as Export is pressed', pdf.atClick && pdf.shown, pdf.texts);
       ok('it says what it is doing, stage by stage', pdf.texts.some((t) => /Laying out/.test(t)) && pdf.texts.some((t) => /Writing page \d+ of \d+/.test(t)), pdf.texts);
       ok('it only moves forward', pdf.widths.length > 3 && pdf.widths.every((w, i) => !i || w >= pdf.widths[i - 1]) && pdf.widths[pdf.widths.length - 1] > 50, pdf.widths.slice(-5));
