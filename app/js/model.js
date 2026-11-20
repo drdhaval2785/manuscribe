@@ -54,6 +54,7 @@
       settings: {
         modifier: U.isMac ? 'ctrlalt' : 'alt', translit: 'off', translitLast: 'itrans-deva', geminate: false, paper: 'auto',
         showMarkers: true, textScale: 1, guide: 'band', lastAttrs: {}, noAnchorIds: 'FR, HND, CSP',
+        proofLevels: Model.DEFAULT_PROOF.slice(),
       },
       ui: { current: null, split: 0.46, sidebar: window.innerWidth > 1180, sidebarTab: 'tag', pdfMode: 'leaf', pdfZoom: 1, filters: { b: 100, c: 100, inv: false, gray: false } },
     };
@@ -209,6 +210,44 @@
   };
 
   /* ---------- pages ---------- */
+
+  /* ---------- proofreading ----------
+     settings.proofLevels: what each level of proofreading checks, from the first; pg.proof: the level a folio side
+     has reached (none or 0: not proofread); pg.resp: whose the text is, as <pb resp="…"/> had it ("#ocr": text
+     recognised by a program, then read). */
+  Model.DEFAULT_PROOF = [
+    'First reading: the letters against the scan',
+    'Second reading: punctuation, numbers, line and folio breaks',
+    'Third reading: the markup (additions, deletions, notes, paragraphs, verses)',
+    'Final reading',
+  ];
+  Model.proofLevels = (p) => (Array.isArray(p.settings.proofLevels) ? p.settings.proofLevels : String(p.settings.proofLevels || '').split('\n')).map((s) => String(s).trim()).filter(Boolean);
+  Model.proofOf = function (p, label) {
+    const pg = p.pages[label], n = pg && +pg.proof;
+    return n > 0 ? Math.min(n, Model.proofLevels(p).length) : 0;
+  };
+  Model.setProof = function (p, label, n) {
+    const pg = Model.page(p, label);
+    if (n > 0) pg.proof = n; else delete pg.proof;
+  };
+  // the folio sides with text, by the level they have reached: counts[0] are the ones not proofread
+  Model.proofSummary = function (p) {
+    const levels = Model.proofLevels(p);
+    const counts = new Array(levels.length + 1).fill(0);
+    let total = 0;
+    for (const [label, pg] of Object.entries(p.pages)) { if (!Model.pageHasContent(pg)) continue; total++; counts[Model.proofOf(p, label)]++; }
+    return { levels, counts, total };
+  };
+  /* "proofread to level 2 of 4 (Second reading: …) on all 143 folio sides", or by level; '' when none is */
+  Model.proofSentence = function (p) {
+    const { levels, counts, total } = Model.proofSummary(p);
+    if (!total || counts[0] === total) return '';
+    const sides = (c) => c + (c === 1 ? ' folio side' : ' folio sides');
+    const at = (n) => 'level ' + n + ' of ' + levels.length + (levels[n - 1] ? ' (' + levels[n - 1] + ')' : '');
+    const done = counts.map((c, n) => [n, c]).filter(([n, c]) => n > 0 && c > 0).reverse();
+    if (done.length === 1 && !counts[0]) return 'proofread to ' + at(done[0][0]) + ' on all ' + sides(total);
+    return 'proofread to ' + done.map(([n, c], i) => (i ? 'level ' + n : at(n)) + ' on ' + (i ? sides(c) : c + ' of ' + sides(total))).join(', ') + (counts[0] ? '; ' + sides(counts[0]) + ' not yet' : '');
+  };
 
   Model.page = function (project, label) {
     if (!project.pages[label]) project.pages[label] = { boxes: {} };

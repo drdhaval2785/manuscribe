@@ -9,7 +9,7 @@
 
   // elements whose content is not mixed: pretty-printed with one child per line
   const ELEMENT_ONLY = new Set(['TEI', 'teiHeader', 'fileDesc', 'titleStmt', 'publicationStmt', 'notesStmt', 'sourceDesc', 'msDesc', 'msIdentifier', 'msContents', 'msItem',
-    'physDesc', 'objectDesc', 'layoutDesc', 'handDesc', 'history', 'origin', 'listBibl', 'respStmt', 'revisionDesc', 'text', 'body', 'div', 'lg', 'supportDesc']);
+    'physDesc', 'objectDesc', 'layoutDesc', 'handDesc', 'history', 'origin', 'listBibl', 'respStmt', 'revisionDesc', 'listChange', 'text', 'body', 'div', 'lg', 'supportDesc']);
 
   const LANG_CODE = { Sanskrit: 'sa', Prakrit: 'pra', Gujarati: 'gu', 'Old Gujarati': 'gu', Hindi: 'hi' };
 
@@ -125,6 +125,15 @@
     return ids.map((id) => '#' + (ctx.workIds[id] || id)).join(' ');
   }
 
+  // the folio side's provenance and proofreading, as attributes of its <pb/>: resp="#ocr" change="#proof2"
+  function pbAttrs(project, label, ctx) {
+    const pg = project.pages[label] || {}, o = {};
+    if (pg.resp) { o.resp = pg.resp; if (ctx.resps) ctx.resps.add(pg.resp); }
+    const n = Model.proofOf(project, label);
+    if (n) { o.change = '#proof' + n; if (ctx.proofs) ctx.proofs.add(n); }
+    return o;
+  }
+
   function streamTokens(project, key, entries, ctx, startEnd) {
     const tokens = [];
     let prev = startEnd || { open: false, spaced: true, rawSpaced: true }; // how the previous line of this stream ended
@@ -160,7 +169,7 @@
           }
         }
       }
-      if (pageTokens.length) tokens.push({ t: 'pb', n: Model.pbValue(project, e.label) }, ...pageTokens);
+      if (pageTokens.length) tokens.push({ t: 'pb', n: Model.pbValue(project, e.label), attrs: pbAttrs(project, e.label, ctx) }, ...pageTokens);
     }
     return tokens;
   }
@@ -208,7 +217,7 @@
 
     for (const tok of tokens) {
       if (tok.t === 'pb' || tok.t === 'lb' || tok.t === 'cb') {
-        top().children.push(node(tok.t, tok.brk ? { n: tok.n, break: 'no' } : { n: tok.n }));
+        top().children.push(node(tok.t, Object.assign(tok.brk ? { n: tok.n, break: 'no' } : { n: tok.n }, tok.attrs || {})));
         continue;
       }
       const n = tok.n;
@@ -304,6 +313,7 @@
     const titleStmt = node('titleStmt', {}, [node('title', {}, [(m.title || 'Untitled') + (titleSuffix || '')])]);
     if (m.author) titleStmt.children.push(node('author', {}, [m.author]));
     if (m.transcriber) titleStmt.children.push(node('respStmt', {}, [node('resp', {}, ['Diplomatic transcription']), node('name', {}, [m.transcriber])]));
+    if (ctx.resps && ctx.resps.has('#ocr')) titleStmt.children.push(node('respStmt', { 'xml:id': 'ocr' }, [node('resp', {}, ['Text recognised by']), node('name', {}, ['OCR'])]));
     const fileDesc = node('fileDesc', {}, [titleStmt, node('publicationStmt', {}, [node('p', {}, ['Unpublished diplomatic transcription, prepared with Manuscribe.'])])]);
     if (m.notes) fileDesc.children.push(node('notesStmt', {}, [node('note', {}, [m.notes])]));
 
@@ -363,7 +373,10 @@
       node('label', {}, [s.model || s.software || 'Unnamed program']),
       node('desc', {}, ['Text proposed by ' + (ME.HTR ? ME.HTR.KINDS[s.kind] || s.kind : s.kind) + (s.format ? ', from ' + s.format : '') + (s.promptHash ? '; prompt SHA-256 ' + s.promptHash : '') + '; lines accepted only after reading by the transcriber.']),
     ]))))])];
-    return node('teiHeader', {}, [fileDesc, ...encoding, node('revisionDesc', {}, [node('change', { when: today }, ['Exported from Manuscribe ' + ME.VERSION + '.'])])]);
+    // the levels of proofreading, when a folio side has reached one: each <pb change="#proofN"/> points to its level
+    const levels = Model.proofLevels(project);
+    const proofing = ctx.proofs && ctx.proofs.size && levels.length ? [node('listChange', { ordered: 'true' }, levels.map((d, i) => node('change', { 'xml:id': 'proof' + (i + 1), n: String(i + 1), type: 'proofreading' }, [d])))] : [];
+    return node('teiHeader', {}, [fileDesc, ...encoding, node('revisionDesc', {}, proofing.concat([node('change', { when: today }, ['Exported from Manuscribe ' + ME.VERSION + '.'])]))]);
   }
 
   /* The xml:id of a cited work is its short label (e.g. NAND), made valid as an XML name and
@@ -403,7 +416,7 @@
     const ids = new Map();
     const ctx = {
       workIds: workXmlIds(project),
-      autoP: 0, hands: new Set(), works: new Set(), allWorks: false,
+      autoP: 0, hands: new Set(), works: new Set(), allWorks: false, resps: new Set(), proofs: new Set(),
       warn: (msg, where) => warnings.push({ msg, where }),
       id: (id, where) => { if (ids.has(id)) warnings.push({ msg: 'Duplicate xml:id "' + id + '" (also at ' + ids.get(id) + ')', where, error: true }); else ids.set(id, where); },
     };
@@ -459,7 +472,7 @@
       const raw = (x) => flat.children.push({ raw: x });
       for (const tok of tokens) {
         if (tok.t === 'pb' || tok.t === 'lb' || tok.t === 'cb') {
-          flat.children.push(node(tok.t, tok.brk ? { n: tok.n, break: 'no' } : { n: tok.n }));
+          flat.children.push(node(tok.t, Object.assign(tok.brk ? { n: tok.n, break: 'no' } : { n: tok.n }, tok.attrs || {})));
           if (tok.t === 'lb') lines++;
         } else if (typeof tok.n === 'string') flat.children.push(tok.n);
         else if (tok.n.name !== 'x-marker') { if (!mergeSpan(flat, tok.n)) flat.children.push(tok.n); }

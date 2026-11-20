@@ -228,7 +228,7 @@
     heading('Conspectus siglorum');
     const cs = size * 0.85;
     for (const r of ME.Publish.conspectus(ed, list)) {
-      const desc = [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, r.script].filter(Boolean).join('; ') || '—';
+      const desc = [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, r.script, r.proofing].filter(Boolean).join('; ') || '—';
       para(L.words(desc, cs), cs * 1.55, { ragged: true, tab: cs * 3.4, label: L.words(r.siglum + (r.group ? ' (' + r.group + ')' : ''), cs) });
     }
     const legend = built.some((b) => b.layer && (b.layer.depth || b.layer.abbr)) ? ME.LayerIds.legend(ed).filter((l) => l.abbr) : [];

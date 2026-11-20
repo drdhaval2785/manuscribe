@@ -75,7 +75,7 @@
       title: ed.title || 'Edition', editor: ed.editor || '', citation: ME.Publish.citation(ed), lang: langOf(list),
       // at the foot of every page: the edition's version and Manuscribe's
       bare, versions: bare ? '' : ME.Publish.versions(ed),
-      conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, scriptName(r.script)].filter(Boolean).join('; ') })),
+      conspectus: ME.Publish.conspectus(ed, list).map((r) => ({ siglum: r.siglum + (r.group ? ' (' + r.group + ')' : ''), desc: [[r.place, r.shelfmark || r.title].filter(Boolean).join(', '), r.date, scriptName(r.script), r.proofing].filter(Boolean).join('; ') })),
       principles: ME.Publish.declaration(ed, built), byMarkers, blocks,
       unspaced: ME.Norm.unspacedText(built.map((b) => b.text).join(' ').slice(0, 20000)),
       layers: layered ? ME.LayerIds.legend(ed) : [],

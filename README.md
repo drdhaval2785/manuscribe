@@ -139,7 +139,7 @@ and offers **Download .xml** and **Download .html**.
 | **Middle bar** | Previous and next folio, the folio list, **⧉ XML** (copy this folio), and the tag toolbar. Drag it to resize the panes |
 | **Typing area** (bottom) | The folio you type into. Marginal notes stand outside the red rules, and editorial notes in a panel below the folio |
 | **Status bar** | Where you are, the open tags at the cursor, the typing scheme, **A− / A+** for the size of the letters (50–200%), and **− / +** for the size of the whole folio |
-| **Side panel** | **Tag** (the tag at the cursor, to edit or remove it), **Folio** (label, layout, lines, calibration, progress), **Cited works**, **Manuscript** (details, numbering, PDF, imports, tag summary, backups) |
+| **Side panel** | **Tag** (the tag at the cursor, to edit or remove it), **Folio** (label, layout, lines, calibration, proofreading, progress), **Cited works**, **Manuscript** (details, numbering, PDF, imports, tag summary, backups) |
 
 ### On a phone or a tablet
 
@@ -1029,6 +1029,12 @@ These line breaks are only the layout of the file: a word running over a line is
 `break="no"`. A tool that goes by whitespace alone and ignores `break="no"` could read a word break
 there, so try a file in your own tools first.
 
+A folio side's proofreading (see Proofreading levels) is on its `<pb/>`: `<pb n="5r" change="#proof2"/>` says it
+has reached level 2, and the levels are listed in the header, `<revisionDesc><listChange>` with a
+`<change xml:id="proof2">` for each; a side whose text was recognised by a program carries `resp="#ocr"`, and the
+header then names the OCR in a `<respStmt xml:id="ocr">`. A file with neither has none of this. Imported files
+bring their levels and each side's state back (`ana="#proof2"` is read as well as `change`).
+
 ### One folio
 
 **⧉ XML** in the middle bar copies the folio on screen to the clipboard, with its `<pb/>`, `<lb/>` and
@@ -1117,6 +1123,17 @@ Your text is stored by folio or page number. When you change the numbering of a 
 text, you choose: each side keeps its text beside the same PDF page and takes its new number, or keeps its
 number and sits beside another PDF page. A backup is made first either way.
 
+## Proofreading levels
+
+A transcription is read again and again, each reading for something: the letters against the scan, then the
+punctuation and numbers, then the markup. **Settings › Transcription** holds the levels, a line each, in order:
+four are given to begin with, and you name your own. In the **Folio** tab of the side panel, **Proofreading** is a
+selector of the level this folio side has reached (and a tick box for a side whose text came from OCR); the folio
+list shows the level after the label. Every export says it: the TEI as above; the HTML page with a badge beside each
+folio heading and the levels explained at the top; the Markdown with a line under each folio side and the state of
+the whole; and the conspectus of an edition, where each witness's description ends with how far it is proofread, in
+the print page and PDF, the Markdown, the reader and the LaTeX.
+
 ## Settings
 
 **⚙** opens Settings, on the transcription screen and on the edition screen.
@@ -1147,6 +1164,7 @@ number and sits beside another PDF page. A backup is made first either way.
 | Paper colour | Taken from the PDF, cream or white |
 | Line guide on the PDF | Highlight the current line, dim everything else, or off |
 | Paragraph, verse and quotation markers | Show or hide |
+| Proofreading levels | A line for each level, in order: what is checked at it (see Proofreading levels) |
 | Notes without a placeholder | The list of types, `FR, HND, CSP` to begin with |
 
 ## Saving and backups

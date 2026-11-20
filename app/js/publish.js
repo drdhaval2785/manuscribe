@@ -40,6 +40,7 @@
       return {
         siglum: w.siglum, place: [m.repository, m.settlement, m.country].filter(Boolean).join(', '), shelfmark: m.shelfmark || '', title: m.title || '',
         date: m.date || '', script: m.script || '', material: m.material || '', folios, group: w.group || '', trust: order.indexOf(w.siglum) + 1,
+        proofing: x && x.p ? Model.proofSentence(x.p) : '',
       };
     });
   };
@@ -226,7 +227,7 @@
     const FL = ME.FontLib;
     const langs = list.map((x) => x.p && x.p.meta && x.p.meta.textLang).filter(Boolean);
     const words = ' Conspectus siglorum Siglum Manuscript Date Script Folio sides Editorial principles Text Additional passages Testimonia Singular readings Spelling Decisions 0123456789 ';
-    const text = ME.PrintHTML.textOf(ed, built) + words + Publish.conspectus(ed, list).map((r) => [r.siglum, r.place, r.shelfmark, r.title, r.date, r.script].join(' ')).join(' ');
+    const text = ME.PrintHTML.textOf(ed, built) + words + Publish.conspectus(ed, list).map((r) => [r.siglum, r.place, r.shelfmark, r.title, r.date, r.script, r.proofing].join(' ')).join(' ');
     let main = null;
     if (FL.needsTiro(text)) { const t = await Publish.font(); if (t) main = { family: 'Tiro', file: 'TiroDevanagariSanskrit-Regular.ttf', bytes: t.bytes, licence: t.licence }; }
     if (!main) { const b = await FL.get('NotoSerif'); if (b) main = { family: 'NotoSerif', file: 'NotoSerif-Regular.ttf', bytes: b }; }
@@ -528,7 +529,7 @@ footer { max-width: 980px; margin: 30px auto; padding: 0 16px; }
     const font = ME.FontLib.needsTiro(JSON.stringify(data)) ? await Publish.font() : null;
     const esc = (s) => U.escXml(String(s));
     const options = ['<option value="edited">the edited text</option>', ...data.sigla.map((s) => '<option value="' + U.escAttr(s) + '">the text of ' + esc(s) + '</option>')].join('');
-    const consp = '<table><tr><th>Siglum</th><th>Manuscript</th><th>Date</th><th>Script</th><th>Folio sides</th></tr>' + data.conspectus.map((r) => '<tr><td>' + esc(r.siglum) + (r.group ? ' (' + esc(r.group) + ')' : '') + '</td><td>' + esc([r.place, r.shelfmark || r.title].filter(Boolean).join(', ') || '—') + '</td><td>' + esc(r.date || '—') + '</td><td>' + esc(r.script || '—') + '</td><td>' + r.folios + '</td></tr>').join('') + '</table>';
+    const consp = '<table><tr><th>Siglum</th><th>Manuscript</th><th>Date</th><th>Script</th><th>Folio sides</th></tr>' + data.conspectus.map((r) => '<tr><td>' + esc(r.siglum) + (r.group ? ' (' + esc(r.group) + ')' : '') + '</td><td>' + esc([r.place, r.shelfmark || r.title].filter(Boolean).join(', ') || '—') + '</td><td>' + esc(r.date || '—') + '</td><td>' + esc(r.script || '—') + '</td><td>' + r.folios + (r.proofing ? '<br><small>' + esc(r.proofing) + '</small>' : '') + '</td></tr>').join('') + '</table>';
     const stars = data.blocks.flatMap((b) => b.stars);
     const json = JSON.stringify(data).replace(/</g, '\\u003c');
     return '<!doctype html>\n<html lang="sa">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'

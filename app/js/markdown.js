@@ -130,6 +130,8 @@
     const out = ['# ' + esc((m.title || 'Untitled') + (m.siglum ? ' (' + m.siglum + ')' : '')), ''];
     const about = [m.repository, m.settlement, m.shelfmark, m.date].filter(Boolean).join(', ');
     if (about) out.push(esc(about), '');
+    const sentence = M.proofSentence(project);
+    if (sentence) out.push(esc('Proofreading levels: ' + M.proofLevels(project).map((d, i) => (i + 1) + '. ' + d).join('; ') + '. The transcription is ' + sentence + '.'), '');
     const seen = new Set();
     for (const e of M.entries(project)) {
       if (seen.has(e.label)) continue;
@@ -137,6 +139,9 @@
       const pg = project.pages[e.label];
       if (!pg || !M.pageHasContent(pg)) continue;
       out.push('## Folio ' + esc(e.label), '');
+      const n = M.proofOf(project, e.label), levels = M.proofLevels(project);
+      const state = [n ? 'Proofread to level ' + n + ' of ' + levels.length + (levels[n - 1] ? ' (' + levels[n - 1] + ')' : '') : '', pg.resp === '#ocr' ? 'Text from OCR' : pg.resp ? 'Text by ' + pg.resp.replace(/^#/, '') : ''].filter(Boolean);
+      if (state.length) out.push('*' + esc(state.join(' · ')) + '*', '');
       const boxes = M.LAYOUTS[M.pageLayout(project, e.label)].boxes.filter((b) => (pg.boxes[b] || []).some((l) => ME.TEI.hasContent(l)));
       for (const b of boxes) {
         if (boxes.length > 1) out.push('### ' + esc(M.BOX_LABEL[b] || b), '');

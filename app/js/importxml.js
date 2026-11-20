@@ -43,6 +43,15 @@
     return out;
   }
 
+  // the folio side's provenance and proofreading: <pb resp="#ocr" change="#proof2"/> (ana="#proof2" is read too)
+  function pbAttrs(a) {
+    const o = {};
+    if (a.resp) o.resp = a.resp;
+    const levels = [...String((a.change || '') + ' ' + (a.ana || '')).matchAll(/#proof(\d+)/g)].map((m) => +m[1]);
+    if (levels.length) o.proof = Math.max(...levels);
+    return o;
+  }
+
   // <pb n="0005_2"> is folio 5, second side
   function folioLabel(n, res) {
     const m = /^(\d+)[_-]([12])$/.exec(String(n || '').trim());
@@ -79,7 +88,11 @@
       else if (k.name === 'supportDesc' && k.attrs.material) res.meta.material = k.attrs.material;
       else if (k.name === 'textLang') { if (k.attrs.mainLang) res.meta.script = k.attrs.mainLang; res.meta.language = textOf(); }
       else if (k.name === 'handNote' && k.attrs.scribe) res.meta.scribe = k.attrs.scribe.replace(/_/g, ' ');
-      else if (k.name === 'layout') {
+      else if (k.name === 'change' && /^proof(\d+)$/.test(k.attrs['xml:id'] || '')) {
+        // the levels of proofreading, as the export writes them: <change xml:id="proof2">what the level checks</change>
+        const n = +/^proof(\d+)$/.exec(k.attrs['xml:id'])[1];
+        (res.meta.proofLevels = res.meta.proofLevels || [])[n - 1] = textOf();
+      } else if (k.name === 'layout') {
         // "Lines per folio side: main text 8, top 5." as the export writes it
         const lines = {};
         if (k.attrs.writtenLines) lines.main = +k.attrs.writtenLines;
@@ -99,7 +112,7 @@
   // -> {lines: [{page, stream, box, tei, lb: {n, brk}}], pages: [labels], works, meta, warnings, pbWidth}
   Importer.parse = function (src, opts) {
     const o = opts || {};
-    const res = { lines: [], pages: [], works: [], meta: {}, warnings: [], pbWidth: null };
+    const res = { lines: [], pages: [], pageAttrs: {}, works: [], meta: {}, warnings: [], pbWidth: null };
     let toks = tokenize(String(src).replace(/\r\n?/g, '\n'));
 
     // the header is read separately
@@ -219,7 +232,12 @@
       const k = toks[ti];
       if (k.t === 'text') {
         if (inChip()) { addText(k.s.replace(/\s*\n\s*/g, ' ')); continue; }
-        if (hasLb[seg] && !stack.length && !/\S/.test(k.s) && k.s.includes('\n') && (isLayout(toks[ti - 1]) || isLayout(toks[ti + 1]))) continue;
+        if (hasLb[seg] && !stack.length && !/\S/.test(k.s) && k.s.includes('\n') && (isLayout(toks[ti - 1]) || isLayout(toks[ti + 1]))) {
+          // the layout of the file, not text; but spaces before its carriage return were written as text, and stay
+          const lead = /^([ \t]+)\n/.exec(k.s);
+          if (lead && cur.hasText) addText(lead[1]);
+          continue;
+        }
         if (pendingPage !== null || pendingBox !== null) {
           if (!/\S/.test(k.s)) continue;
           finishLine();
@@ -248,6 +266,7 @@
           seg++;
           if (!label) { res.warnings.push('A <pb> without a number was ignored.'); continue; }
           res.pages.push(label);
+          res.pageAttrs[label] = Object.assign(res.pageAttrs[label] || {}, pbAttrs(a));
           if (cur.hasText) pendingPage = label; else page = label;
         } else if (name === 'cb') {
           if (cur.hasText) pendingBox = a.n || ''; else box = a.n || null;
@@ -371,6 +390,10 @@
     const m = res.meta;
     for (const k of ['title', 'author', 'siglum', 'country', 'settlement', 'repository', 'shelfmark', 'scribe', 'date', 'material', 'transcriber', 'notes']) if (m[k] && !project.meta[k]) project.meta[k] = m[k];
     if (opts && opts.fresh) for (const k of ['form', 'script', 'textLang', 'language']) if (m[k]) project.meta[k] = m[k];
+    // the file's levels of proofreading count for a project made for it, or one whose levels are still the given ones
+    if (m.proofLevels && ((opts && opts.fresh) || JSON.stringify(Model.proofLevels(project)) === JSON.stringify(Model.DEFAULT_PROOF))) {
+      project.settings.proofLevels = Array.from({ length: m.proofLevels.length }, (_, i) => m.proofLevels[i] || 'Level ' + (i + 1));
+    }
     if (res.pbWidth) project.folios.pbWidth = res.pbWidth;
     const needs = {};
     for (const l of res.lines) { const label = l.page || fallbackLabel; (needs[label] = needs[label] || []).push(l); }
@@ -388,7 +411,10 @@
       if (!l.page) noPb = true;
       const pg = Model.page(project, label);
       if (!fresh.has(label)) {
-        fresh.add(label); pg.boxes = {}; delete pg.lb; delete pg.lines;
+        fresh.add(label); pg.boxes = {}; delete pg.lb; delete pg.lines; delete pg.proof; delete pg.resp;
+        const at = (res.pageAttrs || {})[label];
+        if (at && at.resp) pg.resp = at.resp;
+        if (at && at.proof) pg.proof = at.proof;
         // never fold commentary into the main text: this folio takes the layout the file has
         if (!fits(Model.pageLayout(project, label), needs[label])) pg.layout = layoutNeeded(needs[label]);
       }

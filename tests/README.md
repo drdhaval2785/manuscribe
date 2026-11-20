@@ -36,6 +36,7 @@ apart from `t-features.js`, which starts at the default.
 
 | File | What it checks |
 |---|---|
+| `t-proof.js` | Proofreading levels: Settings › Transcription lists them (four to begin with) and takes one's own; the Folio tab's selector and OCR tick box, the level in the folio list; the TEI's `<pb resp change/>`, `<listChange>` and respStmt, read back the same; the HTML page's badges and legend; the Markdown's lines; an edition's conspectus in the print page and the reader |
 | `t-xml.js` | XML out and back in gives the same text in all four layouts, and where paragraphs begin or end at the end of a line (no space added there, no `break="no"` after it, the spaces at a line end kept as they are); folio and page numbering |
 | `t-normalize.js` | Tokens map back to their lines; before- and after-correction layers; the rules and their published examples |
 | `t-collate.js` | Editing operations and undo; on the sample, tokens back to their lines, identical re-runs, exchange formats, and locks that survive random edits |

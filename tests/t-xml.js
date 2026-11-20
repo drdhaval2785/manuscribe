@@ -12,8 +12,8 @@ const { launch, checks } = require('./h');
       pancapatha: [{ top: 2, left: 2, main: 2, right: 2, bottom: 2 }, { '1r': { boxes: { top: ['<x-marker type="p-start" id="c1"/>उ '], right: ['द '], left: ['वा '], bottom: ['अ<x-marker type="p-end"/> '], main: ['<x-marker type="p-start" id="p1"/>मू<x-marker type="p-end"/> '] } } }],
       interlinear: [{ main: 2 }, { '1r': { boxes: { main: ['<x-marker type="p-start" id="p1"/>मूल एक ', 'मूल द्वि<x-marker type="p-end"/> '], gloss: ['टीका एक ', 'टीका द्वि '] } } }],
       // paragraph boundaries at line ends: a paragraph ending with a space after its marker (the file drops it), one
-      // ending and the next beginning with no space; two spaces at the end of a line
-      boundaries: [{ main: 5 }, { '1r': { boxes: { main: ['<x-marker type="p-start" id="p1"/>पहिला वाक्य  ', 'दूसरी पंक्ति<x-marker type="p-end"/> ', '<x-marker type="p-start" id="p2"/>तीसरी<x-marker type="p-end"/><x-marker type="p-start" id="p3"/>', 'चौथी पंक्ति ', 'पांचवी<x-marker type="p-end"/>'] } } }, 'linear'],
+      // ending and the next beginning with a space after the new paragraph's marker; two spaces at the end of a line
+      boundaries: [{ main: 5 }, { '1r': { boxes: { main: ['<x-marker type="p-start" id="p1"/>पहिला वाक्य  ', 'दूसरी पंक्ति<x-marker type="p-end"/> ', '<x-marker type="p-start" id="p2"/>तीसरी<x-marker type="p-end"/><x-marker type="p-start" id="p3"/> ', 'चौथी पंक्ति ', 'पांचवी<x-marker type="p-end"/>'] } } }, 'linear'],
     };
     for (const [type, [lines, pages, layout]] of Object.entries(cases)) {
       const lt = layout || type;

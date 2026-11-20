@@ -46,6 +46,9 @@ body { margin: 0; color: var(--ink); font: 14px/1.45 var(--ui); }
 main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come up to the top too */
 .leaf { padding-bottom: 34px; scroll-margin-top: 54px; }
 .leaf h2 { margin: 0 auto 8px; font: 650 13px var(--ui); color: var(--muted); }
+.leaf h2 .proof { margin-left: 8px; padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: 600; background: #e3ecdc; color: #2e5a2a; }
+.leaf h2 .proof.src { background: #eee5d6; color: #6b5a3e; }
+.legend { margin: 0 auto 14px; font: 12px var(--ui); color: var(--muted); }
 .folio .line, .folio .chip, .mnote sup { cursor: inherit; }
 .line:hover, .line.mline:hover, .margin-foot .mline:hover { background: none; }
 .box:hover { outline: none; }
@@ -97,6 +100,15 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
   // what is read as code in a <script> must not close it
   const inScript = (src) => src.replace(/<\/(script)/gi, '<\\/$1');
 
+  // the folio side's proofreading level and provenance, beside its heading
+  function proofBadges(project, label) {
+    const M = ME.Model, pg = project.pages[label] || {}, levels = M.proofLevels(project), n = M.proofOf(project, label);
+    let s = '';
+    if (n) s += ' <span class="proof" title="' + U.escAttr('Proofread to level ' + n + ' of ' + levels.length + (levels[n - 1] ? ': ' + levels[n - 1] : '')) + '">proofread · level ' + n + '</span>';
+    if (pg.resp) s += ' <span class="proof src" title="' + U.escAttr(pg.resp === '#ocr' ? 'The text was recognised by a program (OCR), then read' : 'Text by ' + pg.resp.replace(/^#/, '')) + '">' + (pg.resp === '#ocr' ? 'OCR' : U.escHtml(pg.resp.replace(/^#/, ''))) + '</span>';
+    return s;
+  }
+
   // opts: {folios: [labels] | null}. -> {html, folios, font}
   Export.html = async function (project, opts) {
     const o = opts || {};
@@ -110,7 +122,9 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
     if (!entries.length) return { html: '', folios: 0, font: true };
     const m = project.meta;
     const title = (m.title || 'Untitled') + (m.siglum ? ' · ' + m.siglum : '');
-    const leaves = entries.map((e, k) => '<section class="leaf" id="f' + k + '"><h2>Folio ' + U.escHtml(e.label) + '</h2>' + folioMarkup(project, e, pageSizes[e.pdfPage] || (project.pdf && project.pdf.size)) + '</section>');
+    const leaves = entries.map((e, k) => '<section class="leaf" id="f' + k + '"><h2>Folio ' + U.escHtml(e.label) + proofBadges(project, e.label) + '</h2>' + folioMarkup(project, e, pageSizes[e.pdfPage] || (project.pdf && project.pdf.size)) + '</section>');
+    const levels = ME.Model.proofLevels(project);
+    const legend = entries.some((e) => ME.Model.proofOf(project, e.label)) ? '<p class="legend">Proofreading levels: ' + levels.map((d, i) => (i + 1) + '. ' + U.escHtml(d)).join('; ') + '.</p>\n' : '';
     const options = entries.map((e, k) => '<option value="f' + k + '">' + U.escHtml(e.label) + '</option>').join('');
     // Tiro, only where the folios have Devanagari
     const font = ME.FontLib.needsTiro(leaves.join(' ')) ? await loadFont() : null;
@@ -122,7 +136,7 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
       + '<style>' + ME.FOLIO_CSS + VIEW_CSS + '</style>\n</head>\n<body>\n'
       + '<header class="view-bar"><span class="view-title">' + U.escHtml(title + (m.author ? ' — ' + m.author : '')) + '</span>'
       + '<select id="jump" title="Go to a folio side">' + options + '</select></header>\n'
-      + '<main>\n' + leaves.join('\n') + '\n</main>\n'
+      + '<main>\n' + legend + leaves.join('\n') + '\n</main>\n'
       + '<footer class="made">' + U.escHtml((m.title || 'Transcription') + (m.siglum ? ' (' + m.siglum + ')' : '') + ' · exported ' + new Date().toISOString().slice(0, 10) + ' · Made with Manuscribe ' + ME.VERSION) + '</footer>\n'
       + '<script>\nwindow.ME = {};\n(' + inScript(ME.folioLayoutSource.toString()) + ')(window.ME);\n(' + inScript(viewer.toString()) + ')();\n</' + 'script>\n</body>\n</html>\n';
     return { html, folios: entries.length, font: !!font };
