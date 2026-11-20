@@ -125,12 +125,10 @@
     return ids.map((id) => '#' + (ctx.workIds[id] || id)).join(' ');
   }
 
-  // the folio side's provenance and proofreading, as attributes of its <pb/>: resp="#ocr" change="#proof2"
+  // how far the folio side's text has got, on its <pb/>: level="#proof2", or level="#ocr"
   function pbAttrs(project, label, ctx) {
-    const pg = project.pages[label] || {}, o = {};
-    if (pg.resp) { o.resp = pg.resp; if (ctx.resps) ctx.resps.add(pg.resp); }
-    const n = Model.proofOf(project, label);
-    if (n) { o.change = '#proof' + n; if (ctx.proofs) ctx.proofs.add(n); }
+    const v = Model.levelOf(project, label), o = {};
+    if (v) { o.level = '#' + v; if (ctx.levels) ctx.levels.add(v); }
     return o;
   }
 
@@ -313,7 +311,6 @@
     const titleStmt = node('titleStmt', {}, [node('title', {}, [(m.title || 'Untitled') + (titleSuffix || '')])]);
     if (m.author) titleStmt.children.push(node('author', {}, [m.author]));
     if (m.transcriber) titleStmt.children.push(node('respStmt', {}, [node('resp', {}, ['Diplomatic transcription']), node('name', {}, [m.transcriber])]));
-    if (ctx.resps && ctx.resps.has('#ocr')) titleStmt.children.push(node('respStmt', { 'xml:id': 'ocr' }, [node('resp', {}, ['Text recognised by']), node('name', {}, ['OCR'])]));
     const fileDesc = node('fileDesc', {}, [titleStmt, node('publicationStmt', {}, [node('p', {}, ['Unpublished diplomatic transcription, prepared with Manuscribe.'])])]);
     if (m.notes) fileDesc.children.push(node('notesStmt', {}, [node('note', {}, [m.notes])]));
 
@@ -373,9 +370,10 @@
       node('label', {}, [s.model || s.software || 'Unnamed program']),
       node('desc', {}, ['Text proposed by ' + (ME.HTR ? ME.HTR.KINDS[s.kind] || s.kind : s.kind) + (s.format ? ', from ' + s.format : '') + (s.promptHash ? '; prompt SHA-256 ' + s.promptHash : '') + '; lines accepted only after reading by the transcriber.']),
     ]))))])];
-    // the levels of proofreading, when a folio side has reached one: each <pb change="#proofN"/> points to its level
+    // the states a folio side's text can be in, when one is stated: each <pb level="#…"/> points to its own
     const levels = Model.proofLevels(project);
-    const proofing = ctx.proofs && ctx.proofs.size && levels.length ? [node('listChange', { ordered: 'true' }, levels.map((d, i) => node('change', { 'xml:id': 'proof' + (i + 1), n: String(i + 1), type: 'proofreading' }, [d])))] : [];
+    const states = ctx.levels && ctx.levels.size ? (ctx.levels.has('ocr') ? [node('change', { 'xml:id': 'ocr', n: '0', type: 'proofreading' }, [Model.OCR_WORDS])] : []).concat(levels.map((d, i) => node('change', { 'xml:id': 'proof' + (i + 1), n: String(i + 1), type: 'proofreading' }, [d]))) : [];
+    const proofing = states.length ? [node('listChange', { ordered: 'true' }, states)] : [];
     return node('teiHeader', {}, [fileDesc, ...encoding, node('revisionDesc', {}, proofing.concat([node('change', { when: today }, ['Exported from Manuscribe ' + ME.VERSION + '.'])]))]);
   }
 
@@ -416,7 +414,7 @@
     const ids = new Map();
     const ctx = {
       workIds: workXmlIds(project),
-      autoP: 0, hands: new Set(), works: new Set(), allWorks: false, resps: new Set(), proofs: new Set(),
+      autoP: 0, hands: new Set(), works: new Set(), allWorks: false, levels: new Set(),
       warn: (msg, where) => warnings.push({ msg, where }),
       id: (id, where) => { if (ids.has(id)) warnings.push({ msg: 'Duplicate xml:id "' + id + '" (also at ' + ids.get(id) + ')', where, error: true }); else ids.set(id, where); },
     };

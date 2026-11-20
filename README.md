@@ -1029,11 +1029,11 @@ These line breaks are only the layout of the file: a word running over a line is
 `break="no"`. A tool that goes by whitespace alone and ignores `break="no"` could read a word break
 there, so try a file in your own tools first.
 
-A folio side's proofreading (see Proofreading levels) is on its `<pb/>`: `<pb n="5r" change="#proof2"/>` says it
-has reached level 2, and the levels are listed in the header, `<revisionDesc><listChange>` with a
-`<change xml:id="proof2">` for each; a side whose text was recognised by a program carries `resp="#ocr"`, and the
-header then names the OCR in a `<respStmt xml:id="ocr">`. A file with neither has none of this. Imported files
-bring their levels and each side's state back (`ana="#proof2"` is read as well as `change`).
+How far a folio side's text has got (see Proofreading levels) is on its `<pb/>`: `<pb n="5r" level="#proof2"/>` says
+it has been proofread to level 2, and `level="#ocr"` that it was recognised by a program and not yet read. The
+states are listed in the header, `<revisionDesc><listChange>` with a `<change xml:id="proof2">` for each level (and
+`xml:id="ocr"` when used). A file with no state has none of this. Imported files bring their levels and each side's
+state back; older files that said it as `resp="#ocr"`, `change="#proof2"` or `ana="#proof2"` are read too.
 
 ### One folio
 
@@ -1128,8 +1128,8 @@ number and sits beside another PDF page. A backup is made first either way.
 A transcription is read again and again, each reading for something: the letters against the scan, then the
 punctuation and numbers, then the markup. **Settings › Transcription** holds the levels, a line each, in order:
 four are given to begin with, and you name your own. In the **Folio** tab of the side panel, **Proofreading** is a
-selector of the level this folio side has reached (and a tick box for a side whose text came from OCR); the folio
-list shows the level after the label. Every export says it: the TEI as above; the HTML page with a badge beside each
+selector of how far this folio side has got: not stated, text from OCR not yet read, or read to a level; the folio
+list shows the state after the label. Every export says it: the TEI as above; the HTML page with a badge beside each
 folio heading and the levels explained at the top; the Markdown with a line under each folio side and the state of
 the whole; and the conspectus of an edition, where each witness's description ends with how far it is proofread, in
 the print page and PDF, the Markdown, the reader and the LaTeX.

@@ -43,12 +43,17 @@
     return out;
   }
 
-  // the folio side's provenance and proofreading: <pb resp="#ocr" change="#proof2"/> (ana="#proof2" is read too)
+  // how far the folio side's text has got: <pb level="#proof2"/>, or level="#ocr"; older files said it as
+  // resp="#ocr", or change or ana="#proof2"
   function pbAttrs(a) {
     const o = {};
-    if (a.resp) o.resp = a.resp;
-    const levels = [...String((a.change || '') + ' ' + (a.ana || '')).matchAll(/#proof(\d+)/g)].map((m) => +m[1]);
-    if (levels.length) o.proof = Math.max(...levels);
+    const m = /#(ocr|proof[1-9]\d*)\b/.exec(a.level || '');
+    if (m) o.level = m[1];
+    else {
+      const proofs = [...String((a.change || '') + ' ' + (a.ana || '')).matchAll(/#proof(\d+)/g)].map((x) => +x[1]).filter((n) => n > 0);
+      if (proofs.length) o.level = 'proof' + Math.max(...proofs);
+      else if (/#ocr\b/.test(a.resp || '')) o.level = 'ocr';
+    }
     return o;
   }
 
@@ -411,10 +416,9 @@
       if (!l.page) noPb = true;
       const pg = Model.page(project, label);
       if (!fresh.has(label)) {
-        fresh.add(label); pg.boxes = {}; delete pg.lb; delete pg.lines; delete pg.proof; delete pg.resp;
+        fresh.add(label); pg.boxes = {}; delete pg.lb; delete pg.lines; delete pg.level;
         const at = (res.pageAttrs || {})[label];
-        if (at && at.resp) pg.resp = at.resp;
-        if (at && at.proof) pg.proof = at.proof;
+        if (at && at.level) pg.level = at.level;
         // never fold commentary into the main text: this folio takes the layout the file has
         if (!fits(Model.pageLayout(project, label), needs[label])) pg.layout = layoutNeeded(needs[label]);
       }

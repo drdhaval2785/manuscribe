@@ -139,9 +139,8 @@
       const pg = project.pages[e.label];
       if (!pg || !M.pageHasContent(pg)) continue;
       out.push('## Folio ' + esc(e.label), '');
-      const n = M.proofOf(project, e.label), levels = M.proofLevels(project);
-      const state = [n ? 'Proofread to level ' + n + ' of ' + levels.length + (levels[n - 1] ? ' (' + levels[n - 1] + ')' : '') : '', pg.resp === '#ocr' ? 'Text from OCR' : pg.resp ? 'Text by ' + pg.resp.replace(/^#/, '') : ''].filter(Boolean);
-      if (state.length) out.push('*' + esc(state.join(' · ')) + '*', '');
+      const w = M.levelWords(project, e.label);
+      if (w) out.push('*' + esc(w.long) + '*', '');
       const boxes = M.LAYOUTS[M.pageLayout(project, e.label)].boxes.filter((b) => (pg.boxes[b] || []).some((l) => ME.TEI.hasContent(l)));
       for (const b of boxes) {
         if (boxes.length > 1) out.push('### ' + esc(M.BOX_LABEL[b] || b), '');

@@ -639,8 +639,8 @@
     App.entries.forEach((e, i) => {
       const prog = Model.pageProgress(App.project, e.label);
       const mark = prog >= 0.999 ? '●' : prog > 0 ? '◐' : '○';
-      const proof = Model.proofOf(App.project, e.label);
-      sel.appendChild(U.el('option', { value: String(i), selected: i === App.idx }, mark + '  ' + e.label + (e.pdfPage ? '   ·  PDF p. ' + e.pdfPage + (e.half !== null ? (e.half ? ' (lower)' : ' (upper)') : '') : '   ·  not in PDF') + (proof ? '   ·  proof ' + proof : '')));
+      const lw = Model.levelWords(App.project, e.label);
+      sel.appendChild(U.el('option', { value: String(i), selected: i === App.idx }, mark + '  ' + e.label + (e.pdfPage ? '   ·  PDF p. ' + e.pdfPage + (e.half !== null ? (e.half ? ' (lower)' : ' (upper)') : '') : '   ·  not in PDF') + (lw ? '   ·  ' + lw.short : '')));
     });
     $('folio-count').textContent = (App.idx + 1) + ' / ' + App.entries.length;
   }
@@ -909,12 +909,12 @@
     }
     const reg = Model.regions(p, e);
     const ownReg = !!pg.regions;
-    // proofreading: the level this folio side has reached, of the levels set in Settings › Transcription
-    const levels = Model.proofLevels(p), proof = Model.proofOf(p, e.label);
-    const proofSel = U.el('select', { class: 'proof-level', title: 'The level of proofreading this folio side has reached', onchange: () => { Model.setProof(p, e.label, +proofSel.value); App.changed(); fillFolioSelect(); renderFolioTab(); } },
-      U.el('option', { value: '0', selected: !proof }, 'Not proofread'),
-      levels.map((d, i) => U.el('option', { value: String(i + 1), selected: proof === i + 1 }, 'Level ' + (i + 1) + ': ' + d)));
-    const ocrCb = U.el('input', { type: 'checkbox', checked: pg.resp === '#ocr', onchange: () => { const page = Model.page(p, e.label); if (ocrCb.checked) page.resp = '#ocr'; else if (page.resp === '#ocr') delete page.resp; App.changed(); } });
+    // how far the text of this folio side has got: from OCR and not yet read, or proofread to a level set in Settings
+    const levels = Model.proofLevels(p), level = Model.levelOf(p, e.label);
+    const proofSel = U.el('select', { class: 'proof-level', title: 'How far the text of this folio side has got', onchange: () => { Model.setLevel(p, e.label, proofSel.value); App.changed(); fillFolioSelect(); renderFolioTab(); } },
+      U.el('option', { value: '', selected: !level }, 'Not stated'),
+      U.el('option', { value: 'ocr', selected: level === 'ocr' }, 'OCR: recognised by a program, not yet read'),
+      levels.map((d, i) => U.el('option', { value: 'proof' + (i + 1), selected: level === 'proof' + (i + 1) }, 'Level ' + (i + 1) + ': ' + d)));
     host.append(...[
       U.el('h4', null, 'Folio side ' + e.label + (e.pdfPage ? ' · PDF page ' + e.pdfPage : '')),
       U.el('div', { class: 'inline-field' }, U.el('label', null, 'Label'), labelInp, renameBtn),
@@ -929,8 +929,7 @@
         ownReg ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.regions; App.changed(); rerender(); } }, 'Use shared calibration') : null),
       U.el('h4', null, 'Proofreading'),
       proofSel,
-      U.el('p', { class: 'help' }, levels.length ? 'The level this folio side has been read to. The levels, and what each checks, are set in Settings › Transcription; every export says the level of each folio side.' : 'No levels are set: give them in Settings › Transcription, one per line.'),
-      U.el('label', { class: 'field check proof-src' }, ocrCb, U.el('span', null, 'The text came from OCR (resp="#ocr" on the <pb/>)')),
+      U.el('p', { class: 'help' }, 'How far the text of this folio side has got: recognised by a program and not yet read, or read to a level. ' + (levels.length ? 'The levels, and what each checks, are set in Settings › Transcription; every export says the state of each folio side.' : 'No levels are set: give them in Settings › Transcription, one per line.')),
       U.el('h4', null, 'Progress'),
       U.el('div', { class: 'progress' }, U.el('i', { style: { width: Math.round(Model.pageProgress(p, e.label) * 100) + '%' } })),
       U.el('p', { class: 'help' }, Math.round(Model.pageProgress(p, e.label) * 100) + '% of the lines of this folio side have text.'),
@@ -1331,7 +1330,7 @@
             { n: 'paper', label: 'Paper colour of the typing area', type: 'select', options: ['auto', 'cream', 'white'], labels: ['Taken from the PDF', 'Cream', 'White'] },
             { n: 'guide', label: 'Line guide on the PDF', type: 'select', options: ['band', 'dim', 'off'], labels: ['Highlight the current line', 'Dim everything except the current line', 'Off'] },
             { n: 'showMarkers', label: 'Show paragraph / verse / quotation markers', type: 'checkbox' },
-            { n: 'proofLevels', label: 'Proofreading levels, one per line', type: 'textarea', rows: 4, help: 'From the first to the last: what is checked at each level. A folio side is given its level in the Folio tab, and every export says it: the TEI (<pb change="#proof2"/>, the levels in the header), the HTML page, the Markdown, the conspectus of an edition.' },
+            { n: 'proofLevels', label: 'Proofreading levels, one per line', type: 'textarea', rows: 4, help: 'From the first to the last: what is checked at each level. A folio side is given its level in the Folio tab (or marked as text from OCR, not yet read), and every export says it: the TEI (<pb level="#proof2"/>, the levels in the header), the HTML page, the Markdown, the conspectus of an edition.' },
             { n: 'noAnchorIds', label: 'Notes without a placeholder in the text (types, separated by commas)', type: 'text', help: 'Notes with one of these types (e.g. the name of the work, the folio number, the author) are shown only in the margin, with no mark in the line.' },
           ], Object.assign({}, s, { proofLevels: Model.proofLevels(App.project).join('\n') }, kept));
         }

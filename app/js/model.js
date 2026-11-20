@@ -212,41 +212,67 @@
   /* ---------- pages ---------- */
 
   /* ---------- proofreading ----------
-     settings.proofLevels: what each level of proofreading checks, from the first; pg.proof: the level a folio side
-     has reached (none or 0: not proofread); pg.resp: whose the text is, as <pb resp="…"/> had it ("#ocr": text
-     recognised by a program, then read). */
+     settings.proofLevels: what each level of proofreading checks, from the first. pg.level: how far the folio side's
+     text has got, as <pb level="…"/> has it: 'ocr', recognised by a program and not yet read, or 'proofN', read to
+     level N; none, not stated. */
   Model.DEFAULT_PROOF = [
     'First reading: the letters against the scan',
     'Second reading: punctuation, numbers, line and folio breaks',
     'Third reading: the markup (additions, deletions, notes, paragraphs, verses)',
     'Final reading',
   ];
+  Model.OCR_WORDS = 'Text recognised by a program (OCR), not yet proofread';
   Model.proofLevels = (p) => (Array.isArray(p.settings.proofLevels) ? p.settings.proofLevels : String(p.settings.proofLevels || '').split('\n')).map((s) => String(s).trim()).filter(Boolean);
+  // -> '' | 'ocr' | 'proofN', N within the levels there are
+  Model.levelOf = function (p, label) {
+    const pg = p.pages[label], v = (pg && pg.level) || '';
+    if (v === 'ocr') return 'ocr';
+    const m = /^proof(\d+)$/.exec(v);
+    return m && +m[1] > 0 ? 'proof' + Math.min(+m[1], Math.max(1, Model.proofLevels(p).length)) : '';
+  };
+  // the level of proofreading reached, 1…; 0 when not proofread (from OCR, or not stated)
   Model.proofOf = function (p, label) {
-    const pg = p.pages[label], n = pg && +pg.proof;
-    return n > 0 ? Math.min(n, Model.proofLevels(p).length) : 0;
+    const m = /^proof(\d+)$/.exec(Model.levelOf(p, label));
+    return m ? +m[1] : 0;
   };
-  Model.setProof = function (p, label, n) {
+  Model.setLevel = function (p, label, v) {
     const pg = Model.page(p, label);
-    if (n > 0) pg.proof = n; else delete pg.proof;
+    if (v) pg.level = v; else delete pg.level;
   };
-  // the folio sides with text, by the level they have reached: counts[0] are the ones not proofread
+  /* The folio side's state in words: {short} for a list ('OCR', 'proof 2'), {badge} for a badge, {long} for a
+     sentence; null when not stated */
+  Model.levelWords = function (p, label) {
+    const v = Model.levelOf(p, label);
+    if (!v) return null;
+    if (v === 'ocr') return { ocr: true, short: 'OCR', badge: 'OCR', long: Model.OCR_WORDS };
+    const levels = Model.proofLevels(p), n = +v.slice(5);
+    return { ocr: false, short: 'proof ' + n, badge: 'proofread · level ' + n, long: 'Proofread to level ' + n + ' of ' + levels.length + (levels[n - 1] ? ' (' + levels[n - 1] + ')' : '') };
+  };
+  // the folio sides with text, by the level they have reached: counts[0] are the ones not proofread, ocr of them from OCR
   Model.proofSummary = function (p) {
     const levels = Model.proofLevels(p);
     const counts = new Array(levels.length + 1).fill(0);
-    let total = 0;
-    for (const [label, pg] of Object.entries(p.pages)) { if (!Model.pageHasContent(pg)) continue; total++; counts[Model.proofOf(p, label)]++; }
-    return { levels, counts, total };
+    let total = 0, ocr = 0;
+    for (const [label, pg] of Object.entries(p.pages)) {
+      if (!Model.pageHasContent(pg)) continue;
+      total++;
+      counts[Model.proofOf(p, label)]++;
+      if (Model.levelOf(p, label) === 'ocr') ocr++;
+    }
+    return { levels, counts, total, ocr };
   };
-  /* "proofread to level 2 of 4 (Second reading: …) on all 143 folio sides", or by level; '' when none is */
+  /* "proofread to level 2 of 4 (Second reading: …) on all 143 folio sides", or by level, with the sides not yet read
+     and how many of those are from OCR; '' when nothing is stated */
   Model.proofSentence = function (p) {
-    const { levels, counts, total } = Model.proofSummary(p);
-    if (!total || counts[0] === total) return '';
+    const { levels, counts, total, ocr } = Model.proofSummary(p);
+    if (!total) return '';
     const sides = (c) => c + (c === 1 ? ' folio side' : ' folio sides');
+    if (counts[0] === total) return ocr ? 'text from OCR, not yet proofread, on ' + (ocr === total ? 'all ' + sides(total) : ocr + ' of ' + sides(total)) : '';
     const at = (n) => 'level ' + n + ' of ' + levels.length + (levels[n - 1] ? ' (' + levels[n - 1] + ')' : '');
     const done = counts.map((c, n) => [n, c]).filter(([n, c]) => n > 0 && c > 0).reverse();
     if (done.length === 1 && !counts[0]) return 'proofread to ' + at(done[0][0]) + ' on all ' + sides(total);
-    return 'proofread to ' + done.map(([n, c], i) => (i ? 'level ' + n : at(n)) + ' on ' + (i ? sides(c) : c + ' of ' + sides(total))).join(', ') + (counts[0] ? '; ' + sides(counts[0]) + ' not yet' : '');
+    const rest = counts[0] ? '; ' + sides(counts[0]) + ' not yet' + (ocr === counts[0] ? ', text from OCR' : ocr ? ', ' + ocr + ' of them text from OCR' : '') : '';
+    return 'proofread to ' + done.map(([n, c], i) => (i ? 'level ' + n : at(n)) + ' on ' + (i ? sides(c) : c + ' of ' + sides(total))).join(', ') + rest;
   };
 
   Model.page = function (project, label) {

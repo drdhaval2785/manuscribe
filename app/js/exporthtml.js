@@ -100,13 +100,10 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
   // what is read as code in a <script> must not close it
   const inScript = (src) => src.replace(/<\/(script)/gi, '<\\/$1');
 
-  // the folio side's proofreading level and provenance, beside its heading
+  // how far the folio side's text has got, beside its heading
   function proofBadges(project, label) {
-    const M = ME.Model, pg = project.pages[label] || {}, levels = M.proofLevels(project), n = M.proofOf(project, label);
-    let s = '';
-    if (n) s += ' <span class="proof" title="' + U.escAttr('Proofread to level ' + n + ' of ' + levels.length + (levels[n - 1] ? ': ' + levels[n - 1] : '')) + '">proofread · level ' + n + '</span>';
-    if (pg.resp) s += ' <span class="proof src" title="' + U.escAttr(pg.resp === '#ocr' ? 'The text was recognised by a program (OCR), then read' : 'Text by ' + pg.resp.replace(/^#/, '')) + '">' + (pg.resp === '#ocr' ? 'OCR' : U.escHtml(pg.resp.replace(/^#/, ''))) + '</span>';
-    return s;
+    const w = ME.Model.levelWords(project, label);
+    return w ? ' <span class="proof' + (w.ocr ? ' src' : '') + '" title="' + U.escAttr(w.long) + '">' + U.escHtml(w.badge) + '</span>' : '';
   }
 
   // opts: {folios: [labels] | null}. -> {html, folios, font}
@@ -124,7 +121,7 @@ main { padding: 20px 24px 60vh; overflow-x: auto; } /* the last folio can come u
     const title = (m.title || 'Untitled') + (m.siglum ? ' · ' + m.siglum : '');
     const leaves = entries.map((e, k) => '<section class="leaf" id="f' + k + '"><h2>Folio ' + U.escHtml(e.label) + proofBadges(project, e.label) + '</h2>' + folioMarkup(project, e, pageSizes[e.pdfPage] || (project.pdf && project.pdf.size)) + '</section>');
     const levels = ME.Model.proofLevels(project);
-    const legend = entries.some((e) => ME.Model.proofOf(project, e.label)) ? '<p class="legend">Proofreading levels: ' + levels.map((d, i) => (i + 1) + '. ' + U.escHtml(d)).join('; ') + '.</p>\n' : '';
+    const legend = entries.some((e) => ME.Model.proofOf(project, e.label)) && levels.length ? '<p class="legend">Proofreading levels: ' + levels.map((d, i) => (i + 1) + '. ' + U.escHtml(d)).join('; ') + '.</p>\n' : '';
     const options = entries.map((e, k) => '<option value="f' + k + '">' + U.escHtml(e.label) + '</option>').join('');
     // Tiro, only where the folios have Devanagari
     const font = ME.FontLib.needsTiro(leaves.join(' ')) ? await loadFont() : null;
