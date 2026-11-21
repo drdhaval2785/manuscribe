@@ -222,6 +222,9 @@
     'Final reading',
   ];
   Model.OCR_WORDS = 'Text recognised by a program (OCR), not yet proofread';
+  // the states a folio side can be given, for a selector: {value, label}, from not stated through OCR to the last level
+  Model.levelOptions = (levels) => [{ value: '', label: 'Not stated' }, { value: 'ocr', label: 'OCR: recognised, not yet read' }]
+    .concat(levels.map((d, i) => ({ value: 'proof' + (i + 1), label: 'Level ' + (i + 1) + ': ' + d })));
   Model.proofLevels = (p) => (Array.isArray(p.settings.proofLevels) ? p.settings.proofLevels : String(p.settings.proofLevels || '').split('\n')).map((s) => String(s).trim()).filter(Boolean);
   // -> '' | 'ocr' | 'proofN', N within the levels there are
   Model.levelOf = function (p, label) {

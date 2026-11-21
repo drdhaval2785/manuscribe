@@ -440,7 +440,28 @@
         await Store.backupNow(p);
       }
     }
-    const rep = Importer.apply(p, res, entry().label, { fresh: !!(opts && opts.fresh) });
+    // the folio sides the file says nothing about are given one state, the lowest (text from OCR) unless another is
+    // chosen; those it does say keep their own
+    let level = '';
+    const blank = Importer.unmarked(res, entry().label);
+    if (blank.length) {
+      const all = new Set(res.lines.map((l) => l.page || entry().label)).size, said = all - blank.length;
+      const choice = Model.levelOptions(Importer.proofLevels(p, res, !!(opts && opts.fresh)));
+      const form = UI.form([{ n: 'level', label: 'How far has their text got?', type: 'select', options: choice.map((o) => o.value), labels: choice.map((o) => o.label),
+        help: 'The lowest is given unless you choose another: text recognised by a program, not yet read. Any folio side\u2019s state is changed later in the status bar, at the foot of the typing area.' }], { level: 'ocr' });
+      const picked = await UI.modal({
+        title: 'How far has this transcription got?',
+        body: U.el('div', null,
+          U.el('p', { class: 'confirm-text' }, said
+            ? blank.length + ' of the ' + all + ' folio sides in ' + file.name + (blank.length === 1 ? ' does not say how far its' : ' do not say how far their') + ' text has got. The other ' + (said === 1 ? 'one keeps its' : said + ' keep their') + ' own state.'
+            : file.name + ' does not say how far its text has got. ' + (all === 1 ? 'Its one folio side' : 'Its ' + all + ' folio sides') + ' will be given the state chosen here.'),
+          form.el),
+        buttons: [{ label: 'Cancel', value: null, kind: 'ghost' }, { label: 'Import', kind: 'primary', value: () => form.values().level }],
+      });
+      if (picked === null) return;
+      level = picked;
+    }
+    const rep = Importer.apply(p, res, entry().label, { fresh: !!(opts && opts.fresh), level });
     App.entries = Model.entries(p);
     App.changed();
     const first = App.entries.findIndex((e) => e.label === rep.folios[0]);
@@ -653,9 +674,7 @@
     if (!sel || !p || !e) return;
     const levels = Model.proofLevels(p), level = Model.levelOf(p, e.label), words = Model.levelWords(p, e.label);
     sel.innerHTML = '';
-    sel.append(U.el('option', { value: '', selected: !level }, 'Not stated'),
-      U.el('option', { value: 'ocr', selected: level === 'ocr' }, 'OCR: recognised, not yet read'),
-      ...levels.map((d, i) => U.el('option', { value: 'proof' + (i + 1), selected: level === 'proof' + (i + 1) }, 'Level ' + (i + 1) + ': ' + d)));
+    sel.append(...Model.levelOptions(levels).map((o) => U.el('option', { value: o.value, selected: o.value === level }, o.label)));
     sel.classList.toggle('set', !!level);
     sel.title = (words ? words.long + '. ' : '') + 'How far the text of this folio side has got: not stated, text from OCR not yet read, or proofread to a level (the levels: Settings › Transcription)';
   }
@@ -937,9 +956,24 @@
         U.el('button', { class: 'btn small primary', onclick: () => App.calibrate() }, reg ? 'Recalibrate…' : 'Calibrate…'),
         ownReg ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.regions; App.changed(); rerender(); } }, 'Use shared calibration') : null),
       U.el('h4', null, 'Progress'),
-      U.el('div', { class: 'progress' }, U.el('i', { style: { width: Math.round(Model.pageProgress(p, e.label) * 100) + '%' } })),
-      U.el('p', { class: 'help' }, Math.round(Model.pageProgress(p, e.label) * 100) + '% of the lines of this folio side have text.'),
+      ...progressBars(p, e.label),
     ].filter(Boolean));
+  }
+
+  /* The Folio tab's progress: a bar of the lines with text, and one of the proofreading, a cell for each level of
+     Settings › Transcription filled as far as the folio side has got (none for text from OCR, which the bar marks) */
+  function progressBars(p, label) {
+    const pct = Math.round(Model.pageProgress(p, label) * 100);
+    const levels = Model.proofLevels(p), v = Model.levelOf(p, label), n = Model.proofOf(p, label), words = Model.levelWords(p, label);
+    const cap = (name, right) => U.el('div', { class: 'bar-cap' }, U.el('span', null, name), U.el('span', null, right));
+    return [
+      cap('Lines with text', pct + '%'),
+      U.el('div', { class: 'progress', title: pct + '% of the lines of this folio side have text' }, U.el('i', { style: { width: pct + '%' } })),
+      cap('Proofreading', v === 'ocr' ? 'OCR' : n ? 'level ' + n + ' of ' + levels.length : 'not stated'),
+      U.el('div', { class: 'progress steps' + (v === 'ocr' ? ' ocr' : ''), title: words ? words.long : 'Not stated' },
+        (levels.length ? levels : ['']).map((d, i) => U.el('i', { class: i < n ? 'done' : '', title: d ? 'Level ' + (i + 1) + ': ' + d : null }))),
+      U.el('p', { class: 'help' }, (words ? words.long : 'How far the text has got is not stated') + '. Set it in the status bar, at the foot of the typing area.'),
+    ];
   }
 
   function renderWorksTab() {
@@ -1336,7 +1370,7 @@
             { n: 'paper', label: 'Paper colour of the typing area', type: 'select', options: ['auto', 'cream', 'white'], labels: ['Taken from the PDF', 'Cream', 'White'] },
             { n: 'guide', label: 'Line guide on the PDF', type: 'select', options: ['band', 'dim', 'off'], labels: ['Highlight the current line', 'Dim everything except the current line', 'Off'] },
             { n: 'showMarkers', label: 'Show paragraph / verse / quotation markers', type: 'checkbox' },
-            { n: 'proofLevels', label: 'Proofreading levels, one per line', type: 'textarea', rows: 4, help: 'From the first to the last: what is checked at each level. A folio side is given its level in the Folio tab (or marked as text from OCR, not yet read), and every export says it: the TEI (<pb level="#proof2"/>, the levels in the header), the HTML page, the Markdown, the conspectus of an edition.' },
+            { n: 'proofLevels', label: 'Proofreading levels, one per line', type: 'textarea', rows: 4, help: 'From the first to the last: what is checked at each level. A folio side is given its level in the status bar, at the foot of the typing area (or marked as text from OCR, not yet read), and every export says it: the TEI (<pb level="#proof2"/>, the levels in the header), the HTML page, the Markdown, the conspectus of an edition.' },
             { n: 'noAnchorIds', label: 'Notes without a placeholder in the text (types, separated by commas)', type: 'text', help: 'Notes with one of these types (e.g. the name of the work, the folio number, the author) are shown only in the margin, with no mark in the line.' },
           ], Object.assign({}, s, { proofLevels: Model.proofLevels(App.project).join('\n') }, kept));
         }
@@ -1467,7 +1501,7 @@
       else U.toast('Could not copy to the clipboard', 'warn');
     };
     $('translit-badge').onclick = () => App.toggleTranslit();
-    $('sel-proof').onchange = () => { const e = entry(); if (!App.project || !e) return; Model.setLevel(App.project, e.label, $('sel-proof').value); App.changed(); fillFolioSelect(); };
+    $('sel-proof').onchange = () => { const e = entry(); if (!App.project || !e) return; Model.setLevel(App.project, e.label, $('sel-proof').value); App.changed(); fillFolioSelect(); if (App.project.ui.sidebarTab === 'folio') App.refreshSidebar(); };
     // the line above or below, for a phone's keyboard, which has no arrows; the caret stays in the typing area
     for (const [id, dir] of [['btn-line-up', -1], ['btn-line-down', 1]]) {
       $(id).onpointerdown = (e) => e.preventDefault();

@@ -192,6 +192,13 @@ body.calibrating #pdf-pane { flex: 1 1 auto; height: auto !important; }
 .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .progress i { display: block; height: 100%; background: var(--green); }
+/* the Folio tab's progress: a caption over each bar; the proofreading as a cell for each level, hatched for text from OCR */
+.bar-cap { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+.bar-cap span + span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.progress.steps { display: flex; gap: 3px; background: none; }
+.progress.steps i { flex: 1; background: var(--line); border-radius: 2px; }
+.progress.steps i.done { background: var(--green); }
+.progress.steps.ocr i { background: repeating-linear-gradient(135deg, var(--line) 0 3px, var(--line-2) 3px 6px); }
 .lines-inputs { display: flex; flex-wrap: wrap; gap: 8px; }
 .lines-inputs .field { width: 92px; margin: 4px 0; }
 .lines-inputs .field.custom span { color: var(--accent); }

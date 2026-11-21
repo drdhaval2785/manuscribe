@@ -1,6 +1,7 @@
-// Proofreading levels: set in Settings › Transcription, given to a folio side in the Folio tab (or the side marked as
-// text from OCR, not yet read), and said by every export: the TEI (<pb level="#proof2"/>, level="#ocr", the states in
-// the header), the HTML page, the Markdown, the conspectus of an edition in its formats.
+// Proofreading levels: set in Settings › Transcription, given to a folio side in the status bar (or the side marked as
+// text from OCR, not yet read), shown by the Folio tab's bars, and said by every export: the TEI (<pb level="#proof2"/>,
+// level="#ocr", the states in the header), the HTML page, the Markdown, the conspectus of an edition in its formats. A
+// file imported with folio sides that say nothing asks what state to give them.
 const { launch, checks, sleep } = require('./h');
 const { LANGS, make, buildInPage } = require('./languages');
 (async () => {
@@ -60,6 +61,31 @@ const { LANGS, make, buildInPage } = require('./languages');
     });
     T.check('the status bar has a selector of the state (Not stated, OCR, then each level), set without leaving the typing area and showing each folio side\u2019s own; the folio list says the state; the Folio tab has none', bar.inBar && bar.options.length === 5 && bar.options[0] === '=Not stated' && bar.options[1] === 'ocr=OCR: recognised, not yet read' && bar.options[3] === 'proof2=Level 2: Punctuation and numbers' && bar.first.level === 'proof2' && bar.first.kept === 'proof2' && bar.first.set && /^Proofread to level 2 of 3/.test(bar.first.title) && /·  proof 2$/.test(bar.first.listed) && bar.second === 'ocr' && bar.third && /·  OCR$/.test(bar.listed[1]) && !/·  (proof|OCR)/.test(bar.listed[2]) && bar.folioTab, bar);
 
+
+    // the Folio tab's progress: a bar of the lines with text, and one of the proofreading, a cell for each level filled as
+    // far as the folio side has got, following the status bar's selector
+    const tab = await page.evaluate(async () => {
+      const { App } = ME;
+      const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+      const read = () => {
+        const host = document.getElementById('tab-folio');
+        const steps = host.querySelector('.progress.steps');
+        return { caps: [...host.querySelectorAll('.bar-cap')].map((c) => [...c.children].map((x) => x.textContent).join('=')), cells: steps ? steps.children.length : -1, done: steps ? steps.querySelectorAll('i.done').length : -1, ocr: !!steps && steps.classList.contains('ocr'),
+          lines: host.querySelector('.progress:not(.steps) i').style.width, titles: steps ? [...steps.children].map((x) => x.title) : [], help: host.querySelector('.progress.steps + .help').textContent };
+      };
+      const third = read(); // 2r: not stated
+      await App.go(1, { noFocus: true }); await tick(100);
+      const second = read(); // 1v: text from OCR
+      await App.go(0, { noFocus: true }); await tick(100);
+      const first = read(); // 1r: level 2 of 3
+      const sel = document.getElementById('sel-proof');
+      sel.value = 'proof3'; sel.dispatchEvent(new Event('change')); await tick(100);
+      const raised = read();
+      sel.value = 'proof2'; sel.dispatchEvent(new Event('change')); await tick(100);
+      return { third, second, first, raised };
+    });
+    T.check('the Folio tab’s progress: a bar of the lines with text and one of the proofreading, a cell for each level filled as far as the folio side has got (none when not stated, hatched for OCR), following the status bar’s selector', tab.first.caps[0] === 'Lines with text=100%' && tab.first.lines === '100%' && tab.first.caps[1] === 'Proofreading=level 2 of 3' && tab.first.cells === 3 && tab.first.done === 2 && tab.first.titles[1] === 'Level 2: Punctuation and numbers' && /^Proofread to level 2 of 3 \(Punctuation and numbers\)\. Set it in the status bar/.test(tab.first.help) && tab.second.caps[1] === 'Proofreading=OCR' && tab.second.done === 0 && tab.second.ocr && tab.third.caps[1] === 'Proofreading=not stated' && tab.third.done === 0 && !tab.third.ocr && /^How far the text has got is not stated\./.test(tab.third.help) && tab.raised.done === 3 && tab.raised.caps[1] === 'Proofreading=level 3 of 3', tab);
+
     // the TEI: level="#proof2", level="#ocr", a plain <pb/>; the states in the header; no respStmt
     const tei = await page.evaluate(() => {
       const { App, Export, Model, Importer } = ME;
@@ -89,6 +115,45 @@ const { LANGS, make, buildInPage } = require('./languages');
     });
     T.check('the HTML page: a badge of the state beside each folio heading that has one, with the levels explained once at the top', pages.badges.length === 3 && pages.badges[0] === 'proofread · level 2' && pages.badges[1] === 'OCR' && pages.badges[2] === '' && pages.legend && pages.titles.every(Boolean), pages);
     T.check('the Markdown: the levels and the state of the whole, and a line under each folio side with a state', pages.md.length === 3 && pages.md[0] === 'Proofreading levels: 1. Letters; 2. Punctuation and numbers; 3. Markup. The transcription is proofread to level 2 of 3 (Punctuation and numbers) on 1 of 3 folio sides; 2 folio sides not yet, 1 of them text from OCR.' && pages.md[1] === '*Proofread to level 2 of 3 (Punctuation and numbers)*' && pages.md[2] === '*Text recognised by a program (OCR), not yet proofread*', pages.md);
+
+
+    // an imported file: the folio sides it says nothing about are given one state, chosen on import (the lowest, text from
+    // OCR, unless another is chosen); those it does say keep their own; a file that says it for every side asks nothing
+    const imp = await page.evaluate(async () => {
+      const { App, Export, Importer } = ME;
+      const L = window.__labels;
+      const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+      const wait = async (f) => { for (let i = 0; i < 200 && !f(); i++) await tick(25); return f(); };
+      const states = () => L.map((l) => App.project.pages[l].level || null);
+      const button = (t) => [...document.querySelectorAll('.modal .modal-foot button')].find((b) => b.textContent === t);
+      const run = async (xml, choose) => {
+        const done = App.importXml(new File([xml], 'in.xml', { type: 'text/xml' }));
+        const found = await wait(() => document.querySelector('.modal select[data-n="level"]') || button('Replace'));
+        if (found && found.tagName === 'BUTTON') { found.click(); await wait(() => document.querySelector('.modal select[data-n="level"]')); }
+        const sel = document.querySelector('.modal select[data-n="level"]');
+        if (!sel) { await done; return { asked: false, states: states() }; }
+        const dlg = { asked: true, title: document.querySelector('.modal h2').textContent, text: document.querySelector('.modal .confirm-text').textContent, options: [...sel.options].map((o) => o.value + '=' + o.textContent), def: sel.value };
+        if (choose !== undefined) sel.value = choose;
+        button('Import').click();
+        await done;
+        return Object.assign(dlg, { states: states() });
+      };
+      // 1r says level 2; 1v and 2r say nothing
+      const xml = Export.build(App.project, {}).xml.replace(' level="#ocr"', '');
+      const unmarked = Importer.unmarked(Importer.parse(xml, {}), '1r');
+      const a = await run(xml); // as given: the lowest, OCR
+      const b = await run(xml, 'proof1'); // level 1 chosen
+      // every side says it: nothing asked
+      const d = App.importXml(new File([Export.build(App.project, {}).xml], 'full.xml', { type: 'text/xml' }));
+      await tick(400);
+      if (button('Replace')) { button('Replace').click(); await tick(400); }
+      const full = { asked: !!document.querySelector('.modal select[data-n="level"]') };
+      await d;
+      full.states = states();
+      const c = await run(xml, ''); // not stated
+      return { unmarked, a, b, full, c };
+    });
+    T.check('a file that says nothing about some folio sides asks, on import, what state to give them, the lowest (text from OCR) unless another is chosen; the sides it does say keep their own; a file that says it for every side asks nothing', JSON.stringify(imp.unmarked) === '["1v","2r"]' && imp.a.asked && imp.a.title === 'How far has this transcription got?' && imp.a.text === '2 of the 3 folio sides in in.xml do not say how far their text has got. The other one keeps its own state.' && imp.a.options.length === 5 && imp.a.options[1] === 'ocr=OCR: recognised, not yet read' && imp.a.options[2] === 'proof1=Level 1: Letters' && imp.a.def === 'ocr' && JSON.stringify(imp.a.states) === '["proof2","ocr","ocr"]' && JSON.stringify(imp.b.states) === '["proof2","proof1","proof1"]' && !imp.full.asked && JSON.stringify(imp.full.states) === '["proof2","proof1","proof1"]' && JSON.stringify(imp.c.states) === '["proof2",null,null]', imp);
 
     // an edition: the conspectus says, witness by witness, how far the transcription is proofread
     await buildInPage(page, LANGS.sa, make('sa', 3, 2, 4, 3), 4);

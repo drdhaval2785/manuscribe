@@ -388,17 +388,30 @@
     return null;
   }
 
+  // The levels of proofreading in force once the file is applied: the file's own for a project made for it (fresh),
+  // or for one whose levels are still the given ones; otherwise the project's.
+  Importer.proofLevels = function (project, res, fresh) {
+    const m = res.meta.proofLevels;
+    if (m && (fresh || JSON.stringify(Model.proofLevels(project)) === JSON.stringify(Model.DEFAULT_PROOF))) return Array.from({ length: m.length }, (_, i) => m[i] || 'Level ' + (i + 1));
+    return Model.proofLevels(project);
+  };
+  // The folio sides of the file whose <pb> does not say how far the text has got
+  Importer.unmarked = function (res, fallbackLabel) {
+    const at = res.pageAttrs || {};
+    return Array.from(new Set(res.lines.map((l) => l.page || fallbackLabel))).filter((l) => !(at[l] && at[l].level));
+  };
+
   // Writes the parsed lines into the project; the folio sides in the file are replaced.
   // opts.fresh: the project was just made for this file, so the file's settings count too.
+  // opts.level: the state ('ocr', 'proofN') given to the folio sides whose <pb> says nothing; the others keep their own.
   Importer.apply = function (project, res, fallbackLabel, opts) {
     Importer.resolveSources(project, res);
     const m = res.meta;
     for (const k of ['title', 'author', 'siglum', 'country', 'settlement', 'repository', 'shelfmark', 'scribe', 'date', 'material', 'transcriber', 'notes']) if (m[k] && !project.meta[k]) project.meta[k] = m[k];
     if (opts && opts.fresh) for (const k of ['form', 'script', 'textLang', 'language']) if (m[k]) project.meta[k] = m[k];
     // the file's levels of proofreading count for a project made for it, or one whose levels are still the given ones
-    if (m.proofLevels && ((opts && opts.fresh) || JSON.stringify(Model.proofLevels(project)) === JSON.stringify(Model.DEFAULT_PROOF))) {
-      project.settings.proofLevels = Array.from({ length: m.proofLevels.length }, (_, i) => m.proofLevels[i] || 'Level ' + (i + 1));
-    }
+    const levels = Importer.proofLevels(project, res, opts && opts.fresh);
+    if (JSON.stringify(levels) !== JSON.stringify(Model.proofLevels(project))) project.settings.proofLevels = levels;
     if (res.pbWidth) project.folios.pbWidth = res.pbWidth;
     const needs = {};
     for (const l of res.lines) { const label = l.page || fallbackLabel; (needs[label] = needs[label] || []).push(l); }
@@ -418,7 +431,7 @@
       if (!fresh.has(label)) {
         fresh.add(label); pg.boxes = {}; delete pg.lb; delete pg.lines; delete pg.level;
         const at = (res.pageAttrs || {})[label];
-        if (at && at.level) pg.level = at.level;
+        if (at && at.level) pg.level = at.level; else if (opts && opts.level) pg.level = opts.level;
         // never fold commentary into the main text: this folio takes the layout the file has
         if (!fits(Model.pageLayout(project, label), needs[label])) pg.layout = layoutNeeded(needs[label]);
       }

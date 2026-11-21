@@ -1033,7 +1033,9 @@ How far a folio side's text has got (see Proofreading levels) is on its `<pb/>`:
 it has been proofread to level 2, and `level="#ocr"` that it was recognised by a program and not yet read. The
 states are listed in the header, `<revisionDesc><listChange>` with a `<change xml:id="proof2">` for each level (and
 `xml:id="ocr"` when used). A file with no state has none of this. Imported files bring their levels and each side's
-state back; older files that said it as `resp="#ocr"`, `change="#proof2"` or `ana="#proof2"` are read too.
+state back; older files that said it as `resp="#ocr"`, `change="#proof2"` or `ana="#proof2"` are read too. A file
+whose `<pb/>`s say nothing, for some folio sides or all, asks on import what state to give those sides: the lowest,
+text from OCR not yet read, unless you choose another (or none); the sides that say it keep their own.
 
 ### One folio
 
@@ -1129,7 +1131,11 @@ A transcription is read again and again, each reading for something: the letters
 punctuation and numbers, then the markup. **Settings › Transcription** holds the levels, a line each, in order:
 four are given to begin with, and you name your own. A selector in the status bar, at the foot of the typing area (on
 a phone, in the folio bar's ⋯ menu), says how far this folio side has got: not stated, text from OCR not yet read, or
-read to a level; change it there without leaving the typing area. The folio list shows the state after the label.
+read to a level; change it there without leaving the typing area. The folio list shows the state after the label, and
+the Folio tab's Progress has two bars: the lines of the folio side that have text, and the proofreading, a cell for
+each level filled as far as the side has got (hatched for text from OCR). When a transcription is imported, the folio
+sides whose `<pb/>` says nothing are given one state, asked for on import: the lowest, text from OCR, unless you
+choose another; the sides that say it keep their own.
 Every export says it: the TEI as above; the HTML page with a badge beside each
 folio heading and the levels explained at the top; the Markdown with a line under each folio side and the state of
 the whole; and the conspectus of an edition, where each witness's description ends with how far it is proofread, in
