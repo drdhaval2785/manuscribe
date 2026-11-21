@@ -35,26 +35,30 @@ const { LANGS, make, buildInPage } = require('./languages');
     });
     T.check('Settings › Transcription lists the levels of proofreading, four to begin with, and takes one’s own, a line each', settings.before && settings.before.length === 4 && /^First reading/.test(settings.before[0]) && JSON.stringify(settings.after) === JSON.stringify(['Letters', 'Punctuation and numbers', 'Markup']), settings);
 
-    // the Folio tab: a selector of the state (not stated, OCR, each level); the folio list says it
-    const folio = await page.evaluate(async () => {
+    // the status bar: a selector of the state (not stated, OCR, each level), changed without leaving the typing area,
+    // showing each folio side's own; the folio list says it; the Folio tab has no selector
+    const bar = await page.evaluate(async () => {
       const { App, Model } = ME;
-      App.project.ui.sidebarTab = 'folio'; App.toggleSidebar(true); App.refreshSidebar();
-      await new Promise((r) => setTimeout(r, 100));
-      const sel = document.querySelector('#tab-folio select.proof-level');
-      const options = sel ? [...sel.options].map((o) => o.value + '=' + o.textContent) : null;
+      const sel = document.getElementById('sel-proof');
+      const inBar = document.getElementById('statusbar').contains(sel) && getComputedStyle(sel).display !== 'none';
+      const options = [...sel.options].map((o) => o.value + '=' + o.textContent);
       sel.value = 'proof2'; sel.dispatchEvent(new Event('change'));
       await new Promise((r) => setTimeout(r, 100));
       const L = window.__labels;
-      const sel2 = document.querySelector('#tab-folio select.proof-level');
-      const first = { level: App.project.pages[L[0]].level, kept: sel2 && sel2.value, listed: document.querySelector('#sel-folio option').textContent };
+      const first = { level: App.project.pages[L[0]].level, kept: sel.value, set: sel.classList.contains('set'), title: sel.title, listed: document.querySelector('#sel-folio option').textContent };
       // the second folio side: text from OCR, not yet read; the third says nothing
       Model.setLevel(App.project, L[1], 'ocr');
       await App.go(1, { noFocus: true });
       await new Promise((r) => setTimeout(r, 100));
-      const sel3 = document.querySelector('#tab-folio select.proof-level');
-      return { options, first, second: sel3 && sel3.value, listed2: document.queruerySelectorAll ? null : [...document.querySelectorAll('#sel-folio option')].map((o) => o.textContent.replace(/^.*·  (?=PDF)/, '')), nothing: document.querySelector('#tab-folio .proof-src') === null };
+      const second = sel.value;
+      await App.go(2, { noFocus: true });
+      await new Promise((r) => setTimeout(r, 100));
+      const third = sel.value === '' && !sel.classList.contains('set');
+      App.project.ui.sidebarTab = 'folio'; App.toggleSidebar(true); App.refreshSidebar();
+      await new Promise((r) => setTimeout(r, 100));
+      return { inBar, options, first, second, third, listed: [...document.querySelectorAll('#sel-folio option')].map((o) => o.textContent.replace(/^.*·  (?=PDF)/, '')), folioTab: document.querySelector('#tab-folio select.proof-level') === null };
     });
-    T.check('the Folio tab has a selector of the state (Not stated, OCR, then each level), no tick box; the folio list says the state', folio.options && folio.options.length === 5 && folio.options[0] === '=Not stated' && folio.options[1] === 'ocr=OCR: recognised by a program, not yet read' && folio.options[3] === 'proof2=Level 2: Punctuation and numbers' && folio.first.level === 'proof2' && folio.first.kept === 'proof2' && /·  proof 2$/.test(folio.first.listed) && folio.second === 'ocr' && /·  OCR$/.test(folio.listed2[1]) && !/·  (proof|OCR)/.test(folio.listed2[2]) && folio.nothing, folio);
+    T.check('the status bar has a selector of the state (Not stated, OCR, then each level), set without leaving the typing area and showing each folio side\u2019s own; the folio list says the state; the Folio tab has none', bar.inBar && bar.options.length === 5 && bar.options[0] === '=Not stated' && bar.options[1] === 'ocr=OCR: recognised, not yet read' && bar.options[3] === 'proof2=Level 2: Punctuation and numbers' && bar.first.level === 'proof2' && bar.first.kept === 'proof2' && bar.first.set && /^Proofread to level 2 of 3/.test(bar.first.title) && /·  proof 2$/.test(bar.first.listed) && bar.second === 'ocr' && bar.third && /·  OCR$/.test(bar.listed[1]) && !/·  (proof|OCR)/.test(bar.listed[2]) && bar.folioTab, bar);
 
     // the TEI: level="#proof2", level="#ocr", a plain <pb/>; the states in the header; no respStmt
     const tei = await page.evaluate(() => {

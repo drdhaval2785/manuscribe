@@ -197,8 +197,8 @@
       const items = U.el('div', { class: 'menu-items' },
         U.el('div', { class: 'pm-zoom' }, $('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in')), $('btn-pdf-mode'), $('btn-rotate'), $('btn-filters'),
         U.el('div', { class: 'menu-sep' }),
-        $('btn-view'), $('translit-badge'), ...right.querySelectorAll('.ed-zoom-ctl'), $('storage-warning'));
-      const menu = U.el('details', { class: 'menu more-menu' }, U.el('summary', { class: 'nbtn', title: 'The scan: zoom, leaf or page, rotation, brightness. The whole folio, the typing scheme, the size of the letters' }, '⋯'), items);
+        $('btn-view'), $('sel-proof'), $('translit-badge'), ...right.querySelectorAll('.ed-zoom-ctl'), $('storage-warning'));
+      const menu = U.el('details', { class: 'menu more-menu' }, U.el('summary', { class: 'nbtn', title: 'The scan: zoom, leaf or page, rotation, brightness. The whole folio, how far it has got, the typing scheme, the size of the letters' }, '⋯'), items);
       items.addEventListener('click', (e) => { if (e.target.closest('button') && !e.target.closest('.pm-zoom, .ed-zoom-ctl')) menu.open = false; });
       view.hidden = true;
       cal.dataset.label = cal.textContent;
@@ -224,7 +224,7 @@
       pop.classList.remove('pf-float');
       pop.style.top = '';
       tools.append($('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in'), view, $('btn-follow'), cal, pop);
-      right.append($('storage-warning'), nav.querySelector('.line-nav'), $('btn-view'), $('translit-badge'), ...(menu ? menu.querySelectorAll('.ed-zoom-ctl') : []));
+      right.append($('storage-warning'), nav.querySelector('.line-nav'), $('btn-view'), $('sel-proof'), $('translit-badge'), ...(menu ? menu.querySelectorAll('.ed-zoom-ctl') : []));
       if (menu) menu.remove();
       status.prepend($('status-pos'));
       if (head) head.remove();

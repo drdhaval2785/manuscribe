@@ -643,6 +643,21 @@
       sel.appendChild(U.el('option', { value: String(i), selected: i === App.idx }, mark + '  ' + e.label + (e.pdfPage ? '   ·  PDF p. ' + e.pdfPage + (e.half !== null ? (e.half ? ' (lower)' : ' (upper)') : '') : '   ·  not in PDF') + (lw ? '   ·  ' + lw.short : '')));
     });
     $('folio-count').textContent = (App.idx + 1) + ' / ' + App.entries.length;
+    fillProofSelect();
+  }
+
+  // the status bar's selector of how far the text of this folio side has got (in the ⋯ menu, on a phone): not stated,
+  // from OCR and not yet read, or proofread to a level set in Settings › Transcription
+  function fillProofSelect() {
+    const sel = $('sel-proof'), p = App.project, e = entry();
+    if (!sel || !p || !e) return;
+    const levels = Model.proofLevels(p), level = Model.levelOf(p, e.label), words = Model.levelWords(p, e.label);
+    sel.innerHTML = '';
+    sel.append(U.el('option', { value: '', selected: !level }, 'Not stated'),
+      U.el('option', { value: 'ocr', selected: level === 'ocr' }, 'OCR: recognised, not yet read'),
+      ...levels.map((d, i) => U.el('option', { value: 'proof' + (i + 1), selected: level === 'proof' + (i + 1) }, 'Level ' + (i + 1) + ': ' + d)));
+    sel.classList.toggle('set', !!level);
+    sel.title = (words ? words.long + '. ' : '') + 'How far the text of this folio side has got: not stated, text from OCR not yet read, or proofread to a level (the levels: Settings › Transcription)';
   }
 
   const updateProgress = U.debounce(() => {
@@ -909,12 +924,6 @@
     }
     const reg = Model.regions(p, e);
     const ownReg = !!pg.regions;
-    // how far the text of this folio side has got: from OCR and not yet read, or proofread to a level set in Settings
-    const levels = Model.proofLevels(p), level = Model.levelOf(p, e.label);
-    const proofSel = U.el('select', { class: 'proof-level', title: 'How far the text of this folio side has got', onchange: () => { Model.setLevel(p, e.label, proofSel.value); App.changed(); fillFolioSelect(); renderFolioTab(); } },
-      U.el('option', { value: '', selected: !level }, 'Not stated'),
-      U.el('option', { value: 'ocr', selected: level === 'ocr' }, 'OCR: recognised by a program, not yet read'),
-      levels.map((d, i) => U.el('option', { value: 'proof' + (i + 1), selected: level === 'proof' + (i + 1) }, 'Level ' + (i + 1) + ': ' + d)));
     host.append(...[
       U.el('h4', null, 'Folio side ' + e.label + (e.pdfPage ? ' · PDF page ' + e.pdfPage : '')),
       U.el('div', { class: 'inline-field' }, U.el('label', null, 'Label'), labelInp, renameBtn),
@@ -927,9 +936,6 @@
       U.el('div', { class: 'btn-row' },
         U.el('button', { class: 'btn small primary', onclick: () => App.calibrate() }, reg ? 'Recalibrate…' : 'Calibrate…'),
         ownReg ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.regions; App.changed(); rerender(); } }, 'Use shared calibration') : null),
-      U.el('h4', null, 'Proofreading'),
-      proofSel,
-      U.el('p', { class: 'help' }, 'How far the text of this folio side has got: recognised by a program and not yet read, or read to a level. ' + (levels.length ? 'The levels, and what each checks, are set in Settings › Transcription; every export says the state of each folio side.' : 'No levels are set: give them in Settings › Transcription, one per line.')),
       U.el('h4', null, 'Progress'),
       U.el('div', { class: 'progress' }, U.el('i', { style: { width: Math.round(Model.pageProgress(p, e.label) * 100) + '%' } })),
       U.el('p', { class: 'help' }, Math.round(Model.pageProgress(p, e.label) * 100) + '% of the lines of this folio side have text.'),
@@ -1352,7 +1358,7 @@
       Commands.buildToolbar($('toolbar'));
     }
     // what is shown may have changed
-    if (onProject) { rerender(); App.refreshSidebar(); } else if (ME.Edition.current && !$('edition-view').hidden) ME.Edition.draw();
+    if (onProject) { rerender(); App.refreshSidebar(); fillProofSelect(); } else if (ME.Edition.current && !$('edition-view').hidden) ME.Edition.draw();
   };
 
   App.showHelp = function () {
@@ -1461,6 +1467,7 @@
       else U.toast('Could not copy to the clipboard', 'warn');
     };
     $('translit-badge').onclick = () => App.toggleTranslit();
+    $('sel-proof').onchange = () => { const e = entry(); if (!App.project || !e) return; Model.setLevel(App.project, e.label, $('sel-proof').value); App.changed(); fillFolioSelect(); };
     // the line above or below, for a phone's keyboard, which has no arrows; the caret stays in the typing area
     for (const [id, dir] of [['btn-line-up', -1], ['btn-line-down', 1]]) {
       $(id).onpointerdown = (e) => e.preventDefault();

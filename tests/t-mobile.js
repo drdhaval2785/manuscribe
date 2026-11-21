@@ -134,7 +134,7 @@ function scanPdf() {
       await new Promise((res) => setTimeout(res, 120));
       const items = d.querySelector('.menu-items');
       const m = r(items);
-      const inMenu = ['btn-zoom-out', 'pdf-zoom', 'btn-zoom-in', 'btn-pdf-mode', 'btn-rotate', 'btn-filters', 'btn-view', 'translit-badge'].every((id) => items.contains(document.getElementById(id)));
+      const inMenu = ['btn-zoom-out', 'pdf-zoom', 'btn-zoom-in', 'btn-pdf-mode', 'btn-rotate', 'btn-filters', 'btn-view', 'sel-proof', 'translit-badge'].every((id) => items.contains(document.getElementById(id)));
       const whole = m.top >= r(d).bottom && m.bottom <= innerHeight && m.height > 150;
       const zoomed = document.getElementById('btn-zoom-in').getBoundingClientRect().height >= 36;
       const readable = Math.abs(lum(getComputedStyle(document.getElementById('btn-rotate')).color) - lum(getComputedStyle(items).backgroundColor)) > 100;

@@ -138,8 +138,8 @@ and offers **Download .xml** and **Download .html**.
 | **PDF pane** (top) | The scan, with the current line lit up; zoomed in, it keeps the letter you are typing in the middle. Drag it to look elsewhere (a marginal note, say): it then stays put until you move to another line or press **↩ Follow**. Its tools: zoom (also Ctrl + wheel, or a pinch), Leaf or whole page, rotate, brightness, contrast, greyscale and invert, and Calibrate |
 | **Middle bar** | Previous and next folio, the folio list, **⧉ XML** (copy this folio), and the tag toolbar. Drag it to resize the panes |
 | **Typing area** (bottom) | The folio you type into. Marginal notes stand outside the red rules, and editorial notes in a panel below the folio |
-| **Status bar** | Where you are, the open tags at the cursor, the typing scheme, **A− / A+** for the size of the letters (50–200%), and **− / +** for the size of the whole folio |
-| **Side panel** | **Tag** (the tag at the cursor, to edit or remove it), **Folio** (label, layout, lines, calibration, proofreading, progress), **Cited works**, **Manuscript** (details, numbering, PDF, imports, tag summary, backups) |
+| **Status bar** | Where you are, the open tags at the cursor, how far this folio side has got (not stated, OCR, or proofread to a level), the typing scheme, **A− / A+** for the size of the letters (50–200%), and **− / +** for the size of the whole folio |
+| **Side panel** | **Tag** (the tag at the cursor, to edit or remove it), **Folio** (label, layout, lines, calibration, progress), **Cited works**, **Manuscript** (details, numbering, PDF, imports, tag summary, backups) |
 
 ### On a phone or a tablet
 
@@ -1127,9 +1127,10 @@ number and sits beside another PDF page. A backup is made first either way.
 
 A transcription is read again and again, each reading for something: the letters against the scan, then the
 punctuation and numbers, then the markup. **Settings › Transcription** holds the levels, a line each, in order:
-four are given to begin with, and you name your own. In the **Folio** tab of the side panel, **Proofreading** is a
-selector of how far this folio side has got: not stated, text from OCR not yet read, or read to a level; the folio
-list shows the state after the label. Every export says it: the TEI as above; the HTML page with a badge beside each
+four are given to begin with, and you name your own. A selector in the status bar, at the foot of the typing area (on
+a phone, in the folio bar's ⋯ menu), says how far this folio side has got: not stated, text from OCR not yet read, or
+read to a level; change it there without leaving the typing area. The folio list shows the state after the label.
+Every export says it: the TEI as above; the HTML page with a badge beside each
 folio heading and the levels explained at the top; the Markdown with a line under each folio side and the state of
 the whole; and the conspectus of an edition, where each witness's description ends with how far it is proofread, in
 the print page and PDF, the Markdown, the reader and the LaTeX.
