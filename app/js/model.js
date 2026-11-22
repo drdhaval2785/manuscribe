@@ -30,7 +30,7 @@
     commentary: { label: 'Commentary', divType: 'commentary' },
     gloss: { label: 'Interlinear commentary', divType: 'interlinear-commentary' },
   };
-  const DEFAULT_LINES = { main: 8, top: 5, bottom: 5, left: 12, right: 12 };
+  const DEFAULT_LINES = { main: 8, top: 5, bottom: 5, left: 20, right: 20 };
 
   const Model = { LAYOUTS, BOX_LABEL, BOX_COLOR, STREAMS, DEFAULT_LINES };
 
@@ -359,14 +359,17 @@
       return { top: [X, Y, W, ht], main: [X, Y + ht + gap, W, hm], bottom: [X, Y + ht + gap + hm + gap, W, hb] };
     }
     if (type === 'pancapatha') {
+      // the central column, between the two inner rules, holds the top block, the main text and the bottom block;
+      // the left and right columns run the full height beside it
       const avail = H - 2 * gap;
       const unit = avail / (c * lines.top + lines.main + c * lines.bottom);
       const ht = c * lines.top * unit, hm = lines.main * unit, hb = c * lines.bottom * unit;
       const side = 0.17 * W, gx = 0.015;
+      const cx = X + side + gx, cw = W - 2 * side - 2 * gx;
       const ym = Y + ht + gap;
       return {
-        top: [X, Y, W, ht], bottom: [X, ym + hm + gap, W, hb],
-        left: [X, ym, side, hm], main: [X + side + gx, ym, W - 2 * side - 2 * gx, hm], right: [X + W - side, ym, side, hm],
+        top: [cx, Y, cw, ht], bottom: [cx, ym + hm + gap, cw, hb],
+        left: [X, Y, side, H], main: [cx, ym, cw, hm], right: [X + W - side, Y, side, H],
       };
     }
     return { main: [X, Y, W, H] };

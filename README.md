@@ -203,7 +203,7 @@ line at a time; transcribing a whole manuscript is still better on a tablet or a
 |---|---|---|
 | **Linear** | One block of text | One stream: base text |
 | **Tripāṭha** | Main text in the middle, commentary above and below | Base text, and commentary with `<cb n="top"/>` and `<cb n="bottom"/>` |
-| **Pañcapāṭha** | Main text in the middle, commentary in the top, right, left and bottom blocks, read in that order | Base text, and commentary with a `<cb>` for each block |
+| **Pañcapāṭha** | Main text in the middle of the central column, between two vertical rules, with the commentary's top and bottom blocks above and below it; the left and right columns run the full height beside them; read top, right, left, bottom | Base text, and commentary with a `<cb>` for each block |
 | **Interlinear** | Main text, with a line of commentary above each line | Base text, and interlinear commentary |
 
 The default layout of the project is set in the Manuscript tab, under *Folios and numbering*. To change a single folio, use the Folio

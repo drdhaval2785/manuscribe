@@ -186,6 +186,24 @@ const { launch, sleep, checks } = require('./h');
   });
   T.check('the decision panel shows each reading in the metre', panel && panel.metre.includes('metre ✓') && panel.metre.some((m) => /fault/.test(m)), panel);
   T.check('and the evidence for a reading', panel && panel.evidence && panel.backing.some((b) => /Comm\. \(pratīka\)/.test(b)), panel);
+
+  // the five-block folio: the top, main and bottom blocks in the central column between the two inner rules, the
+  // left and right columns the full height beside them (the top and bottom never run across the side columns)
+  const five = await page.evaluate(() => {
+    const { Model, Editor } = ME;
+    const p = Model.upgrade(Model.newProject({ meta: { title: 'Five' }, layoutType: 'pancapatha', folios: {} }));
+    p.pdf = { name: 'x', pages: 1 };
+    const e = Model.entries(p)[0];
+    const el = Editor.buildFolio(p, e, Editor.typingGeom(p, e, { width: 1000, height: 400 }));
+    const box = (b) => { const s = el.querySelector('.box-' + b).style; return ['left', 'top', 'width', 'height'].map((k) => parseFloat(s[k])); };
+    return { top: box('top'), main: box('main'), bottom: box('bottom'), left: box('left'), right: box('right'), rules: [...el.querySelectorAll('.rule')].map((r) => parseFloat(r.style.left)).sort((a, b) => a - b), lines: p.layout.lines };
+  });
+  const near = (a, b) => Math.abs(a - b) < 0.05;
+  const right = (r) => r[0] + r[2], foot = (r) => r[1] + r[3];
+  T.check('the five-block folio: the top, main and bottom blocks stand in the central column, the left and right columns run the full height beside them, and the inner rules lie between', near(five.top[0], five.main[0]) && near(five.bottom[0], five.main[0]) && near(five.top[2], five.main[2]) && near(five.bottom[2], five.main[2])
+    && right(five.left) < five.main[0] && five.main[0] + five.main[2] < five.right[0] && near(five.left[1], five.top[1]) && near(foot(five.left), foot(five.bottom)) && near(five.right[1], five.top[1]) && near(foot(five.right), foot(five.bottom))
+    && five.rules.length === 4 && five.rules[0] < five.left[0] && right(five.left) < five.rules[1] && five.rules[1] < five.main[0] && right(five.main) < five.rules[2] && five.rules[2] < five.right[0] && right(five.right) < five.rules[3]
+    && five.lines.left === 20 && five.lines.right === 20, five);
   T.done(page);
   await browser.close();
 })().catch((e) => { console.log('  FAIL crashed :: ' + e.message); process.exitCode = 1; });
