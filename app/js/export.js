@@ -146,14 +146,14 @@
         const n = Model.lineCount(project, e.label, box);
         const arr = pg.boxes[box] || [];
         const meta = (pg.lb && pg.lb[box]) || {};
-        let last = -1;
-        for (let i = 0; i < n; i++) if (TEI.hasContent(arr[i])) last = i;
-        if (last < 0) continue;
+        // every line of a block that has text, the blank ones at its end too: the file then says how many lines the
+        // block has on this folio side, and an import gives it that many
+        if (!arr.slice(0, n).some(TEI.hasContent)) continue;
         if (s.boxes.length > 1) pageTokens.push({ t: 'cb', n: box });
-        for (let i = 0; i <= last; i++) {
+        for (let i = 0; i < n; i++) {
           const has = TEI.hasContent(arr[i]);
           const brk = has && (prev.open || (meta[i] && meta[i].brk && !prev.rawSpaced));
-          pageTokens.push({ t: 'lb', n: Model.lineNumber(project, e.label, box, i), brk });
+          pageTokens.push({ t: 'lb', n: Model.lineNumber(project, e.label, box, i), brk, blank: !has });
           prev = has ? lineEnd(arr[i]) : { open: false, spaced: true, rawSpaced: true };
           const where = e.label + ' · ' + Model.BOX_LABEL[box].toLowerCase() + ' · line ' + (i + 1);
           if (!arr[i]) continue;
@@ -428,7 +428,7 @@
     let lineCount = 0;
     for (const key of streams) {
       const tokens = streamTokens(project, key, uniq, ctx);
-      lineCount += tokens.filter((t) => t.t === 'lb').length;
+      lineCount += tokens.filter((t) => t.t === 'lb' && !t.blank).length;
       if (!tokens.length) continue;
       divs.push(buildDiv(tokens, key, ctx));
     }
@@ -471,7 +471,7 @@
       for (const tok of tokens) {
         if (tok.t === 'pb' || tok.t === 'lb' || tok.t === 'cb') {
           flat.children.push(node(tok.t, Object.assign(tok.brk ? { n: tok.n, break: 'no' } : { n: tok.n }, tok.attrs || {})));
-          if (tok.t === 'lb') lines++;
+          if (tok.t === 'lb' && !tok.blank) lines++;
         } else if (typeof tok.n === 'string') flat.children.push(tok.n);
         else if (tok.n.name !== 'x-marker') { if (!mergeSpan(flat, tok.n)) flat.children.push(tok.n); }
         else {

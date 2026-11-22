@@ -1015,7 +1015,8 @@ You can include or leave out streams (main text, commentary, interlinear comment
 manuscript or this folio side, write one file or one per stream, and copy or download the result.
 
 Every `<pb/>` and `<lb/>` starts a new line of the file, with a blank line before each folio, so the XML
-reads easily in a text editor:
+reads easily in a text editor. A block that has any text is written whole, the blank lines at its end as bare
+`<lb/>`s, so the file says how many lines each block of a folio side has:
 
 ```xml
 <lb n="2"/>kṣuḥ pūrva<subst>…</subst>madhya
@@ -1085,6 +1086,10 @@ folios are left alone.
   one, so that its last word stays apart from the next line's first, except where a paragraph or verse begins
   or ends at that line end; the spaces at the end of a line are kept as they are. A file the export wrote
   comes back as it was.
+- Each folio side keeps the number of lines the file gives it, block by block, whatever the usual numbers given
+  when the transcription was made: a side with a short main text under a long commentary shows just those lines.
+  The header's `writtenLines` (or the most common count in the file) becomes the usual number, for the folios the
+  file does not have.
 - On a side with no `<lb/>`, each carriage return is a line. A space before the carriage return gives
   `<lb n="18"/>`, and no space gives `<lb n="18" break="no"/>`.
 - A tag open across a line break, such as `<hi>`, stays one element and shows on both lines.

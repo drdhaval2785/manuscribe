@@ -69,11 +69,11 @@
     let stmt = '';
     for (let i = 0; i < toks.length; i++) {
       const k = toks[i];
-      if (k.t !== 'open' && k.t !== 'close') continue;
+      if (k.t !== 'open' && k.t !== 'close' && !(k.t === 'empty' && k.name === 'layout')) continue; // <layout writtenLines="19"/> too
       if (k.t === 'open' && (k.name === 'titleStmt' || k.name === 'msItem' || k.name === 'notesStmt')) stmt = k.name;
       if (k.t === 'close' && k.name === stmt) stmt = '';
-      if (k.t !== 'open') continue;
-      const textOf = () => { let s = ''; for (let j = i + 1; j < toks.length && !(toks[j].t === 'close' && toks[j].name === k.name); j++) if (toks[j].t === 'text') s += toks[j].s; return s.trim(); };
+      if (k.t === 'close') continue;
+      const textOf = () => { if (k.t === 'empty') return ''; let s = ''; for (let j = i + 1; j < toks.length && !(toks[j].t === 'close' && toks[j].name === k.name); j++) if (toks[j].t === 'text') s += toks[j].s; return s.trim(); };
       if (k.name === 'bibl') {
         const w = { xmlId: k.attrs['xml:id'] || k.attrs.id || '', title: '', author: '', abbr: '' };
         for (let j = i + 1; j < toks.length && !(toks[j].t === 'close' && toks[j].name === 'bibl'); j++) {
@@ -178,6 +178,11 @@
       res.lines.push({ page, stream, box, tei: TEI.normalizeTags(str), lb: cur.lb });
     }
 
+    // a line break with nothing after it (a blank line at the end of a block) is a line of this block, not the next
+    function endBlank() {
+      if (cur.lb) { pushLine(); cur = blank(); }
+    }
+
     function finishLine() {
       const open = stack.slice();
       for (const e of open) e.span = e.span || ME.Spans.newId();
@@ -272,9 +277,9 @@
           if (!label) { res.warnings.push('A <pb> without a number was ignored.'); continue; }
           res.pages.push(label);
           res.pageAttrs[label] = Object.assign(res.pageAttrs[label] || {}, pbAttrs(a));
-          if (cur.hasText) pendingPage = label; else page = label;
+          if (cur.hasText) pendingPage = label; else { endBlank(); page = label; }
         } else if (name === 'cb') {
-          if (cur.hasText) pendingBox = a.n || ''; else box = a.n || null;
+          if (cur.hasText) pendingBox = a.n || ''; else { endBlank(); box = a.n || null; }
         } else if (name === 'lb') {
           const brk = a.break === 'no';
           if (cur.hasText) {
@@ -296,7 +301,7 @@
         const structural = !stack.length;
         if (IGNORED.has(name)) continue;
         if (name === 'div') {
-          if (cur.hasText) finishLine();
+          if (cur.hasText) finishLine(); else endBlank();
           applyPending();
           const ty = String(a.type || '');
           stream = /interlin|gloss/i.test(ty) ? 'gloss' : /comment/i.test(ty) ? 'commentary' : 'main';
@@ -323,7 +328,7 @@
       }
       // closing tag
       if (IGNORED.has(name) || VOID.has(name)) continue;
-      if (name === 'div') { if (cur.hasText) finishLine(); applyPending(); continue; }
+      if (name === 'div') { if (cur.hasText) finishLine(); else endBlank(); applyPending(); continue; }
       if (!stack.some((e) => e.name === name)) {
         if (name === 'p' && autoP) autoP = false;
         else if (name === 'p' || name === 'ab') raw('<x-marker type="p-end"/>');
@@ -446,11 +451,12 @@
       if (box !== 'gloss') (counts[box] = counts[box] || []).push(label);
     }
     if (noPb) res.warnings.push('Text without a <pb> before it was put on folio ' + fallbackLabel + '.');
-    // the usual number of lines per block is the most common one in the file
+    // the usual number of lines per block is the one the header states, else the most common one in the file; a
+    // folio side with another number keeps its own, block by block (a short main text under a long commentary)
     for (const box of Object.keys(counts)) {
       const per = {};
       for (const label of fresh) { const n = (project.pages[label].boxes[box] || []).length; if (n) per[n] = (per[n] || 0) + 1; }
-      const stated = m.lines && m.lines[box]; // blank lines at the end of a folio are not in the text
+      const stated = m.lines && m.lines[box];
       const usual = stated || +Object.keys(per).sort((a, b) => per[b] - per[a])[0];
       if (usual && usual !== project.layout.lines[box]) {
         // folios that are not in the file keep the number of lines they had
@@ -462,11 +468,11 @@
       for (const label of fresh) {
         const pg = project.pages[label];
         const n = (pg.boxes[box] || []).length;
-        if (n && (stated ? n > usual : n !== usual)) pg.lines = Object.assign(pg.lines || {}, { [box]: n });
+        if (n && n !== usual) pg.lines = Object.assign(pg.lines || {}, { [box]: n });
       }
     }
     const known = new Set(Model.entries(project).filter((e) => !e.orphan).map((e) => e.label));
-    return { folios: Array.from(fresh), lines: res.lines.length, unmapped: Array.from(fresh).filter((l) => !known.has(l)), warnings: res.warnings };
+    return { folios: Array.from(fresh), lines: res.lines.filter((l) => TEI.hasContent(l.tei)).length, unmapped: Array.from(fresh).filter((l) => !known.has(l)), warnings: res.warnings };
   };
 
   /* Tags that a whole file cannot be read past: an unclosed note or addition would take in all the
