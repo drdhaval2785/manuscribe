@@ -26,9 +26,11 @@ function start(token) {
       res.end(body === undefined ? '' : JSON.stringify(body));
     };
     if (req.method === 'OPTIONS') { send(204); return; }
-    let raw = '';
-    req.on('data', (d) => { raw += d; });
+    // the body as bytes until it is whole: a letter of several bytes can straddle two chunks
+    const chunks = [];
+    req.on('data', (d) => { chunks.push(d); });
     req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
       repo.requests.push(req.method + ' ' + req.url);
       if (req.headers.authorization !== 'Bearer ' + token) { send(401, { message: 'Bad credentials' }); return; }
       const body = raw ? JSON.parse(raw) : null;
