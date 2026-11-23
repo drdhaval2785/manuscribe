@@ -360,16 +360,17 @@
     }
     if (type === 'pancapatha') {
       // the central column, between the two inner rules, holds the top block, the main text and the bottom block;
-      // the left and right columns run the full height beside it
+      // the left and right columns run the full height beside it, out to the edges of the leaf: a pañcapāṭha
+      // has no margin beyond its side blocks (nothing is written there)
       const avail = H - 2 * gap;
       const unit = avail / (c * lines.top + lines.main + c * lines.bottom);
       const ht = c * lines.top * unit, hm = lines.main * unit, hb = c * lines.bottom * unit;
-      const side = 0.17 * W, gx = 0.015;
-      const cx = X + side + gx, cw = W - 2 * side - 2 * gx;
+      const side = 0.17, gx = 0.015;
+      const cx = side + gx, cw = 1 - 2 * side - 2 * gx;
       const ym = Y + ht + gap;
       return {
         top: [cx, Y, cw, ht], bottom: [cx, ym + hm + gap, cw, hb],
-        left: [X, Y, side, H], main: [cx, ym, cw, hm], right: [X + W - side, Y, side, H],
+        left: [0, Y, side, H], main: [cx, ym, cw, hm], right: [1 - side, Y, side, H],
       };
     }
     return { main: [X, Y, W, H] };

@@ -188,7 +188,8 @@ const { launch, sleep, checks } = require('./h');
   T.check('and the evidence for a reading', panel && panel.evidence && panel.backing.some((b) => /Comm\. \(pratīka\)/.test(b)), panel);
 
   // the five-block folio: the top, main and bottom blocks in the central column between the two inner rules, the
-  // left and right columns the full height beside them (the top and bottom never run across the side columns)
+  // left and right columns the full height beside them (the top and bottom never run across the side columns),
+  // out to the edges of the leaf: no margin and no outer rule beyond the side blocks
   const five = await page.evaluate(() => {
     const { Model, Editor } = ME;
     const p = Model.upgrade(Model.newProject({ meta: { title: 'Five' }, layoutType: 'pancapatha', folios: {} }));
@@ -200,9 +201,10 @@ const { launch, sleep, checks } = require('./h');
   });
   const near = (a, b) => Math.abs(a - b) < 0.05;
   const right = (r) => r[0] + r[2], foot = (r) => r[1] + r[3];
-  T.check('the five-block folio: the top, main and bottom blocks stand in the central column, the left and right columns run the full height beside them, and the inner rules lie between', near(five.top[0], five.main[0]) && near(five.bottom[0], five.main[0]) && near(five.top[2], five.main[2]) && near(five.bottom[2], five.main[2])
+  T.check('the five-block folio: the top, main and bottom blocks stand in the central column, the left and right columns run the full height beside them out to the edges, and the only rules are the two inner ones between them', near(five.top[0], five.main[0]) && near(five.bottom[0], five.main[0]) && near(five.top[2], five.main[2]) && near(five.bottom[2], five.main[2])
     && right(five.left) < five.main[0] && five.main[0] + five.main[2] < five.right[0] && near(five.left[1], five.top[1]) && near(foot(five.left), foot(five.bottom)) && near(five.right[1], five.top[1]) && near(foot(five.right), foot(five.bottom))
-    && five.rules.length === 4 && five.rules[0] < five.left[0] && right(five.left) < five.rules[1] && five.rules[1] < five.main[0] && right(five.main) < five.rules[2] && five.rules[2] < five.right[0] && right(five.right) < five.rules[3]
+    && near(five.left[0], 0) && near(right(five.right), 100)
+    && five.rules.length === 2 && right(five.left) < five.rules[0] && five.rules[0] < five.main[0] && right(five.main) < five.rules[1] && five.rules[1] < five.right[0]
     && five.lines.left === 20 && five.lines.right === 20, five);
   T.done(page);
   await browser.close();

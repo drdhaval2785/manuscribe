@@ -289,11 +289,15 @@ pre.example:empty { display: none; }
 .lc-tripatha .d-top { display: block; left: 11%; right: 11%; top: 9%; height: 24%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
 .lc-tripatha .d-main { display: block; left: 11%; right: 11%; top: 38%; height: 26%; background: repeating-linear-gradient(#5c3d1d 0 2.5px, transparent 2.5px 7px); }
 .lc-tripatha .d-bottom { display: block; left: 11%; right: 11%; top: 70%; height: 22%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
-.lc-pancapatha .d-top { display: block; left: 29%; right: 29%; top: 8%; height: 18%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
-.lc-pancapatha .d-bottom { display: block; left: 29%; right: 29%; top: 76%; height: 17%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
-.lc-pancapatha .d-left { display: block; left: 11%; width: 15%; top: 8%; height: 85%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
-.lc-pancapatha .d-right { display: block; right: 11%; width: 15%; top: 8%; height: 85%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
-.lc-pancapatha .d-main { display: block; left: 29%; right: 29%; top: 32%; height: 38%; background: repeating-linear-gradient(#5c3d1d 0 2.5px, transparent 2.5px 7px); }
+/* a pañcapāṭha's side blocks run to the edges: no margin and no outer rule beyond them; its rules are the two inner ones */
+.lc-pancapatha::before, .lc-pancapatha::after { top: 8%; bottom: 7%; width: 1px; border-right: 0; }
+.lc-pancapatha::before { left: 18.5%; }
+.lc-pancapatha::after { right: 18.5%; }
+.lc-pancapatha .d-top { display: block; left: 21%; right: 21%; top: 8%; height: 18%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
+.lc-pancapatha .d-bottom { display: block; left: 21%; right: 21%; top: 76%; height: 17%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
+.lc-pancapatha .d-left { display: block; left: 0; width: 16%; top: 8%; height: 85%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
+.lc-pancapatha .d-right { display: block; right: 0; width: 16%; top: 8%; height: 85%; background: repeating-linear-gradient(#7d5c37 0 1px, transparent 1px 3.5px); }
+.lc-pancapatha .d-main { display: block; left: 21%; right: 21%; top: 32%; height: 38%; background: repeating-linear-gradient(#5c3d1d 0 2.5px, transparent 2.5px 7px); }
 .lc-interlinear .d-main { display: block; left: 11%; right: 11%; top: 12%; bottom: 10%; background: repeating-linear-gradient(#9a7a55 0 1px, transparent 1px 4px, #5c3d1d 4px 6.5px, transparent 6.5px 12px); }
 
 .quote-dialog .work-list { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; background: #fff; }

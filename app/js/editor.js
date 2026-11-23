@@ -179,24 +179,29 @@
       U.el('button', { class: 'mini', title: 'One more line on this folio (or press Enter on the last line)', onmousedown: (e) => e.preventDefault(), onclick: () => hook('onLinesChange', box, n + 1) }, '+'));
   }
 
-  // The typing folio is wider than the leaf: extra side margins hold the marginal notes.
+  // The typing folio is wider than the leaf: extra side margins hold the marginal notes. Not in a
+  // pañcapāṭha: its left and right blocks run to the edges of the leaf and nothing is written beyond them.
   const EXTRA_MARGIN = 0.12; // of the leaf width, on each side
   function widen(g) {
-    const k = 1 + 2 * EXTRA_MARGIN;
+    const em = g.type === 'pancapatha' ? 0 : EXTRA_MARGIN;
+    const k = 1 + 2 * em;
     const boxes = {};
-    for (const [b, r] of Object.entries(g.boxes)) boxes[b] = [(r[0] + EXTRA_MARGIN) / k, r[1], r[2] / k, r[3]];
+    for (const [b, r] of Object.entries(g.boxes)) boxes[b] = [(r[0] + em) / k, r[1], r[2] / k, r[3]];
     return Object.assign({}, g, { boxes, aspect: g.aspect * k });
   }
   Editor.typingGeom = (project, entry, pageSize) => widen(Model.geometry(project, entry, pageSize));
 
-  // red rules just beside the text, as in the manuscripts; the margins lie outside them
+  // red rules just beside the text, as in the manuscripts; the margins lie outside them. A pañcapāṭha has
+  // only the two inner rules, between the side blocks and the central column: there is no margin beyond
+  // its side blocks, so no outer rule either.
   function ruleXs(g) {
     const bs = Object.values(g.boxes);
     const minX = Math.min(...bs.map((r) => r[0])), maxX = Math.max(...bs.map((r) => r[0] + r[2]));
-    const xs = [minX - 0.008, maxX + 0.008];
     if (g.type === 'pancapatha' && g.boxes.left && g.boxes.main && g.boxes.right) {
-      xs.push((g.boxes.left[0] + g.boxes.left[2] + g.boxes.main[0]) / 2, (g.boxes.main[0] + g.boxes.main[2] + g.boxes.right[0]) / 2);
+      const xs = [(g.boxes.left[0] + g.boxes.left[2] + g.boxes.main[0]) / 2, (g.boxes.main[0] + g.boxes.main[2] + g.boxes.right[0]) / 2];
+      return { left: minX, right: maxX, xs };
     }
+    const xs = [minX - 0.008, maxX + 0.008];
     return { left: xs[0], right: xs[1], xs };
   }
   Editor.ruleXs = ruleXs;
