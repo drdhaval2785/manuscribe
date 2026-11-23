@@ -917,8 +917,14 @@ body.touch .ct-touch { display: block; }
 }
 /* a phone: a dialog is a sheet the height of the screen, its body scrolling between the title and the buttons */
 @media (max-width: 700px) {
-  .modal-backdrop { padding: 0; place-items: stretch; }
-  .modal, .modal.wide { width: 100%; height: var(--app-h, 100dvh); max-height: none; border-radius: 0; }
+  .modal-backdrop { padding: 0; place-items: stretch; grid-template-columns: minmax(0, 1fr); }
+  /* never wider than the screen, whatever the widest thing inside: that scrolls or shrinks instead */
+  .modal, .modal.wide { width: 100%; min-width: 0; max-width: 100%; height: var(--app-h, 100dvh); max-height: none; border-radius: 0; }
+  /* the Export dialog: the PDF's route on a line of its own, no wider than the row; an index's name wraps */
+  .xp-row > span { min-width: 0; }
+  .xp-route { display: block; margin-top: 4px; }
+  .xp-route select { max-width: calc(100vw - 80px); } /* a fixed cap: a percentage would not shrink the row's least width */
+  .xp-indices .xp-ix { white-space: normal; }
   .modal-head { padding: 10px 10px 4px 14px; }
   .modal-body { padding: 4px 14px 12px; }
   .modal-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
