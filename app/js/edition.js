@@ -156,9 +156,33 @@
     return out;
   };
 
+  /* The streams of a witness interleaved: in a tripāṭha or pañcapāṭha the commentary stands in blocks of its own,
+     so its place beside the base is told by the IDs (c1.2-0 before b1.2, c1.2-1 after it), each stream keeping the
+     order it has on the page, so that a block out of order within its own stream still shows. A witness of one
+     stream (a linear page) is left as it stands. */
+  function interleave(pos) {
+    const LI = ME.LayerIds;
+    const streams = new Map();
+    for (const x of pos) { if (!streams.has(x.stream)) streams.set(x.stream, []); streams.get(x.stream).push(x); }
+    if (streams.size < 2) return pos;
+    const heads = Array.from(streams.values());
+    const out = [];
+    for (;;) {
+      let best = -1;
+      for (let i = 0; i < heads.length; i++) {
+        if (!heads[i].length) continue;
+        // a block of no known place goes as it comes, in its stream's turn
+        if (best < 0 || !heads[i][0].place || (heads[best][0].place && LI.comparePlace(heads[i][0].place, heads[best][0].place) < 0)) best = i;
+      }
+      if (best < 0) return out;
+      out.push(heads[best].shift());
+    }
+  }
+
   /* The blocks of every work in the order they stand in the manuscript: that of the most trusted witness, a block
      only other witnesses have put after the block before it. The base and the commentaries of a layered edition
-     thus come interleaved, as the scribe wrote them, and what is amiss shows: a commentary block whose base block no
+     thus come interleaved, as the scribe wrote them (in a tripāṭha or pañcapāṭha, as the IDs place the commentary's
+     blocks beside the base), and what is amiss shows: a commentary block whose base block no
      witness has, or that stands on the wrong side of it (a -0 block introduces its passage and stands before it,
      the others follow it), and blocks out of their numerical order. -> [{id, work, problem}] */
   Edition.manuscriptOrder = function (ed, list, reg) {
@@ -179,12 +203,13 @@
         for (const [id, places] of rec.units) {
           if (/-auto\d+$/.test(id)) continue;
           const at = places[0];
-          pos.push({ id, work, k: [labels.indexOf(at.label), Model.LAYOUTS[Model.pageLayout(p, at.label)].boxes.indexOf(at.box), at.i, at.pos || 0] });
+          const type = Model.pageLayout(p, at.label), stream = Model.streamOfBox(type, at.box);
+          pos.push({ id, work, k: [labels.indexOf(at.label), Model.LAYOUTS[type].boxes.indexOf(at.box), at.i, at.pos || 0], stream: stream ? stream.key : 'main', place: layered ? LI.placeKey(ed, id) : null });
         }
       }
       pos.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.k[3] - b.k[3]);
       let prev = -1;
-      for (const x of pos) {
+      for (const x of (layered ? interleave(pos) : pos)) {
         let at = order.findIndex((y) => key(y) === key(x));
         if (at < 0) { at = prev + 1; order.splice(at, 0, { id: x.id, work: x.work }); }
         prev = at;

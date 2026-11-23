@@ -100,6 +100,22 @@ const { launch, sleep, checks } = require('./h');
     return Edition.manuscriptOrder(ed, list).map((x) => x.id + (x.problem ? ' !! ' + x.problem : ''));
   });
   T.check('a commentary before its base, a -0 block after its base, a base out of order and a paragraph out of order are each told; three blocks beginning in one line stand in their order there, and are in order', amiss.join('\n') === ['b2', 'c1-1 !! c1-1: it stands before its base block b1', 'b1 !! b1: it comes after b2, out of order', 'c2-0 !! c2-0: it stands after its base block b2', 'c2-2', 'c2-1 !! c2-1: it comes after c2-2, out of order', 'c3-0', 'b3', 'c3-1'].join('\n'), amiss);
+
+  // in a tripāṭha the commentary stands in blocks of its own: its place beside the base follows the IDs, each stream
+  // keeping its own order, and only a block out of order within its stream is told
+  const tri = await page.evaluate(async () => {
+    const { Model, Edition } = ME;
+    const P = (id) => '<x-marker type="p-start" id="' + id + '"/>', END = '<x-marker type="p-end"/>';
+    const blk = (ids, t) => ids.map((id) => P(id) + t + ' ' + END);
+    const p = Model.upgrade(Model.newProject({ meta: { title: 'T', siglum: 'T', textLang: 'sa-Deva' }, layoutType: 'tripatha', lines: { top: 3, main: 6, bottom: 2 }, folios: {} }));
+    p.pdf = { name: 't.pdf', pages: 1 };
+    p.pages = { '1r': { boxes: { top: blk(['c1.1-0', 'c1.2-1', 'c1.4-1'], 'टीका'), main: blk(['b1.1', 'b1.2', 'b1.3', 'b1.4', 'b1.5', 'b1.6'], 'मूलम्'), bottom: blk(['c1.6-1', 'c1.5-1'], 'टीका') } } };
+    const ed = Edition.create('Tri'); ed.witnesses.push({ siglum: 'T', projectId: p.id, streams: {} });
+    const list = [{ w: ed.witnesses[0], p }];
+    Edition.syncLayers(ed, list);
+    return Edition.manuscriptOrder(ed, list).map((x) => x.id + (x.problem ? ' !! ' + x.problem : ''));
+  });
+  T.check('in a tripāṭha the commentary’s place beside the base follows the IDs: an avataraṇikā before its verse, the commentary after it, each stream in its own order; only a block out of order within its stream is told', tri.join() === 'c1.1-0,b1.1,b1.2,c1.2-1,b1.3,b1.4,c1.4-1,b1.5,b1.6,c1.6-1,c1.5-1 !! c1.5-1: it comes after c1.6-1, out of order', tri);
   await page.evaluate(() => document.querySelector('[data-action="collate"]').click());
   for (let k = 0; k < 80; k++) { await sleep(250); if (await page.evaluate(() => !ME.CollateView.running && document.querySelector('[data-action="collate"]'))) break; }
   await sleep(800);

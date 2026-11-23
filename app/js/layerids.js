@@ -142,6 +142,27 @@
   // the order of the layers: as the editor has them, a new one after its parent's family
   LI.rank = (ed) => new Map(((ed && ed.layers) || []).map((l, i) => [l.code, i]));
 
+  /* Where a block stands in the order of reading, from its ID alone: a -0 block (an avataraṇikā) before the block
+     it introduces, the others after it, the commentaries on one block in the order of the register, each paragraph
+     in its number's order and its sub-commentaries after it. -> numbers to compare term by term, a shorter list
+     first when it is the start of the other; null for an ID of another shape */
+  LI.placeKey = function (ed, id) {
+    const x = LI.parse(id);
+    if (!x) return null;
+    const rank = LI.rank(ed);
+    const r = (code) => (rank.has(code) ? rank.get(code) : 1e6);
+    const before = !x.base && x.segs[0] === 0;
+    const locus = before ? x.loci[0] : x.loci[x.loci.length - 1];
+    const key = locus.split('.').map(Number);
+    if (x.base) return key.concat(0);
+    for (let k = 0; k < x.segs.length; k++) key.push(x.segs[k] === 0 ? -1 : 1, r(x.code.slice(0, k + 1)), x.segs[k]);
+    return key.concat(0);
+  };
+  LI.comparePlace = function (a, b) {
+    for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i];
+    return a.length - b.length;
+  };
+
   /* The order of two layers when shown together: a parent before its family, and commentaries on the same text in
      the order of the register. */
   LI.order = function (ed, a, b) {

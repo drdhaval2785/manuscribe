@@ -861,7 +861,9 @@ layered as soon as a witness has a commentary block by such an ID; IDs like `b1`
 - **The citation IDs stand as in the manuscript.** With *All* chosen in the Witnesses step, and at *All layers*
   in Collate, the blocks of the base and of the commentaries come in one list in the order the most trusted
   witness has them (a block only another witness has follows the block before it), each commentary block with its
-  [abbreviation]. A block amiss among its neighbours is highlighted, and the pointer on its row says what is
+  [abbreviation]. In a tripāṭha or pañcapāṭha, where the commentary stands in blocks of its own, its place beside
+  the base follows the IDs: a `-0` block before the block it introduces, the others after it, each stream keeping
+  the order it has on the page. A block amiss among its neighbours is highlighted, and the pointer on its row says what is
   wrong: a commentary block whose base block no witness has, one on the wrong side of its base (a `-0` block
   introduces its passage and stands before it; the others follow it), or blocks out of their numerical order.
 - **Collate** in a layered edition starts at **All layers**: one table of every layer's blocks, each commentary
