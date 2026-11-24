@@ -50,9 +50,18 @@ const { launch, sleep, checks } = require('./h');
 
     // over lines, selected with the mouse: a click, then shift and a click
     const at = (i, x) => page.evaluate((i, x) => { const el = ME.Editor.lineEl('main', i); const n = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode(); const r = document.createRange(); r.setStart(n, x); r.setEnd(n, x + 1); const b = r.getBoundingClientRect(); return { x: b.left + 1, y: b.top + b.height / 2 }; }, i, x);
+    // a line focused is brought to the middle of the pane by a smooth scroll: wait until the pane stops (a slow machine
+    // may still be scrolling after 400 ms, and a click aimed at a line then lands on the next)
+    const still = () => page.evaluate(async () => {
+      const pane = document.getElementById('editor-pane'), frame = () => new Promise((r) => requestAnimationFrame(r));
+      let last = '', same = 0;
+      for (let k = 0; k < 300 && same < 6; k++) { await frame(); const now = pane.scrollTop + ',' + pane.scrollLeft; same = now === last ? same + 1 : 0; last = now; }
+    });
+    await still();
     const a = await at(1, 2);
     await page.mouse.click(a.x, a.y);
-    await sleep(400);
+    await sleep(150);
+    await still();
     const b = await at(2, 4); // the first click may have scrolled the line to the middle
     await page.keyboard.down('Shift');
     await page.mouse.click(b.x, b.y);
