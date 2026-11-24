@@ -29,15 +29,17 @@
     const ort = self.ort;
     let cfg = null;
     const sessions = {}, backends = {};
+    // the bundle may set further session options (cfg.sessionOptions); ONNX Runtime's own are kept otherwise
+    const MEMORY = {};
     async function session(name) {
       if (sessions[name]) return sessions[name];
       const bytes = new Uint8Array(cfg.models[name]);
       const gpu = cfg.gpu && name !== 'recogniser';
       if (gpu) {
-        try { sessions[name] = await ort.InferenceSession.create(bytes, { executionProviders: ['webgpu', 'wasm'], logSeverityLevel: 3 }); backends[name] = 'webgpu'; return sessions[name]; } catch (e) { /* WebAssembly, below */ }
+        try { sessions[name] = await ort.InferenceSession.create(bytes, Object.assign({ executionProviders: ['webgpu', 'wasm'], logSeverityLevel: 3 }, MEMORY, cfg.sessionOptions)); backends[name] = 'webgpu'; return sessions[name]; } catch (e) { /* WebAssembly, below */ }
       }
       // (logSeverityLevel 3: errors only; a WebGPU session warns that shape operations run on the CPU, as they should)
-      sessions[name] = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'], logSeverityLevel: 3 });
+      sessions[name] = await ort.InferenceSession.create(bytes, Object.assign({ executionProviders: ['wasm'], logSeverityLevel: 3 }, MEMORY, cfg.sessionOptions));
       backends[name] = 'wasm';
       return sessions[name];
     }
@@ -109,7 +111,7 @@
       w.postMessage(msg, transfer || []);
     });
     const models = bundle.models;
-    const ready = ask({ init: { wasm: bundle.wasm, gpu: !!bundle.gpu, models, P: bundle.P, chars: bundle.chars, S: bundle.S, threshold: bundle.threshold, spacerLength: bundle.spacerLength || null } },
+    const ready = ask({ init: { wasm: bundle.wasm, gpu: !!bundle.gpu, models, P: bundle.P, chars: bundle.chars, S: bundle.S, threshold: bundle.threshold, spacerLength: bundle.spacerLength || null, sessionOptions: bundle.sessionOptions || null } },
       [bundle.wasm].concat(Object.values(models)));
     const api = {
       ready,

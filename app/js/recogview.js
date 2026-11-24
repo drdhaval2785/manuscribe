@@ -151,6 +151,8 @@
     ctx.fillRect(0, 0, w, h);
     await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale, rotation, offsetX: -x0, offsetY: -y0 }) }).promise;
     const img = ctx.getImageData(0, 0, w, h);
+    // let go at once of the canvas (Safari keeps a canvas's memory until it is emptied)
+    c.width = 0; c.height = 0;
     return { data: new Uint8Array(img.data.buffer), width: w, height: h, channels: 4, render: { scale, rotation, rect, vw: vp.width, vh: vp.height } };
   }
 
@@ -181,10 +183,13 @@
     RV._worker = entry;
     return entry;
   }
-  function idle() {
-    const w = RV._worker;
-    if (w) w.idle = setTimeout(() => { if (RV._worker === w) { w.api.close(); RV._worker = null; } }, 5 * 60 * 1000);
-  }
+  /* The worker is kept for the page's life, never closed when idle or when reading is stopped: in WebKit (Safari),
+     closing a worker does not give back the memory its WebGPU device held. Measured 24 November 2026 with macOS's
+     footprint: one worker kept, a side read again and again held 0.7-1.4 GB in the page and 1.4 GB in the GPU
+     process, steady; a new worker for each side added 0.7 and 1.3 GB a side (6.4 and 7.9 GB after six), and Safari
+     reloads a page that grows so. A new worker is started only for a new pack or another way of running the models
+     (RV.stop, from Settings). */
+  function idle() { /* kept: see above */ }
   RV.stop = () => { if (RV._worker) { RV._worker.api.close(); RV._worker = null; } };
 
   /* ---------- placing what was read ---------- */
@@ -461,7 +466,7 @@
     const bar = U.el('progress', { max: 1, value: 0 });
     let close = null, finished = false, stopped = false;
     UI.modal({ title: 'Recognition', body: U.el('div', null, say, bar), buttons: [{ label: 'Stop', value: 'stop', kind: 'ghost' }], onOpen: (d, c) => { close = c; } })
-      .then(() => { if (!finished) { stopped = true; RV.stop(); } });
+      .then(() => { if (!finished) stopped = true; });          // the side being read is finished, and left unplaced
     const tot = { placed: 0, skipped: 0, lost: 0, counts: 0, sides: 0, stopped: false, error: null, times: [] };
     try {
       const w = await worker(m);
@@ -532,7 +537,7 @@
       rgba[i * 4] = crop.data[j]; rgba[i * 4 + 1] = crop.data[j + (crop.channels > 2 ? 1 : 0)]; rgba[i * 4 + 2] = crop.data[j + (crop.channels > 2 ? 2 : 0)]; rgba[i * 4 + 3] = 255;
     }
     c.getContext('2d').putImageData(new ImageData(rgba, crop.width, crop.height), 0, 0);
-    c.toBlob(async (b) => resolve(new Uint8Array(await b.arrayBuffer())), 'image/png');
+    c.toBlob(async (b) => { c.width = 0; c.height = 0; resolve(new Uint8Array(await b.arrayBuffer())); }, 'image/png');
   });
 
   const wording = () => ({ version: RV.CONSENT.version, date: RV.CONSENT.date, approved: RV.CONSENT.approved, title: RV.CONSENT.title, paragraphs: RV.CONSENT.paragraphs, question: RV.CONSENT.question, rights: RV.CONSENT.rights, sides: RV.CONSENT.sides });
@@ -597,7 +602,7 @@
     const c = document.createElement('canvas');
     c.width = px.width; c.height = px.height;
     c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(px.data.buffer, px.data.byteOffset, px.width * px.height * 4), px.width, px.height), 0, 0);
-    c.toBlob(async (b) => resolve(new Uint8Array(await b.arrayBuffer())), 'image/jpeg', 0.92);
+    c.toBlob(async (b) => { c.width = 0; c.height = 0; resolve(new Uint8Array(await b.arrayBuffer())); }, 'image/jpeg', 0.92);
   });
 
   // the side drawn as the segmenter learned from sides (at the pack's page height), a JPEG, with its blocks, and the
