@@ -6,7 +6,7 @@
    The list below is written by tools/precache.mjs, with a version made from the files' contents: a change to any
    file changes it, and the browser sees a new version. tests/t-offline.js checks that it is up to date. */
 // precache:start (written by tools/precache.mjs)
-const VERSION = "0.10.8-d1ff5ecd14";
+const VERSION = "0.10.8-fe82f61244";
 const FILES = [
   './',
   "css/app.css",
@@ -56,6 +56,15 @@ const FILES = [
   "js/pdfwrite.js",
   "js/printhtml.js",
   "js/publish.js",
+  "js/recogimage.js",
+  "js/recogpack.js",
+  "js/recogpage.js",
+  "js/recogread.js",
+  "js/recogrows.js",
+  "js/recogspace.js",
+  "js/recogvector.js",
+  "js/recogview.js",
+  "js/recogworker.js",
   "js/release.js",
   "js/safety.js",
   "js/shaper.js",

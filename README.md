@@ -1075,6 +1075,32 @@ and for AI output the prompt, of which only a SHA-256 hash is kept.
   one in ten shows the printed reading. AI output is accepted a line at a time until it passes.
 - Manuscribe sends nothing to any AI service.
 
+### Recognition in this browser
+
+Manuscribe can also read a folio side itself, on your computer, with three models: a **line segmenter** that finds the
+rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word spacer** for Sanskrit.
+
+- **The recognition pack.** Settings › Recognition fetches the models and the runtime that runs them (ONNX Runtime Web)
+  from the models' site, about 45 MB once (30 MB where the browser has no WebGPU), checks every file against the
+  checksum its manifest gives, and keeps them in this browser. It can also read a pack from a folder on disk (the
+  site's folder, copied). After that recognition works offline, and from a copy of Manuscribe opened from disk.
+  The panel says what each model learned from; the weights are under CC BY-SA 4.0.
+- **Recognise this side…** in the Folio tab (or Alt+J; Ctrl+Alt+J if that is your modifier): the side is drawn from the PDF at the scale the models learned
+  from, its rows and blocks found, each row read, and word spaces put in if you wish (a line that ends in a space
+  ends its word; one that does not runs on into the next). The lines come in as proposed lines, as above: only into
+  empty lines, to be read, corrected and accepted. This side and the next ones can be read in one go. A side takes
+  1–3 s where the browser has WebGPU, 5–10 s where it has not.
+- **The first recogniser reads the hands it learned from well and others poorly.** Newer models replace it through
+  the site, with no change to Manuscribe; the Manuscript tab's error rate tells you how well it reads yours.
+- **Nothing is sent anywhere.** Reading a page needs nothing from anyone.
+- **Helping to train the models is your choice, per manuscript.** If you tick, in Settings › Recognition, that you
+  wish to be asked, Manuscribe asks for each manuscript you read here whether its corrected lines may be used to train
+  the models, and whether you have the right to share its images. Nothing is ticked for you; the answer is kept in
+  the project, with its date, and can be withdrawn in the Manuscript tab. With a yes, **Contribute corrected lines…**
+  makes a file (a zip) of the lines you have corrected and accepted (their images, their text, what the model
+  proposed) and the consent record, for you to look at and send yourself. *The consent text is still a draft: until
+  it is approved, the question is not asked and nothing can be contributed.*
+
 ## Bringing in an existing transcription
 
 Choose an XML file in the New transcription dialog, or use **Import transcription XML…** in the
@@ -1275,6 +1301,15 @@ app/js/
   exchangeview.js       the screens for comparing, GitHub, kept copies and issuing
   features.js           what is shown: the level, a switch for each tool, the language packs
   htr.js                text proposed by recognition or AI: PAGE-XML, ALTO and plain text, error rate, memorisation test
+  recogimage.js         recognition: grey and resizing exactly as the Python reference (PIL) does them
+  recogvector.js        recognition: the segmenter's maps turned into baselines and outlines
+  recogrows.js          recognition: rows and blocks (tripāṭha, pañcapāṭha) found from the baselines
+  recogread.js          recognition: a row cut out along its baseline, scaled, its recogniser output decoded
+  recogspace.js         recognition: Sanskrit word spaces, by the spacer's network and its letter tables
+  recogpage.js          recognition: a whole folio side, from its pixels to its rows' text
+  recogworker.js        recognition: ONNX Runtime Web and the modules above in a worker built from source
+  recogpack.js          recognition: the pack of models fetched or read from disk, checked and kept
+  recogview.js          recognition: Settings › Recognition, Recognise this side, consent and contribution
   dts.js                the edition as static files in the shape of DTS 1.0
   printhtml.js          the print edition as pages laid out by the browser, in any script, for Save as PDF
   shaper.js             HarfBuzz text shaping, from WebAssembly, for the PDF
@@ -1351,5 +1386,7 @@ It includes these components, which keep their own licences:
 | [HarfBuzz](https://github.com/harfbuzz/harfbuzz), as compiled to WebAssembly by [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) 1.6.4 (`app/vendor/harfbuzz.wasm.js`, made by `tools/bundle-harfbuzz.mjs`) | MIT (harfbuzzjs) and "Old MIT" (HarfBuzz) |
 | Metre lists of [Sanskrit metres](https://github.com/shreevatsa/sanskrit), Shreevatsa Rajagopalan, from the Vṛttaratnākara and a large list input by Dr. Dhaval Patel, the latter after Anand Mishra's [Chanda](http://sanskrit.sai.uni-heidelberg.de/Chanda/HTML/) as scraped by Mārcis Gasūns (`app/vendor/metres.js`, made by `tools/bundle-metres.mjs`) | GNU GPL 2.0, as in that project |
 | Element and attribute lists from the [TEI P5 Guidelines](https://tei-c.org/) | CC BY 3.0 and BSD 2-Clause, © TEI Consortium |
+| [ONNX Runtime Web](https://onnxruntime.ai/) 1.31.1, Microsoft, fetched with the recognition pack and kept in the browser, never shipped with Manuscribe | MIT |
+| The recognition models (segmenter, recogniser, word spacer) of the recognition pack, fetched and kept in the browser, never shipped with Manuscribe; each model's card says what it learned from | CC BY-SA 4.0 |
 
 The tag set follows the [Saktumiva TEI guide](https://www.saktumiva.org/wiki/tei).

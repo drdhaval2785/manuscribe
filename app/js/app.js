@@ -828,6 +828,7 @@
     }
   }
   App.rerender = rerender;
+  App.renderMsTab = () => renderMsTab();
 
   // Text kept in blocks a layout does not have (it is not lost, but hidden and not exported).
   function hiddenText(p, label, type) {
@@ -955,6 +956,7 @@
       U.el('div', { class: 'btn-row' },
         U.el('button', { class: 'btn small primary', onclick: () => App.calibrate() }, reg ? 'Recalibrate…' : 'Calibrate…'),
         ownReg ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.regions; App.changed(); rerender(); } }, 'Use shared calibration') : null),
+      ...(ME.RecogView ? ME.RecogView.folioSection() : []),
       U.el('h4', null, 'Progress'),
       ...progressBars(p, e.label),
     ].filter(Boolean));
@@ -1185,6 +1187,7 @@
         U.el('p', { class: 'help' }, 'Or what handwriting or print recognition made (PAGE-XML, as from Transkribus, eScriptorium or Kraken; or ALTO), or the output of any other program, AI included, as plain text. It goes into empty lines only, marked as proposed: read and correct each line, then accept it with ' + Commands.keyLabel('Y') + '. Until then it is not collated. Manuscribe sends nothing to any AI service.'),
         U.el('button', { class: 'btn small', onclick: () => App.importProposed() }, 'Import recognised text…'),
         sourcesTable(p)),
+      ME.RecogView ? fold('recog', 'Recognition and training', ...ME.RecogView.msFold(p)) : null,
       ME.Features.on('tagSummary') ? fold('tags', 'Tags and attributes', ME.TagSummary.panel(p, () => App.flush(), App.goPlace)) : null,
       fold('file', 'Project file and backups',
         storageNote,
@@ -1344,7 +1347,7 @@
 
   /* Settings: how much is shown and the language features, for this browser; and, with a transcription open, its
      own settings. */
-  App.showSettings = async function () {
+  App.showSettings = async function (tab) {
     const onProject = !!App.project && !document.body.classList.contains('no-project');
     const F = ME.Features;
     const tabs = U.el('div', { class: 'nv-head st-tabs' });
@@ -1353,11 +1356,12 @@
     // the level changed in the Interface tab: the Transcription tab is built afresh, with what was typed in it kept
     const onFeatures = () => { if (form) kept = form.values(); form = null; };
     F.onChange(onFeatures);
-    const sections = [['interface', 'Interface']].concat(onProject ? [['transcription', 'Transcription']] : []);
+    const sections = [['interface', 'Interface']].concat(onProject ? [['transcription', 'Transcription']] : [], ME.RecogView ? [['recognition', 'Recognition']] : []);
     const show = (k) => {
       for (const b of tabs.children) b.setAttribute('aria-pressed', String(b.dataset.k === k));
       body.innerHTML = '';
       if (k === 'interface') body.append(F.panel(U));
+      else if (k === 'recognition') body.append(ME.RecogView.settingsPanel());
       else {
         const s = App.project.settings;
         if (!form) {
@@ -1378,7 +1382,7 @@
       }
     };
     for (const [k, label] of sections) tabs.append(U.el('button', { class: 'btn small', dataset: { k }, onclick: () => show(k) }, label));
-    show(onProject ? 'transcription' : 'interface');
+    show(tab && sections.some(([k]) => k === tab) ? tab : onProject ? 'transcription' : 'interface');
     const ok = await UI.modal({ title: 'Settings', body: U.el('div', null, sections.length > 1 ? tabs : null, body), buttons: [{ label: 'Close', kind: 'ghost', value: null }].concat(onProject ? [{ label: 'Apply', kind: 'primary', value: true }] : []) });
     F.offChange(onFeatures);
     if (onProject && ok && (form || kept)) {

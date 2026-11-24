@@ -1085,3 +1085,12 @@ body.touch .ct-touch { display: block; }
   .tb-btn { min-width: 40px; }
   .ts-loc { min-height: 36px; padding: 6px 8px; font-size: 12px; }
 }
+
+/* Recognition (recogview.js): the pack in Settings, the consent text and its draft notice */
+.recog-settings h4:first-child { margin-top: 0; }
+.recog-status ul { margin: 4px 0 8px; padding-left: 18px; }
+.recog-settings progress { width: 100%; }
+.recog-draft { background: #f6e2b5; color: #6d4700; border-radius: 6px; padding: 6px 8px; }
+.recog-consent p { margin: 0 0 8px; line-height: 1.45; }
+.field.checkbox { display: flex; gap: 8px; align-items: flex-start; }
+.field.checkbox input { margin-top: 3px; flex: none; }
