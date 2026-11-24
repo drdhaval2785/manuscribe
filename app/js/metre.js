@@ -172,20 +172,31 @@
   /* The āryā family, by its gaṇas of four morae: a half has seven and a half, the odd ones never ⏑–⏑ (ja), the
      sixth ⏑–⏑ or four light in a long half and one light in a short half, the last syllable either. The first
      pāda ends after the third gaṇa. As in the Vṛttaratnākara, ch. 2. */
-  const ODD = '(?:GG|LLG|GLL|LLLL)', EVEN = '(?:GG|LLG|GLL|LLLL|LGL)', END = '(?:L|G)';
-  const P12 = ODD + EVEN + ODD;
+  // a half, gaṇa by gaṇa: the forms each may take, tried in this order
+  const ODD = ['GG', 'LLG', 'GLL', 'LLLL'], EVEN = ODD.concat(['LGL']), END = ['L', 'G'], SIXTH = ['LGL', 'LLLL'];
   const HALF = {
-    long: '(' + P12 + ')(' + EVEN + ODD + '(?:LGL|LLLL)' + ODD + END + ')',
-    short: '(' + P12 + ')(' + EVEN + ODD + 'L' + ODD + END + ')',
-    giti: '(' + P12 + ')(' + EVEN + ODD + '(?:LGL|LLLL)' + ODD + '(?:GG|LLG|GLL|LLLL|LGL|GL|LLL)' + END + ')',
+    long: [ODD, EVEN, ODD, EVEN, ODD, SIXTH, ODD, END],
+    short: [ODD, EVEN, ODD, EVEN, ODD, ['L'], ODD, END],
+    giti: [ODD, EVEN, ODD, EVEN, ODD, SIXTH, ODD, EVEN.concat(['GL', 'LLL']), END],
   };
   const ARYA = [
     { name: 'Āryā', halves: ['long', 'short'] }, { name: 'Gīti', halves: ['long', 'long'] }, { name: 'Upagīti', halves: ['short', 'short'] },
     { name: 'Udgīti', halves: ['short', 'long'] }, { name: 'Āryāgīti', halves: ['giti', 'giti'] },
   ];
-  // a syllable that may be either matches either
-  const RX = new Map();
-  const rx = (k) => { if (!RX.has(k)) RX.set(k, new RegExp('^' + HALF[k].replace(/L/g, '[LX]').replace(/G/g, '[GX]') + '$')); return RX.get(k); };
+  // a syllable that may be either (X) fits either
+  const fits = (s, i, g) => { for (let j = 0; j < g.length; j++) { const c = s[i + j]; if (c !== g[j] && c !== 'X') return false; } return true; };
+  /* Does the half s (its syllables as L, G, X) divide into the gaṇas of a half of kind k? -> [s, its first three
+     gaṇas, the rest] or null: the first division found, trying each gaṇa's forms in order, as ^(…)(…)$ would. A plain
+     search, not a regular expression: Firefox on Windows once threw "too much recursion" in that one. */
+  function aryaHalf(k, s) {
+    const slots = HALF[k], at = [];
+    const go = (n, i) => {
+      if (n === slots.length) return i === s.length;
+      for (const g of slots[n]) if (i + g.length <= s.length && fits(s, i, g)) { at[n] = i + g.length; if (go(n + 1, i + g.length)) return true; }
+      return false;
+    };
+    return go(0, 0) ? [s, s.slice(0, at[2]), s.slice(at[2])] : null;
+  }
   const letters = (h) => h.map((x) => (x.opt ? 'X' : x.w.toUpperCase())).join('');
 
   function checkArya(syl, m) {
@@ -195,7 +206,7 @@
     let best = null;
     for (const c of cuts) {
       const hs = [flat.slice(0, c), flat.slice(c)];
-      const got = hs.map((h, k) => rx(m.halves[k]).exec(letters(h)));
+      const got = hs.map((h, k) => aryaHalf(m.halves[k], letters(h)));
       const faults = [];
       got.forEach((g, k) => { if (!g) faults.push({ pada: k ? 'cd' : 'ab', pos: 0, why: 'the ' + (k ? 'second' : 'first') + ' half does not divide into the gaṇas of the ' + m.name.toLowerCase(), at: (hs[k][0] || {}).at }); });
       if (!best || faults.length < best.faults.length) {
