@@ -460,6 +460,66 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       whole.title === 'Read whole' && whole.sides.length === 2 && whole.sides.every((x) => x.level === 'ocr' && x.proposed > 0) && sawStatus && whole.bg && whole.bg.done === 1 && whole.bg.total === 1 && !whole.bg.error,
       Object.assign({ sawStatus }, whole));
 
+    // ---- the layout, told from a dozen of the manuscript's sides before it is first read, and offered
+    // the vote and what is offered, on counts made up for the purpose
+    const vote = await page.evaluate(() => {
+      const RV = ME.RecogView, V = (a) => RV.layoutVerdict(a).layout, rep = (x, n) => Array.from({ length: n }, () => x);
+      const T3 = { main: 4, top: 8, bottom: 9 }, L = { main: 19 }, P5 = { main: 8, top: 4, bottom: 4, left: 16, right: 15 }, E = { main: 1 };
+      const S = (chosen, tri, pan, layout) => RV.layoutSuggestion(chosen, { layout, text: 12, tri, pan });
+      return {
+        tri: V(rep(T3, 7).concat(rep(L, 5))), lin: V(rep(T3, 5).concat(rep(L, 7))), pan: V(rep(P5, 6).concat(rep(L, 6))),
+        few: V(rep(E, 10).concat(rep(T3, 2))), blanks: V(rep(E, 4).concat(rep(T3, 8))),
+        offers: [S('linear', 10, 0, 'tripatha'), S('linear', 2, 0, 'linear'), S('tripatha', 4, 0, 'linear'), S('tripatha', 2, 0, 'linear'), S('tripatha', 10, 7, 'pancapatha'), S('pancapatha', 10, 1, 'tripatha'), S('pancapatha', 10, 4, 'tripatha'), S('interlinear', 10, 0, 'tripatha')],
+      };
+    });
+    T.check('the layout vote: a manuscript is what half its sides with text are (tripāṭha: a top and a bottom block of two rows or more; pañcapāṭha: a side column too), blank sides not counted, too few with text no verdict; offered only against the layout chosen, a block layout questioned only when under a quarter of its sides show it',
+      vote.tri === 'tripatha' && vote.lin === 'linear' && vote.pan === 'pancapatha' && vote.few === null && vote.blanks === 'tripatha'
+        && JSON.stringify(vote.offers) === JSON.stringify(['tripatha', null, null, 'linear', 'pancapatha', 'tripatha', null, null]), vote);
+    const triPdf = path.join(ROOT, 'tripatha.pdf');
+    if (!fs.existsSync(triPdf)) T.skip('the layout told from the sides', 'tripatha.pdf is not in the repository folder');
+    else {
+      const openAs = (b64, layout, title) => page.evaluate(async (b64, layout, title) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const p = ME.Model.newProject({ meta: { title, siglum: 'Y' }, layoutType: layout, lines: { main: 8 }, folios: {}, pdf: { name: title + '.pdf', bytes: bytes.length } });
+        const info = await ME.PdfView.load(blob);
+        p.pdf.pages = info.pages; p.pdf.size = { width: info.width, height: info.height };
+        await ME.Store.putProject(p); await ME.Store.putPdf(p.id, blob); await ME.App.open(p.id);
+        ME.RecogView.SURVEY.min = 1;                                   // the repository's PDFs have one side
+        ME.RecogView._notNow = p.id;                                   // the training question (asked to be asked, above): not here
+      }, b64, layout, title);
+      const waitFor = async (sel) => { for (let k = 0; k < 300 && !(await page.evaluate((s) => !!document.querySelector(s), sel)); k++) await sleep(100); return page.evaluate((s) => { const d = document.querySelector(s); return d && d.textContent; }, sel); };
+      // a tripāṭha leaf in a project made linear: looked at, tripāṭha offered, taken, and the side read in its blocks
+      await openAs(fs.readFileSync(triPdf).toString('base64'), 'linear', 'Layout');
+      for (let k = 0; k < 40 && !(await page.evaluate(() => !!document.querySelector('.pdf-stage canvas'))); k++) await sleep(200);
+      await page.evaluate(() => { window.__read = ME.RecogView.recogniseSides(ME.App.project, ME.App.entries.filter((e) => !e.orphan && e.pdfPage), { space: false }); });
+      const offer = await waitFor('.recog-layout-dialog');
+      await page.evaluate(() => document.querySelector('.recog-layout-dialog .btn.primary').click());
+      const used = await page.evaluate(async () => {
+        const tot = await window.__read, p = ME.App.project, e = ME.App.entries.find((x) => x.pdfPage), pg = p.pages[e.label] || {};
+        return { placed: tot && tot.placed, layout: p.layout.type, select: document.getElementById('sel-layout').value, survey: p.layoutSurvey, blocks: Object.keys(pg.proposed || {}).sort() };
+      });
+      // asked once a manuscript: not again
+      const again = await page.evaluate(async () => { await ME.RecogView.checkLayout(ME.App.project); return !!document.querySelector('.recog-survey-dialog, .recog-layout-dialog'); });
+      T.check('before a manuscript is first read, its sides are looked at; a tripāṭha leaf in a project made linear has tripāṭha offered, and taken, the side is read in its top, main and bottom blocks; asked once a manuscript',
+        /tripāṭha/.test(offer || '') && used.survey && (used.survey.looked || []).length === 1 && used.layout === 'tripatha' && used.select === 'tripatha' && used.survey && used.survey.answer === 'used' && used.survey.suggested === 'tripatha' && used.survey.tri === 1
+          && used.placed > 0 && ['main', 'top', 'bottom'].every((b) => used.blocks.includes(b)) && !again, { offer, used, again });
+      // a linear leaf in a project made tripāṭha: linear offered, and declined; said so in the Manuscript tab
+      await openAs(fs.readFileSync(pdf).toString('base64'), 'tripatha', 'Layout kept');
+      for (let k = 0; k < 40 && !(await page.evaluate(() => !!document.querySelector('.pdf-stage canvas'))); k++) await sleep(200);
+      await page.evaluate(() => { window.__check = ME.RecogView.checkLayout(ME.App.project); });
+      const offer2 = await waitFor('.recog-layout-dialog');
+      await page.evaluate(() => document.querySelector('.recog-layout-dialog .btn.ghost').click());
+      const kept = await page.evaluate(async () => {
+        await window.__check;
+        const p = ME.App.project, fold = ME.RecogView.msFold(p), note = fold.find((el) => el.getAttribute && el.getAttribute('data-recog') === 'layout-survey');
+        return { layout: p.layout.type, survey: p.layoutSurvey, note: note && note.textContent, button: fold.some((el) => el.getAttribute && el.getAttribute('data-action') === 'check-layout') };
+      });
+      T.check('a linear leaf in a project made tripāṭha has linear offered, and Keep keeps tripāṭha; the Manuscript tab says what was found and offered, with a button to look again',
+        /looks linear/.test(offer2 || '') && kept.layout === 'tripatha' && kept.survey && kept.survey.answer === 'kept' && kept.survey.suggested === 'linear' && /declined/.test(kept.note || '') && kept.button, { offer2, kept });
+      await page.evaluate(() => { ME.RecogView.SURVEY.min = 6; });
+    }
+
     T.check('no errors in the page', !page.errors.length, page.errors);
   } finally {
     await browser.close();

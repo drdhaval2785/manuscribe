@@ -1401,5 +1401,16 @@
     return { main: found.map((r) => merge(r, block, pitch)) };
   }
 
-  ME.RecogRows = { rows, findRows, fillEdgeRows, merge, uneven, pageBlocks, findBlocks, rowsInBlock, imagePitch, mean, median, pstdev, percentile };
+  /* the blocks a page's lines fall into when the block finder is not told the layout (blocks.page_blocks(seg, size, g),
+     expect None) -> {box: rows found in it}: what a manuscript's layout is told from (RecogView.surveyLayout) */
+  function untold(lines, grey, width, height, P) {
+    PR = P.rows;
+    hists.delete(grey);
+    const g = { data: grey, stride: width, ox: 0, oy: 0, w: width, h: height }, out = {};
+    const found = pageBlocks({ lines }, [width, height], g, null);
+    for (const box of Object.keys(found)) out[box] = found[box].rows.length;
+    return out;
+  }
+
+  ME.RecogRows = { rows, untold, findRows, fillEdgeRows, merge, uneven, pageBlocks, findBlocks, rowsInBlock, imagePitch, mean, median, pstdev, percentile };
 });

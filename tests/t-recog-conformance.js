@@ -176,6 +176,21 @@ if (!rowPages.length) {
   const kinds = Object.keys(layouts).map((k) => layouts[k] + ' ' + k).join(', ');
   T.check('row finder on ' + rowPages.length + ' rows fixtures (' + kinds + '): ' + (rowPages.length - failed.length) + ' within 1 px, ' + exact + ' exact (largest difference ' + worst + ' px)',
     !failed.length, failed.map(([p]) => p));
+  // the block finder not told the layout (what a manuscript's layout is told from): the same blocks, with as many rows
+  const told = rowPages.filter((p) => fs.existsSync(path.join(rowsDir, p, 'untold.json')));
+  if (!told.length) T.skip('blocks found untold', 'the rows fixtures have no untold.json: tools/rows_fixtures.py writes them');
+  else {
+    const differ = [];
+    for (const p of told) {
+      const d = path.join(rowsDir, p), grey = readPng(path.join(d, 'grey.png'));
+      const want = JSON.parse(fs.readFileSync(path.join(d, 'untold.json'), 'utf8'));
+      let got;
+      try { got = RR.untold(JSON.parse(fs.readFileSync(path.join(d, 'lines.json'), 'utf8')), grey.data, grey.width, grey.height, P); } catch (e) { got = String(e); }
+      const key = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+      if (typeof got !== 'object' || key(got) !== key(want)) differ.push([p, want, got]);
+    }
+    T.check('blocks found untold on ' + told.length + ' rows fixtures as the reference finds them (blocks and rows in each): ' + (told.length - differ.length) + ' the same', !differ.length, differ.slice(0, 4));
+  }
 }
 
 // the segmenter itself, through ONNX Runtime Web, on the reference's resized input

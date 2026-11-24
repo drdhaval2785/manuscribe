@@ -14,7 +14,8 @@
               Promise<[logits]>, its windows run together (RecogSpace.ortBatchNetwork: for a spacer exported at a
               fixed length, where a window costs the whole length however few its letters)}
      pack    {P: pipeline.json, chars: the recogniser's characters, S: spacer.json, threshold: the spacer's}
-     opts    {space: put in word spaces, progress(stage, k, n)}
+     opts    {space: put in word spaces, progress(stage, k, n), untold: the lines segmented and the blocks they fall
+              into found, the layout not given, and nothing read -> {untold: {box: rows}, lines, size, times}}
    `text` is the row as read, `conf` the mean probability of its letters (0-1); `spaced` the row with word spaces:
    each block's rows are spaced as one text, as the reference does, and the spaces given back to the rows, a space
    that falls between two rows ending the first (a row that ends in a space ends a word; one that does not runs on).
@@ -68,6 +69,14 @@
     lap('segment');
     const m = V.maps(raw, sh, W, sw, P.segmenter);
     const lines = V.vectorize(m.pbase, m.up, m.down, sh, sw, P.segmenter.img_h / h, P.segmenter);
+    // opts.untold: only the blocks the lines fall into, the layout not given (a manuscript's layout told from its sides)
+    if (opts.untold) {
+      const untold = RR.untold(lines, g, w, h, P);
+      lap('rows');
+      times.total = Date.now() - t0;
+      say('done', 1, 1);
+      return { untold, lines: lines.length, size: [w, h], times };
+    }
     const rows = RR.rows(lines, g, w, h, layoutOf(layout), P);
     lap('rows');
 

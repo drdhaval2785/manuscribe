@@ -409,8 +409,133 @@
     else if (v === 'all') await RV.recogniseWhole({ ask: false });
   };
 
-  // these sides: the first now, the rest now too or in the background; proofread ones only with leave
+  /* ---------- the manuscript's layout, from a dozen of its sides ---------- */
+
+  /* Whether a manuscript is linear, a tripāṭha or a pañcapāṭha is told from a dozen of its sides picked at random:
+     each is segmented, and the block finder, not told the layout (RecogRows.untold), names the blocks its lines fall
+     into. On one side alone that is too often wrong to go by (on manuscript_ocr's 57 row fixtures it found a top and a
+     bottom block on 10 of 19 tripāṭha sides, and on 6 of 30 linear ones); a manuscript's vote is not. Measured on 30
+     random sides of each of 22 manuscripts (24 November 2026): a top and a bottom block of two rows or more were found
+     on 63-90 % of the sides of the three tripāṭha manuscripts, on 0-33 % of 17 linear ones (and on 80 % of one listed
+     linear whose leaves are written as a tripāṭha); a vote of 12 sides at one half called the tripāṭha ones so 95-100 %
+     of the time and the linear ones 0-12 %; with a side column of three rows or more as well, the one pañcapāṭha
+     manuscript pañcapāṭha 99 %, the others 0-7 %. So it is offered, never put in place unasked: the layout makes the
+     blocks the text is kept in. A layout chosen as tripāṭha or pañcapāṭha is questioned only when its blocks are found
+     on under a quarter of the sides (unlike). */
+  RV.SURVEY = { sides: 12, min: 6, share: 0.5, unlike: 0.25 };
+  const SURVEYED = ['linear', 'tripatha', 'pancapatha'];
+  const SHORT = { linear: 'linear', tripatha: 'a tripāṭha', pancapatha: 'a pañcapāṭha' };
+
+  // the blocks found on each side looked at ([{box: rows}]) -> {sides, text, tri, pan, layout}: text, the sides with
+  // three rows or more; tri, those with a top and a bottom block of two rows or more; pan, those with a side column of
+  // three rows or more as well; layout what most of them are (null: too few sides with text to tell)
+  RV.layoutVerdict = function (found) {
+    const rowsOf = (b) => Object.values(b).reduce((a, n) => a + n, 0);
+    const text = found.filter((b) => rowsOf(b) >= 3);
+    const tri = text.filter((b) => (b.top || 0) >= 2 && (b.bottom || 0) >= 2);
+    const pan = tri.filter((b) => (b.left || 0) >= 3 || (b.right || 0) >= 3);
+    const n = text.length, v = { sides: found.length, text: n, tri: tri.length, pan: pan.length, layout: null };
+    if (!n || n < Math.min(RV.SURVEY.min, found.length)) return v;
+    v.layout = pan.length / n >= RV.SURVEY.share ? 'pancapatha' : tri.length / n >= RV.SURVEY.share ? 'tripatha' : 'linear';
+    return v;
+  };
+
+  // the layout to offer in place of the one chosen, or null
+  RV.layoutSuggestion = function (chosen, v) {
+    if (!v || !v.layout || !SURVEYED.includes(chosen) || v.layout === chosen) return null;
+    if (chosen === 'linear') return v.layout;
+    const share = (k) => v[k] / v.text;
+    if (chosen === 'tripatha') return v.layout === 'pancapatha' ? 'pancapatha' : share('tri') < RV.SURVEY.unlike ? 'linear' : null;
+    if (share('pan') >= RV.SURVEY.unlike) return null;                       // chosen pañcapāṭha, and found so on enough
+    return v.layout === 'tripatha' || share('tri') < RV.SURVEY.unlike ? v.layout : null;
+  };
+
+  // the sides to look at: picked at random, the same ones each time for a manuscript (a shuffle seeded by its id), a
+  // cover or a blank leaf at either end left out where there are enough
+  function surveySides(p, entries, k) {
+    let c = entries.filter((e) => !e.orphan && e.pdfPage);
+    if (c.length >= k + 4) c = c.slice(2, -2);
+    let s = 0;
+    for (const ch of String(p.id)) s = (Math.imul(s, 31) + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+    c = c.slice();
+    for (let i = c.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [c[i], c[j]] = [c[j], c[i]]; }
+    return c.slice(0, k);
+  }
+
+  // the sides looked at (segmented, their blocks found, nothing read) -> the verdict, with the sides; null if stopped
+  RV.surveyLayout = async function (p) {
+    const A = App(), m = await Pack().installed(), man = m.manifest;
+    const sides = surveySides(p, A.entries, RV.SURVEY.sides);
+    if (sides.length < Math.max(1, RV.SURVEY.min)) return null;
+    const say = U.el('p', { class: 'help', 'data-recog': 'survey-status' }, 'Starting the models…');
+    const bar = U.el('progress', { max: 1, value: 0 });
+    let close = null, finished = false, stopped = false;
+    UI.modal({ title: 'How is this manuscript laid out?', className: 'recog-survey-dialog', body: U.el('div', null,
+      U.el('p', null, 'Before it is read, ' + sides.length + ' of its folio sides, picked at random, are looked at to see whether it is written line after line, or as a main text with a commentary round it.'), say, bar),
+    buttons: [{ label: 'Skip', value: 'skip', kind: 'ghost' }], onOpen: (d, c) => { close = c; } })
+      .then(() => { if (!finished) stopped = true; });
+    const found = [];
+    try {
+      const w = await worker(m);
+      const targetH = (man.page_height && man.page_height.median) || 700;
+      for (let k = 0; k < sides.length && !stopped; k++) {
+        say.textContent = 'Folio side ' + sides[k].label + ' (' + (k + 1) + ' of ' + sides.length + ')';
+        const px = await RV.sidePixels(sides[k], targetH);
+        const res = await w.api.read(px, 'linear', { untold: true });
+        found.push(res.untold || {});
+        bar.value = (k + 1) / sides.length;
+      }
+    } catch (err) {
+      stopped = true;
+      U.toast('The layout could not be looked at: ' + (err.message || err), 'warn', 6000);
+    }
+    finished = true;
+    if (close) close('done');
+    if (stopped) return null;
+    return Object.assign(RV.layoutVerdict(found), { at: new Date().toISOString(), pack: m.pack, looked: sides.map((e) => e.label), found });
+  };
+
+  /* Before a manuscript is first read, with nothing typed in it yet (or when asked, force): its layout looked at, and
+     another offered where it looks otherwise than chosen. Once a manuscript: the answer is kept (p.layoutSurvey). */
+  RV.checkLayout = async function (p, opts) {
+    opts = opts || {};
+    const A = App();
+    if (!opts.force && (p.layoutSurvey || Object.values(p.pages || {}).some((pg) => Model.pageHasContent(pg)))) return;
+    const chosen = p.layout.type;
+    if (!SURVEYED.includes(chosen)) { if (opts.force) U.toast('Only a linear, tripāṭha or pañcapāṭha layout can be told from the sides', 'warn'); return; }
+    const v = await RV.surveyLayout(p);
+    if (!v) return;
+    p.layoutSurvey = { at: v.at, pack: v.pack, looked: v.looked, sides: v.sides, text: v.text, tri: v.tri, pan: v.pan, layout: v.layout, chosen };
+    const want = RV.layoutSuggestion(chosen, v), L = Model.LAYOUTS;
+    const counted = v.text + ' folio side' + (v.text === 1 ? '' : 's') + ' with text';
+    if (!want) {
+      p.layoutSurvey.answer = 'agrees';
+      A.changed();
+      if (opts.force) U.toast(v.layout ? 'It looks ' + SHORT[v.layout] + ' (' + (v.layout === 'linear' ? v.tri : v[v.layout === 'tripatha' ? 'tri' : 'pan']) + ' of ' + counted + ' in blocks); the layout is left as ' + L[chosen].label + '.' : 'Too few folio sides with text were found to tell (' + counted + ').', 'ok', 7000);
+      return;
+    }
+    const what = want === 'linear'
+      ? 'Only ' + v.tri + ' of the ' + counted + ' looked at had a block above and a block below the main text: it looks written line after line.'
+      : (want === 'pancapatha' ? v.pan : v.tri) + ' of the ' + counted + ' looked at had a main text with a commentary ' + (want === 'pancapatha' ? 'above, below and beside it' : 'above and below it') + '.';
+    const ans = await UI.modal({ title: 'This manuscript looks ' + SHORT[want], className: 'recog-layout-dialog', body: U.el('div', null,
+      U.el('p', { 'data-recog': 'layout-why' }, what),
+      U.el('p', null, 'Read it as ' + L[want].label + ', or keep ' + L[chosen].label + '? Each folio side’s lines go into the blocks of the layout it is read with. The layout can be changed later in the Manuscript tab.')),
+    buttons: [{ label: 'Keep ' + L[chosen].label, value: 'keep', kind: 'ghost' }, { label: 'Use ' + L[want].label, value: 'use', kind: 'primary' }] });
+    p.layoutSurvey.suggested = want;
+    p.layoutSurvey.answer = ans === 'use' ? 'used' : 'kept';
+    if (ans === 'use') {
+      if (A.setLayout) await A.setLayout(want, 'default'); else p.layout.type = want;
+      const sel = document.getElementById('sel-layout');
+      if (sel) sel.value = p.layout.type;
+    }
+    A.changed();
+  };
+
+  // these sides: the first now, the rest now too or in the background; proofread ones only with leave. A manuscript
+  // not yet read has its layout looked at first (RV.checkLayout; opts.noSurvey: not)
   RV.recogniseSides = async function (p, sides, opts) {
+    if (!(opts && opts.noSurvey)) await RV.checkLayout(p);
     const ask = await overwriteAsk(p, sides);
     if (!ask || !ask.sides.length) return null;
     const o = Object.assign({}, opts, { replace: ask.replace });
@@ -816,6 +941,11 @@
     out.push(U.el('p', { class: 'help' }, ours.length
       ? 'Read in this browser with: ' + ours.map((s) => s.version).join('; ') + '. Each source’s lines and error rate are in “Bring in text”.'
       : 'Folio sides can be read in this browser (Folio tab › Recognise this side…, or ' + ME.Commands.keyLabel('J') + '), with the models of the recognition pack (Settings › Recognition).'));
+    const ls = p.layoutSurvey;
+    out.push(U.el('p', { class: 'help', 'data-recog': 'layout-survey' }, ls
+      ? 'Its layout, from ' + ls.sides + ' folio sides looked at on ' + ls.at.slice(0, 10) + ': ' + (ls.layout ? SHORT[ls.layout] + ' (' + ls.tri + ' of ' + ls.text + ' with text in blocks above and below' + (ls.pan ? ', ' + ls.pan + ' beside too' : '') + ')' : 'too few with text to tell') + (ls.suggested ? '; ' + Model.LAYOUTS[ls.suggested].label + ' was offered, and ' + (ls.answer === 'used' ? 'taken' : 'declined') : '') + '.'
+      : 'Its layout is looked at from a dozen of its folio sides before it is first read.'),
+    U.el('button', { class: 'btn small ghost', 'data-action': 'check-layout', onclick: async () => { if (!await needPack() || !ME.PdfView.doc || await busy()) return; await RV.checkLayout(p, { force: true }); rerenderMs(); } }, 'Look at its layout again…'));
     out.push(U.el('h4', null, 'Training the models with this manuscript'));
     if (!RV.CONSENT.approved) {
       out.push(U.el('p', { class: 'help recog-draft' }, DRAFT_NOTE), U.el('button', { class: 'btn small ghost', onclick: () => RV.showConsentText() }, 'Read the draft…'));

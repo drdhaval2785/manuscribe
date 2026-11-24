@@ -1087,10 +1087,20 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   The panel says what each model learned from; the weights are under CC BY-SA 4.0.
 - **Recognise** on the scan's toolbar (also in the Folio tab, Alt+J, or Ctrl+Alt+J if that is your modifier, and the
   palette); on a folio side with no text yet, **Recognise this side** is offered over the typing area, with **The whole
-  manuscript…** beside it. The side is drawn from the PDF at the scale the models learned from, its rows and blocks
-  found, each row read, and word spaces put in if you wish (a line that ends in a space ends its word; one that does
-  not runs on into the next). The lines come in as proposed lines, as above: only into empty lines, to be read,
-  corrected and accepted. A side takes 1–3 s where the browser has WebGPU, 5–10 s where it has not.
+  manuscript…** beside it. The side's leaf is drawn from the PDF at the scale the models learned from (the leaf you
+  drew with Calibrate, or else the leaf found on that page, so that a library's header, footer and margins round it do
+  not shrink its letters), its rows and blocks found, each row read, and word spaces put in if you wish (a line that
+  ends in a space ends its word; one that does not runs on into the next). The lines come in as proposed lines, as
+  above: only into empty lines, to be read, corrected and accepted. A side takes 1–3 s where the browser has WebGPU,
+  5–10 s where it has not.
+- **The layout, looked at first.** Before a manuscript with nothing typed in it is first read, a dozen of its folio
+  sides, picked at random, are looked at (their lines found, nothing read: 3–7 s with WebGPU), and the blocks the lines
+  fall into tell whether it is written line after line, as a tripāṭha (a main text with commentary above and below)
+  or as a pañcapāṭha (and beside it). Where that differs from the layout chosen, the other is offered, never put in
+  place unasked; **Skip** passes over the looking. One side alone is too often misread to go by, so a manuscript is what
+  at least half of its sides with text show; measured on 30 random sides of each of 22 manuscripts, a vote of 12 named
+  the tripāṭha ones so 95–100 % of the time, the pañcapāṭha one 99 %, and the linear ones tripāṭha 0–12 %. The
+  Manuscript tab says what was found, and looks again on asking. A manuscript of fewer than six sides is not looked at.
 - **What a side read gets.** It is marked *OCR: recognised, not yet read*. Each block in which rows were found has as
   many lines as rows, never fewer than its last line with text, its empty lines after them dropped (a block with no
   rows found keeps its count). Where no blocks were drawn on the side, its blocks are taken from the rows found, so
@@ -1335,13 +1345,13 @@ app/js/
   htr.js                text proposed by recognition or AI: PAGE-XML, ALTO and plain text, error rate, memorisation test
   recogimage.js         recognition: grey and resizing exactly as the Python reference (PIL) does them
   recogvector.js        recognition: the segmenter's maps turned into baselines and outlines
-  recogrows.js          recognition: rows and blocks (tripāṭha, pañcapāṭha) found from the baselines
+  recogrows.js          recognition: rows and blocks (tripāṭha, pañcapāṭha) found from the baselines, told or not the layout
   recogread.js          recognition: a row cut out along its baseline, scaled, its recogniser output decoded
   recogspace.js         recognition: Sanskrit word spaces, by the spacer's network and its letter tables
   recogpage.js          recognition: a whole folio side, from its pixels to its rows' text
   recogworker.js        recognition: ONNX Runtime Web and the modules above in a worker built from source
   recogpack.js          recognition: the pack of models fetched or read from disk, checked and kept
-  recogview.js          recognition: Settings › Recognition, Recognise this side, consent, and the contribution
+  recogview.js          recognition: Settings › Recognition, Recognise this side, the layout looked at, consent, and the contribution
                         of corrected lines (sealed, then sent by a GitHub issue)
   dts.js                the edition as static files in the shape of DTS 1.0
   printhtml.js          the print edition as pages laid out by the browser, in any script, for Save as PDF
