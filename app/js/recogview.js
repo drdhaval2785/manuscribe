@@ -10,12 +10,15 @@
                          from, read, and proposed (the command palette too, and the tag key with J)
    msFold(p)             the Manuscript tab's fold: what was read here, the manuscript's consent, the contribution
    askConsent(p)         the per-manuscript question; withdraw(p), with the request that withdraws the lines sent
-   contribute(p)         the corrected lines chosen, sealed (sealedPackages) to the key the models' site publishes
-                         (contribute.json), saved, and the issue form of the inbox it names opened on GitHub, filled in,
-                         for the user to attach them to: no line leaves this browser but as a file the user sends
-   CONSENT               the consent text, approved by the maintainer (version 1, 24 November 2026); a new wording gets
-                         a new version and is a draft (approved: false) until it is approved: nothing is then asked
-                         and nothing can be contributed
+   contribute(p)         the corrected lines chosen, and the folio sides that can teach the segmenter
+                         (sideForSegmenter: blocks drawn, each holding as many lines of text as it was given), sealed
+                         (sealedPackages) to the key the models' site publishes (contribute.json), saved, and the issue
+                         form of the inbox it names opened on GitHub, filled in, for the user to attach them to: nothing
+                         leaves this browser but as a file the user sends. Every package names the manuscript's language
+                         and script (scriptOf), so that no model of one learns from another's.
+   CONSENT               the consent text, approved by the maintainer: version 2 (24 November 2026) gives lines and
+                         whole folio sides, version 1 gave lines only; a new wording gets a new version and is a draft
+                         (approved: false) until it is approved: nothing is then asked and nothing can be contributed
 
    A proposed line read here keeps where it was cut from (pg.proposed[box][i].cut: its baseline and outline in the
    rendered side, and how the side was rendered), so that once corrected and accepted its line image can be cut again
@@ -33,22 +36,29 @@
   /* ---------- the consent text ---------- */
 
   RV.CONSENT = {
-    version: '1',
+    version: '2',
     date: '2026-11-24',
-    // approved by the maintainer; the inbox takes packages given on the wordings its approved.json lists
+    // approved by the maintainer; the inbox takes packages given on the wordings its approved.json lists. Wording 1
+    // (24 November 2026) gave lines only; wording 2 gives folio sides as well, and names the language and script
     approved: true,
-    title: 'Corrected lines for training the recognition models',
+    title: 'Corrected lines and folio sides for training the recognition models',
     paragraphs: [
-      'Manuscribe reads manuscript pages with recognition models that run in this browser. The models read better when they learn from lines that people have read and corrected. You may choose to give the corrected lines of this manuscript for that.',
-      'What is given: for each line that Manuscribe read and you accepted after correcting it, the image of that line as Manuscribe cut it from the scan, its text as you corrected it, the text the model first proposed, the folio side and block it belongs to, and which model read it. Not the PDF, not your notes or markup, not other manuscripts.',
-      'How it is given: never automatically. “Contribute corrected lines” makes a file (a zip) and seals the lines in it, so that only the maintainer of the models can open them. You send it yourself, by attaching it to a new issue in the GitHub repository drdhaval2785/manuscribe-contributions, which Manuscribe opens for you (a GitHub account is needed). That issue is public: it shows the name you give this manuscript below, the number of lines, the date and wording of this consent, and your GitHub account, but not the lines. The lines are kept by the maintainer of the models, who can be written to at drdhaval2785@gmail.com.',
-      'How it is used: only to train the line segmenter and the line recogniser. The models trained on them are published under CC BY-SA 4.0, and each model’s card names the manuscripts it learned from, this one included, by the name you give below. The line images and their texts are not republished.',
-      'Your rights: give them only if you have the right to share these images for this purpose. Many libraries restrict the reuse of their scans.',
-      'Withdrawing: you can withdraw at any time in the Manuscript tab; nothing more is contributed after that. For lines already sent, Manuscribe opens a withdrawal request in the same repository (without a GitHub account, write to drdhaval2785@gmail.com): they are then deleted from the store of contributed lines and left out of every model trained after the withdrawal. Models already trained on them while the consent was given remain, and are not withdrawn.',
+      'Manuscribe reads manuscript pages with recognition models that run in this browser. The models read better when they learn from pages that people have read and corrected. You may choose to give the corrected lines and folio sides of this manuscript for that.',
+      'What is given: for each line that Manuscribe read and you accepted after correcting it, the image of that line as Manuscribe cut it from the scan, its text as you corrected it, the text the model first proposed, the folio side and block it belongs to, and which model read it. And for each folio side whose blocks you have drawn (Calibrate) and whose every block holds as many lines of text as you gave it, the image of that whole side as Manuscribe draws it from the scan, the blocks you drew and the number of lines in each. With them, the language and script of the manuscript, as you state them below. Not the PDF itself, not your notes or markup, not other manuscripts.',
+      'How it is given: never automatically. “Contribute corrected lines” makes a file (a zip) and seals the lines and the images in it, so that only the maintainer of the models can open them. You send it yourself, by attaching it to a new issue in the GitHub repository drdhaval2785/manuscribe-contributions, which Manuscribe opens for you (a GitHub account is needed). That issue is public: it shows the name you give this manuscript below, its language and script, the number of lines and folio sides, the date and wording of this consent, and your GitHub account, but not the lines or the images. They are kept by the maintainer of the models, who can be written to at drdhaval2785@gmail.com.',
+      'How it is used: only to train the line segmenter (which finds the lines on a page) and the line recogniser (which reads them), and only those for the manuscript’s own language and script: the lines and pages of one language or script are never mixed into the training of another’s. The models trained on them are published under CC BY-SA 4.0, and each model’s card names the manuscripts it learned from, this one included, by the name you give below. The images and their texts are not republished.',
+      'Your rights: give them only if you have the right to share these images, of lines and of whole folio sides, for this purpose. Many libraries restrict the reuse of their scans.',
+      'Withdrawing: you can withdraw at any time in the Manuscript tab; nothing more is contributed after that. For lines and sides already sent, Manuscribe opens a withdrawal request in the same repository (without a GitHub account, write to drdhaval2785@gmail.com): they are then deleted from the store of contributions and left out of every model trained after the withdrawal. Models already trained on them while the consent was given remain, and are not withdrawn.',
     ],
-    question: 'May the corrected lines of this manuscript be used to train the recognition models?',
-    rights: 'I have the right to share these line images for this purpose.',
+    question: 'May the corrected lines and folio sides of this manuscript be used to train the recognition models?',
+    rights: 'I have the right to share these images (of lines and of whole folio sides) for this purpose.',
+    // the wordings that give folio sides, not lines only
+    sides: ['2'],
   };
+  // the language and script tags (BCP 47: language-Script) offered for a manuscript, as in the Manuscript tab
+  RV.SCRIPTS = ['sa-Deva', 'sa-Shrd', 'sa-Newa', 'sa-Beng', 'sa-Gujr', 'sa-Mlym', 'sa-Telu', 'sa-Knda', 'sa-Taml', 'sa-Gran', 'sa-Orya', 'sa-Sidd', 'pra-Deva', 'pi-Sinh', 'hi-Deva', 'mr-Deva', 'ne-Deva', 'gu-Gujr', 'bn-Beng', 'ta-Taml', 'te-Telu', 'kn-Knda', 'ml-Mlym', 'or-Orya', 'pa-Guru', 'bo-Tibt'];
+  RV.TAG = /^[a-z]{2,3}-[A-Z][a-z]{3}$/;
+  const tagOf = (p) => { const t = (p && p.meta && p.meta.script) || ''; return RV.TAG.test(t) ? t : ''; };
   const DRAFT_NOTE = 'The consent text is a draft awaiting the maintainer’s approval: until it is approved, the question is not asked and nothing can be contributed.';
   // where contributions go, as the consent text names it (the models' site, contribute.json, says it again, with the key)
   RV.INBOX = { inbox: 'drdhaval2785/manuscribe-contributions', email: 'drdhaval2785@gmail.com' };
@@ -79,15 +89,18 @@
     if (!RV.CONSENT.approved) { U.toast(DRAFT_NOTE, 'warn', 7000); return null; }
     const rights = U.el('input', { type: 'checkbox', 'data-recog': 'rights' });
     const name = U.el('input', { type: 'text', value: msName(p), 'aria-label': 'Name in the model cards' });
+    const list = U.el('datalist', { id: 'recog-scripts' }, RV.SCRIPTS.map((t) => U.el('option', { value: t })));
+    const tag = U.el('input', { type: 'text', value: tagOf(p) || 'sa-Deva', list: 'recog-scripts', 'data-recog': 'script', 'aria-label': 'Language and script of the manuscript' });
     const err = U.el('div', { class: 'field-error' });
     const body = U.el('div', null, consentText(),
       U.el('p', null, U.el('strong', null, RV.CONSENT.question)),
       U.el('label', { class: 'field checkbox' }, rights, U.el('span', null, RV.CONSENT.rights)),
-      U.el('label', { class: 'field' }, U.el('span', null, 'How the model cards name this manuscript'), name), err);
+      U.el('label', { class: 'field' }, U.el('span', null, 'How the model cards name this manuscript'), name),
+      U.el('label', { class: 'field' }, U.el('span', null, 'Language and script of the manuscript (as sa-Deva: Sanskrit in Devanagari; ta-Taml: Tamil in Tamil script)'), tag, list), err);
     const v = await UI.modal({ title: RV.CONSENT.title, body, wide: true, className: 'recog-consent-dialog', buttons: [
       { label: 'No', value: 'no', kind: 'ghost' },
-      { label: 'Yes, they may', value: 'yes', kind: 'primary', validate: () => { const ok = rights.checked && name.value.trim(); err.textContent = ok ? '' : 'Confirm that you have the right to share the images, and give the manuscript a name.'; return !!ok; } }] });
-    if (v === 'yes') record(p, 'yes', { training: { answer: 'yes', rights: true, name: name.value.trim() } });
+      { label: 'Yes, they may', value: 'yes', kind: 'primary', validate: () => { const ok = rights.checked && name.value.trim() && RV.TAG.test(tag.value.trim()); err.textContent = ok ? '' : 'Confirm that you have the right to share the images, give the manuscript a name, and state its language and script as a tag like sa-Deva.'; return !!ok; } }] });
+    if (v === 'yes') record(p, 'yes', { training: { answer: 'yes', rights: true, name: name.value.trim(), script: tag.value.trim() } });
     else if (v === 'no') record(p, 'no', { training: { answer: 'no' } });
     else RV._notNow = p.id;                              // closed: nothing given; not asked again in this visit
     return v;
@@ -219,6 +232,9 @@
     const count = U.el('input', { type: 'number', min: '1', max: String(left), value: '1', 'aria-label': 'Folio sides', 'data-recog': 'count' });
     const space = U.el('input', { type: 'checkbox', checked: prefs.space !== false, 'data-recog': 'space' });
     const man = m.manifest;
+    // a pack reads one language and script: another's manuscript would be read as if it were in them
+    const want = man.script, have = tagOf(p);
+    if (want && have && want !== have && !await UI.confirm('This recognition pack reads ' + want + ' (language-script); this manuscript is marked ' + have + ' in its Manuscript tab. Its lines would be read as if they were in ' + want + '. Read it all the same?', { title: 'Another language or script', ok: 'Read all the same' })) return;
     const ok = await UI.modal({ title: 'Recognise folio sides', body: U.el('div', null,
       U.el('p', { class: 'help' }, 'Read in this browser with ' + man.pack + ' (segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + '). The lines found go, as proposed lines, into the lines of their blocks that are still empty: nothing you have typed is changed, and nothing is sent anywhere. Read and correct each line, then accept it with ' + ME.Commands.keyLabel('Y') + '.'),
       U.el('label', { class: 'field small' }, U.el('span', null, 'Folio sides, from ' + e0.label), count),
@@ -310,7 +326,13 @@
     c.toBlob(async (b) => resolve(new Uint8Array(await b.arrayBuffer())), 'image/png');
   });
 
-  const wording = () => ({ version: RV.CONSENT.version, date: RV.CONSENT.date, approved: RV.CONSENT.approved, title: RV.CONSENT.title, paragraphs: RV.CONSENT.paragraphs, question: RV.CONSENT.question, rights: RV.CONSENT.rights });
+  const wording = () => ({ version: RV.CONSENT.version, date: RV.CONSENT.date, approved: RV.CONSENT.approved, title: RV.CONSENT.title, paragraphs: RV.CONSENT.paragraphs, question: RV.CONSENT.question, rights: RV.CONSENT.rights, sides: RV.CONSENT.sides });
+  // whether a consent record gives whole folio sides (wording 2 on), not lines only
+  RV.givesSides = (rec) => !!rec && rec.answer === 'yes' && RV.CONSENT.sides.includes(rec.wording);
+  // the manuscript's language and script (a tag as sa-Deva): as its editor stated them with the consent, else as its
+  // Manuscript tab gives them; the training of one language or script never takes another's
+  RV.scriptOf = (p, rec) => (rec && RV.TAG.test(rec.script || '') && rec.script) || tagOf(p) || '';
+  const fileSafe = (label) => String(label).replace(/[^\p{L}\p{N}._-]+/gu, '_');
 
   // the lines' images cut again from the PDF, each side rendered once -> [{l, base, png}]
   async function cropLines(lines) {
@@ -326,20 +348,76 @@
       const px = await renderSide(page, l0.cut.r.scale, l0.cut.r.rotation, l0.cut.r.rect);
       for (const l of group) {
         const crop = ME.RecogRead.cut(px.data, px.width, px.height, 4, l.cut.b, l.cut.o, { cutter: { smooth: l.cut.r.smooth } });
-        out.push({ l, base: 'lines/' + l.label + '_' + l.box + '_' + String(l.i + 1).padStart(2, '0'), png: await pngOf(crop) });
+        out.push({ l, base: 'lines/' + fileSafe(l.label) + '_' + l.box + '_' + String(l.i + 1).padStart(2, '0'), png: await pngOf(crop) });
       }
     }
     return out;
   }
 
-  // the lines' package, unsealed (contribution.json, version 1, and lines/) -> Blob
-  function linesPackage(p, crops, made, part) {
-    const rec = RV.consentRecord(p), files = [], list = [];
+  /* A folio side that can teach the segmenter, which finds the lines on a page: of a layout in blocks (linear,
+     tripāṭha, pañcapāṭha), its blocks drawn (Calibrate: a rectangle for each), and each block holding exactly as many
+     lines of text as it was given, its first lines and none after -> {layout, boxes: {box: {region, lines}}}, or
+     {why} where it cannot. The segmenter's own lines on the side are then held to these counts before it learns from
+     them (manuscript_ocr's msocr/sidequality.py). */
+  RV.sideForSegmenter = function (p, e) {
+    const type = Model.pageLayout(p, e.label);
+    if (!['linear', 'tripatha', 'panchapatha'].includes(type)) return { why: 'its layout is not one the segmenter learns' };
+    const reg = Model.regions(p, e);
+    if (!reg || !reg.boxes) return { why: 'its blocks are not drawn (Calibrate)' };
+    const pg = p.pages[e.label] || {};
+    const boxes = {};
+    for (const b of Model.LAYOUTS[type].boxes) {
+      const name = (Model.BOX_LABEL && Model.BOX_LABEL[b]) || b;
+      if (!reg.boxes[b]) return { why: 'block ' + name + ' is not drawn' };
+      const n = (pg.lines && pg.lines[b]) || (p.layout.lines && p.layout.lines[b]);
+      if (!n) return { why: 'block ' + name + ' has no line count' };
+      const arr = (pg.boxes && pg.boxes[b]) || [];
+      const filled = arr.filter((l) => ME.TEI.hasContent(l)).length;
+      const first = arr.slice(0, n).filter((l) => ME.TEI.hasContent(l)).length;
+      if (filled !== n || first !== n) return { why: 'block ' + name + ' has ' + filled + ' line(s) of text, not ' + n };
+      boxes[b] = { region: reg.boxes[b], lines: n };
+    }
+    return { layout: type, boxes };
+  };
+
+  const jpegOf = (px) => new Promise((resolve) => {
+    const c = document.createElement('canvas');
+    c.width = px.width; c.height = px.height;
+    c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(px.data.buffer, px.data.byteOffset, px.width * px.height * 4), px.width, px.height), 0, 0);
+    c.toBlob(async (b) => resolve(new Uint8Array(await b.arrayBuffer())), 'image/jpeg', 0.92);
+  });
+
+  // the side drawn as the segmenter learned from sides (at the pack's page height), a JPEG, with its blocks, and the
+  // lines Manuscribe found on it where it read it at this very rendering, all in the image's own pixels
+  async function sideImage(p, e, side, H) {
+    const px = await RV.sidePixels(e, H);
+    const [rx, ry, rw, rh] = px.render.rect;
+    const r1 = (v) => Math.round(v * 10) / 10;
+    const toPx = (r) => [r1((r[0] - rx) / rw * px.width), r1((r[1] - ry) / rh * px.height), r1(r[2] / rw * px.width), r1(r[3] / rh * px.height)];
+    const boxes = {};
+    for (const [b, x] of Object.entries(side.boxes)) boxes[b] = { rect: toPx(x.region), lines: x.lines };
+    const found = {}, here = JSON.stringify([px.render.scale, px.render.rotation, px.render.rect]);
+    for (const [b, ls] of Object.entries((p.pages[e.label] || {}).proposed || {})) {
+      for (const [i, pr] of Object.entries(ls)) {
+        if (pr.cut && JSON.stringify([pr.cut.r.scale, pr.cut.r.rotation, pr.cut.r.rect]) === here) (found[b] = found[b] || []).push({ line: +i + 1, baseline: pr.cut.b, outline: pr.cut.o });
+      }
+    }
+    return { jpg: await jpegOf(px), about: { folio: e.label, layout: side.layout, width: px.width, height: px.height, render: px.render, boxes, found } };
+  }
+
+  // the package, unsealed: contribution.json (version 2), lines/ and sides/ -> Blob
+  function linesPackage(p, crops, made, part, sides) {
+    const rec = RV.consentRecord(p), files = [], list = [], sl = [];
     for (const { l, base, png } of crops) {
       files.push({ name: base + '.png', data: png }, { name: base + '.txt', data: l.text.trim() + '\n' });
       list.push({ image: base + '.png', text: l.text.trim(), proposed: l.proposed, folio: l.label, block: l.box, line: l.i + 1, conf: l.conf, model: l.src.version + ' (' + l.src.model + ')' });
     }
-    const about = { format: 'manuscribe-contribution', version: 1, made, manuscribe: ME.VERSION, part, manuscript: { name: rec.name }, consent: rec, wording: wording(), lines: list };
+    for (const sd of sides || []) {
+      const base = 'sides/' + fileSafe(sd.about.folio);
+      files.push({ name: base + '.jpg', data: sd.jpg }, { name: base + '.json', data: JSON.stringify(sd.about) });
+      sl.push({ image: base + '.jpg', geometry: base + '.json', folio: sd.about.folio, layout: sd.about.layout, lines: Object.fromEntries(Object.entries(sd.about.boxes).map(([b, x]) => [b, x.lines])) });
+    }
+    const about = { format: 'manuscribe-contribution', version: 2, made, manuscribe: ME.VERSION, part, manuscript: { name: rec.name, script: RV.scriptOf(p, rec) }, consent: rec, wording: wording(), lines: list, sides: sl };
     files.unshift({ name: 'contribution.json', data: JSON.stringify(about, null, 1) });
     return ME.Zip.write(files);
   }
@@ -348,7 +426,7 @@
   RV.contributionPackage = async function (p, lines) {
     const made = new Date().toISOString(), rec = RV.consentRecord(p);
     const safe = (rec.name || 'manuscript').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 60);
-    return { name: 'contribution ' + safe + ' ' + made.slice(0, 10) + '.zip', blob: await linesPackage(p, await cropLines(lines), made, [1, 1]), lines: lines.length };
+    return { name: 'contribution ' + safe + ' ' + made.slice(0, 10) + '.zip', blob: await linesPackage(p, await cropLines(lines), made, [1, 1], []), lines: lines.length };
   };
 
   /* Sealed for the maintainer: the lines' package in AES-256-GCM under a key of its own, that key wrapped by RSA-OAEP
@@ -377,25 +455,27 @@
      each a zip of contribution.json (version 2, in the clear: its id, the manuscript's name for the model cards, the
      number of lines, the part, the consent record and its wording, the seal) and sealed.bin (the lines' package). Its
      id is c<date>-<the first 12 hex digits of the SHA-256 of sealed.bin>. */
-  RV.sealedPackages = async function (p, lines, cfg, limit = RV.LIMIT) {
-    const rec = RV.consentRecord(p), crops = await cropLines(lines), groups = [[]];
+  RV.sealedPackages = async function (p, lines, cfg, limit = RV.LIMIT, sides = []) {
+    const rec = RV.consentRecord(p), crops = await cropLines(lines);
+    const items = crops.map((c) => ({ c, n: c.png.length + 3 * c.l.text.length + 400 })).concat(sides.map((sd) => ({ sd, n: sd.jpg.length + 4000 })));
+    const groups = [[]];
     let size = 0;
-    for (const c of crops) {
-      const n = c.png.length + 3 * c.l.text.length + 400;
-      if (groups[groups.length - 1].length && size + n > limit) { groups.push([]); size = 0; }
-      groups[groups.length - 1].push(c);
-      size += n;
+    for (const it of items) {
+      if (groups[groups.length - 1].length && size + it.n > limit) { groups.push([]); size = 0; }
+      groups[groups.length - 1].push(it);
+      size += it.n;
     }
     const out = [];
     for (let k = 0; k < groups.length; k++) {
       const made = new Date().toISOString(), part = [k + 1, groups.length];
-      const inner = await linesPackage(p, groups[k], made, part);
+      const gl = groups[k].filter((x) => x.c).map((x) => x.c), gs = groups[k].filter((x) => x.sd).map((x) => x.sd);
+      const inner = await linesPackage(p, gl, made, part, gs);
       const { seal, sealed } = await RV.seal(new Uint8Array(await inner.arrayBuffer()), cfg.key);
       const id = 'c' + made.slice(0, 10).replace(/-/g, '') + '-' + seal.sha256.slice(0, 12);
       const about = { format: 'manuscribe-contribution', version: 2, sealed: true, id, made, manuscribe: ME.VERSION, inbox: cfg.inbox,
-        manuscript: { name: rec.name }, count: groups[k].length, part, consent: rec, wording: wording(), seal };
+        manuscript: { name: rec.name, script: RV.scriptOf(p, rec) }, count: gl.length, sides: gs.length, part, consent: rec, wording: wording(), seal };
       const blob = await ME.Zip.write([{ name: 'contribution.json', data: JSON.stringify(about, null, 1) }, { name: 'sealed.bin', data: sealed }]);
-      out.push({ id, name: 'manuscribe-contribution-' + id + '.zip', blob, count: groups[k].length });
+      out.push({ id, name: 'manuscribe-contribution-' + id + '.zip', blob, count: gl.length, sides: gs.length });
     }
     return out;
   };
@@ -405,39 +485,62 @@
     if (!RV.CONSENT.approved) { U.toast(DRAFT_NOTE, 'warn', 7000); return null; }
     if (!rec || rec.answer !== 'yes') { U.toast('This manuscript’s corrected lines may be contributed only once you have said yes (Manuscript tab)', 'warn', 6000); return null; }
     if (!ME.PdfView.doc) { U.toast('The PDF is not open', 'warn'); return null; }
-    const lines = RV.corrected(p);
-    if (!lines.length) { U.toast('No corrected lines yet: lines read here and accepted after correcting them (' + ME.Commands.keyLabel('Y') + ') can be contributed', 'info', 6000); return null; }
-    const folios = [...new Set(lines.map((l) => l.label))];
+    // what was sent before is not sent again
+    const hist = ((p.consent && p.consent.history) || []).filter((h) => h.what === 'contributed');
+    const sentLines = new Set(hist.flatMap((h) => h.sent || [])), sentSides = new Set(hist.flatMap((h) => h.sentSides || []));
+    const lineKey = (l) => l.label + '|' + l.box + '|' + l.i;
+    const lines = RV.corrected(p).filter((l) => !sentLines.has(lineKey(l))), withSides = RV.givesSides(rec);
+    const sideOf = new Map(App().entries.filter((e) => !e.orphan && e.pdfPage).map((e) => [e.label, { e, s: RV.sideForSegmenter(p, e) }]));
+    const okSides = withSides ? [...sideOf.values()].filter((x) => !x.s.why && !sentSides.has(x.e.label)) : [];
+    if (!lines.length && !okSides.length) {
+      U.toast('Nothing new to contribute: lines read here and accepted after correcting them (' + ME.Commands.keyLabel('Y') + '), or, '
+        + (withSides ? 'folio sides whose drawn blocks each hold as many lines of text as you gave them' : 'with the consent asked again, folio sides'), 'info', 7000);
+      return null;
+    }
+    const order = App().entries.map((e) => e.label);
+    const folios = order.filter((f) => lines.some((l) => l.label === f) || okSides.some((x) => x.e.label === f));
     const boxes = folios.map((f) => U.el('input', { type: 'checkbox', checked: true, 'aria-label': 'Folio side ' + f, 'data-folio': f }));
-    const ok = await UI.modal({ title: 'Contribute corrected lines', wide: true, className: 'recog-contribute-dialog', body: U.el('div', null,
-      U.el('p', { class: 'help' }, 'A file (zip) with the image and corrected text of each line below, the text the model first proposed, and this manuscript’s consent record; nothing else. The lines in it are sealed, so that only the maintainer of the models can open them. It is saved to your computer; you then attach it to a GitHub issue that Manuscribe opens for you, filled in. Leave out any folio side you wish.'),
-      U.el('table', { class: 'ed-table' }, U.el('tbody', null, folios.map((f, k) => U.el('tr', null, U.el('td', null, boxes[k]), U.el('td', null, 'Folio side ' + f), U.el('td', { class: 'num' }, lines.filter((l) => l.label === f).length + ' line(s)')))))),
+    const sideCell = (f) => { const x = sideOf.get(f); return !withSides ? '—' : x && !x.s.why ? 'the whole side' : (x ? x.s.why : '—'); };
+    const ok = await UI.modal({ title: 'Contribute corrected lines and folio sides', wide: true, className: 'recog-contribute-dialog', body: U.el('div', null,
+      U.el('p', { class: 'help' }, 'A file (zip) with the image and corrected text of each line below, the text the model first proposed, '
+        + (withSides ? 'the image of each whole folio side marked below with the blocks you drew and their line counts, ' : '')
+        + 'the manuscript’s language and script (' + (RV.scriptOf(p, rec) || 'not stated') + ') and its consent record; nothing else. All of it is sealed, so that only the maintainer of the models can open it. It is saved to your computer; you then attach it to a GitHub issue that Manuscribe opens for you, filled in. Leave out any folio side you wish.'),
+      withSides ? null : U.el('p', { class: 'help', 'data-recog': 'sides-need-consent' }, 'Your consent was given on wording ' + rec.wording + ', which gives corrected lines only. To give whole folio sides as well (they teach the segmenter), answer the question again in the Manuscript tab.'),
+      U.el('table', { class: 'ed-table' }, U.el('tbody', null, folios.map((f, k) => U.el('tr', null, U.el('td', null, boxes[k]), U.el('td', null, 'Folio side ' + f),
+        U.el('td', { class: 'num' }, lines.filter((l) => l.label === f).length + ' line(s)'), U.el('td', { class: 'help' }, sideCell(f))))))),
     buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Make the file', value: true, kind: 'primary' }] });
     if (!ok) return null;
     const keep = new Set(boxes.filter((b) => b.checked).map((b) => b.dataset.folio));
     const chosen = lines.filter((l) => keep.has(l.label));
-    if (!chosen.length) return null;
+    const chosenSides = okSides.filter((x) => keep.has(x.e.label));
+    if (!chosen.length && !chosenSides.length) return null;
     let cfg;
     try { cfg = await Pack().contribution(); } catch (err) {
       U.toast('The key that seals contributed lines could not be read from ' + Pack().source() + 'contribute.json (' + (err.message || err) + '): try again online', 'err', 9000);
       return null;
     }
-    if (cfg.wordings && !cfg.wordings.includes(RV.CONSENT.version)) { U.toast('The models’ site no longer takes lines given on this consent’s wording (' + RV.CONSENT.version + '): a newer Manuscribe asks again', 'warn', 9000); return null; }
-    const pkgs = await RV.sealedPackages(p, chosen, cfg);
+    if (cfg.wordings && !cfg.wordings.includes(rec.wording)) { U.toast('The models’ site no longer takes contributions given on this consent’s wording (' + rec.wording + '): answer the question again in the Manuscript tab', 'warn', 9000); return null; }
+    const inst = await Pack().installed();
+    const H = (inst && inst.manifest.page_height && inst.manifest.page_height.median) || 685;
+    const sides = [];
+    for (const x of chosenSides) sides.push(await sideImage(p, x.e, x.s, H));
+    const pkgs = await RV.sealedPackages(p, chosen, cfg, RV.LIMIT, sides);
     for (const k of pkgs) U.download(k.name, k.blob, 'application/zip');
     const ids = pkgs.map((k) => k.id);
-    const url = RV.issueUrl(cfg.inbox, 'contribution', { title: 'Contribution: ' + rec.name + ' (' + chosen.length + ' lines)', manuscript: rec.name, ids: ids.join(' '), lines: String(chosen.length) });
-    record(p, 'contributed', { history: { lines: chosen.length, folios: [...keep], files: pkgs.map((k) => k.name), ids, inbox: cfg.inbox, issue: url } });
+    const what = [chosen.length ? chosen.length + ' lines' : '', sides.length ? sides.length + ' sides' : ''].filter(Boolean).join(', ');
+    const url = RV.issueUrl(cfg.inbox, 'contribution', { title: 'Contribution: ' + rec.name + ' (' + what + ')', manuscript: rec.name, ids: ids.join(' '), lines: String(chosen.length), sides: String(sides.length), script: RV.scriptOf(p, rec) });
+    record(p, 'contributed', { history: { lines: chosen.length, sides: sides.length, folios: [...keep], files: pkgs.map((k) => k.name), ids, inbox: cfg.inbox, issue: url,
+      sent: chosen.map(lineKey), sentSides: chosenSides.map((x) => x.e.label) } });
     rerenderMs();
     await sendDialog(pkgs, url, cfg);
-    return { packages: pkgs, url, lines: chosen.length };
+    return { packages: pkgs, url, lines: chosen.length, sides: sides.length };
   };
 
   async function sendDialog(pkgs, url, cfg) {
-    const n = pkgs.reduce((a, k) => a + k.count, 0), bytes = pkgs.reduce((a, k) => a + k.blob.size, 0);
+    const n = pkgs.reduce((a, k) => a + k.count, 0), ns = pkgs.reduce((a, k) => a + (k.sides || 0), 0), bytes = pkgs.reduce((a, k) => a + k.blob.size, 0);
     const v = await UI.modal({ title: 'Send the contribution', wide: true, className: 'recog-send-dialog', body: U.el('div', null,
-      U.el('p', null, 'Saved to your computer: ', pkgs.flatMap((k, i) => [i ? ', ' : '', U.el('code', null, k.name)]), ' (' + n + ' lines, ' + MB(bytes) + '). The lines in ' + (pkgs.length > 1 ? 'them' : 'it') + ' are sealed: only the maintainer of the models can open them.'),
-      U.el('p', null, 'Now open a new issue in ' + cfg.inbox + ' on GitHub: its form is filled in for you. Drag the file' + (pkgs.length > 1 ? 's' : '') + ' into its “Sealed package” box and submit. The issue is public, the lines are not; a bot answers on it once they are registered.'),
+      U.el('p', null, 'Saved to your computer: ', pkgs.flatMap((k, i) => [i ? ', ' : '', U.el('code', null, k.name)]), ' (' + n + ' lines' + (ns ? ', ' + ns + ' folio sides' : '') + ', ' + MB(bytes) + '). What ' + (pkgs.length > 1 ? 'they hold is' : 'it holds is') + ' sealed: only the maintainer of the models can open it.'),
+      U.el('p', null, 'Now open a new issue in ' + cfg.inbox + ' on GitHub: its form is filled in for you. Drag the file' + (pkgs.length > 1 ? 's' : '') + ' into its “Sealed package” box and submit. The issue is public, the lines and images are not; a bot answers on it once they are registered.'),
       U.el('p', { class: 'help' }, 'Questions: ' + (cfg.email || RV.INBOX.email) + '.')),
     buttons: [{ label: 'Later', value: false, kind: 'ghost' }, { label: 'Open the issue form on GitHub', value: true, kind: 'primary' }] });
     if (v) openUrl(url);
@@ -472,14 +575,15 @@
     const r = RV.consentRecord(p);
     const n = RV.corrected(p).length;
     out.push(U.el('p', { class: 'help', 'data-recog': 'consent' }, !r ? 'Not asked yet: its corrected lines are not contributed.'
-      : r.answer === 'yes' ? 'You said yes on ' + r.date.slice(0, 10) + ' (wording ' + r.wording + '), as “' + r.name + '”. ' + n + ' corrected line(s) can be contributed.'
+      : r.answer === 'yes' ? 'You said yes on ' + r.date.slice(0, 10) + ' (wording ' + r.wording + '), as “' + r.name + '”' + (RV.scriptOf(p, r) ? ', ' + RV.scriptOf(p, r) : '') + '. ' + n + ' corrected line(s) can be contributed'
+          + (RV.givesSides(r) ? ', and ' + App().entries.filter((e) => !e.orphan && e.pdfPage && !RV.sideForSegmenter(p, e).why).length + ' folio side(s) whose drawn blocks each hold as many lines of text as you gave them.' : '. That wording gives lines only: to give whole folio sides as well, answer again.')
         : r.answer === 'withdrawn' ? 'Consent withdrawn on ' + r.withdrawn.slice(0, 10) + ': nothing more is contributed.'
           : 'You said no on ' + r.date.slice(0, 10) + ': nothing is contributed.'));
     const sent = ((p.consent && p.consent.history) || []).filter((h) => h.what === 'contributed');
-    if (sent.length) out.push(U.el('p', { class: 'help' }, 'Contributions made: ' + sent.map((h) => h.date.slice(0, 10) + ' (' + h.lines + ' lines' + (h.ids ? ': ' + h.ids.join(', ') : '') + ')').join('; ') + '.'));
+    if (sent.length) out.push(U.el('p', { class: 'help' }, 'Contributions made: ' + sent.map((h) => h.date.slice(0, 10) + ' (' + h.lines + ' lines' + (h.sides ? ', ' + h.sides + ' sides' : '') + (h.ids ? ': ' + h.ids.join(', ') : '') + ')').join('; ') + '.'));
     const last = sent.filter((h) => h.issue).pop();
     out.push(U.el('div', { class: 'btn-row' },
-      !r || r.answer !== 'yes' ? U.el('button', { class: 'btn small', onclick: async () => { RV._notNow = null; await RV.askConsent(p); rerenderMs(); } }, r ? 'Answer again…' : 'Answer…') : null,
+      !r || r.answer !== 'yes' || !RV.givesSides(r) ? U.el('button', { class: 'btn small', 'data-action': 'answer-consent', onclick: async () => { RV._notNow = null; await RV.askConsent(p); rerenderMs(); } }, r ? 'Answer again…' : 'Answer…') : null,
       r && r.answer === 'yes' ? U.el('button', { class: 'btn small', 'data-action': 'contribute', onclick: () => RV.contribute(p) }, 'Contribute corrected lines…') : null,
       r && r.answer === 'yes' && last ? U.el('button', { class: 'btn small ghost', 'data-action': 'send-again', title: 'The issue form for the files saved on ' + last.date.slice(0, 10), onclick: () => openUrl(last.issue) }, 'Open the issue form again…') : null,
       r && r.answer === 'yes' ? U.el('button', { class: 'btn small ghost', onclick: () => RV.withdraw(p) }, 'Withdraw…') : null,

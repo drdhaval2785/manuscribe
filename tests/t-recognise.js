@@ -22,7 +22,7 @@ const FIXTURES = path.resolve(ROOT, '..', '..', 'lexicon_manuscripts', 'manuscri
 // a key of the test's own, published as the site's contribute.json
 const KEY = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 const SPKI = KEY.publicKey.export({ type: 'spki', format: 'der' });
-const CONTRIBUTE = { schema: 1, inbox: 'test-owner/test-inbox', email: 'maintainer@example.org', wordings: ['1'],
+const CONTRIBUTE = { schema: 1, inbox: 'test-owner/test-inbox', email: 'maintainer@example.org', wordings: ['1', '2'], sides: ['2'], script: 'sa-Deva',
   key: { id: crypto.createHash('sha256').update(SPKI).digest('hex').slice(0, 16), alg: 'RSA-OAEP-256+A256GCM', spki: SPKI.toString('base64') } };
 // what msocr.seal and the inbox do, by OpenSSL: the AES key unwrapped, the lines opened (the tag is GCM's last 16 bytes)
 function openSealed(seal, sealed) {
@@ -168,8 +168,8 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
 
     // ---- consent: the text approved; a draft could not be answered
     const shipped = await page.evaluate(() => ({ v: ME.RecogView.CONSENT.version, ok: ME.RecogView.CONSENT.approved, text: ME.RecogView.CONSENT.paragraphs.join(' ') }));
-    T.check('the consent text is approved (version ' + shipped.v + '), names the inbox and the maintainer\'s address, and says that models trained before a withdrawal remain',
-      shipped.v === '1' && shipped.ok && /drdhaval2785\/manuscribe-contributions/.test(shipped.text) && /drdhaval2785@gmail\.com/.test(shipped.text) && /remain, and are not withdrawn/.test(shipped.text), shipped);
+    T.check('the consent text is approved (version ' + shipped.v + '): lines and whole folio sides, kept to their language and script, the inbox and the maintainer\'s address, and models trained before a withdrawal remain',
+      shipped.v === '2' && shipped.ok && /whole folio sides|that whole side/.test(shipped.text) && /never mixed/.test(shipped.text) && /drdhaval2785\/manuscribe-contributions/.test(shipped.text) && /drdhaval2785@gmail\.com/.test(shipped.text) && /remain, and are not withdrawn/.test(shipped.text), shipped);
     const draft = await page.evaluate(async () => {
       const C = ME.RecogView.CONSENT, was = C.approved;
       C.approved = false;
@@ -238,7 +238,8 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     T.check('one sealed package saved (' + one.name + '): contribution.json in the clear (its id, the name, the count, the consent) and sealed.bin, no line\'s text in the clear',
       saved.length === 1 && sentRun && one.name === 'manuscribe-contribution-' + about.id + '.zip' && one.names.join() === 'contribution.json,sealed.bin' && about.version === 2 && about.sealed === true
         && about.id === 'c' + about.made.slice(0, 10).replace(/-/g, '') + '-' + sha.slice(0, 12) && about.seal.sha256 === sha && about.seal.bytes === sealedBytes.length && about.seal.key === CONTRIBUTE.key.id
-        && about.count === 2 && about.consent.answer === 'yes' && about.wording.version === '1' && about.inbox === CONTRIBUTE.inbox && !one.about.includes('संशोधितम्'),
+        && about.count === 2 && about.sides === 0 && about.consent.answer === 'yes' && about.wording.version === '2' && about.manuscript.script === 'sa-Deva' && about.consent.script === 'sa-Deva'
+        && about.inbox === CONTRIBUTE.inbox && !one.about.includes('संशोधितम्'),
       { name: one.name, names: one.names, about: Object.assign({}, about, { wording: undefined, seal: about.seal && { key: about.seal.key, bytes: about.seal.bytes } }) });
     let inner = null;
     try { inner = openSealed(about.seal, sealedBytes); } catch (e) { inner = null; }
@@ -248,7 +249,7 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       return { names: [...z.keys()].length, version: a.version, texts: a.lines.map((l) => l.text), png: a.lines.every((l) => z.get(l.image) && z.get(l.image)[0] === 0x89), consent: a.consent, part: a.part };
     }, inner.toString('base64'));
     T.check('the sealed lines open with the private key by OpenSSL, as msocr.seal opens them: the lines\' package, the same consent inside',
-      !!opened && opened.version === 1 && opened.names === 5 && opened.texts.join('|') === 'संशोधितम् 0|संशोधितम् 1' && opened.png && JSON.stringify(opened.consent) === JSON.stringify(about.consent) && opened.part.join() === '1,1', opened);
+      !!opened && opened.version === 2 && opened.names === 5 && opened.texts.join('|') === 'संशोधितम् 0|संशोधितम् 1' && opened.png && JSON.stringify(opened.consent) === JSON.stringify(about.consent) && opened.part.join() === '1,1', opened);
     const issue = sentRun ? new URL(sentRun.url) : null;
     const opens = await page.evaluate(() => window.recogGot.opened);
     T.check('the inbox\'s issue form (from contribute.json) is opened filled in: the manuscript, the package id, the lines',
@@ -272,6 +273,57 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       console.log('  sealed package and the test key kept in ' + out);
     }
 
+    // ---- a folio side for the segmenter: its block drawn, holding as many lines of text as it was given
+    const side = await page.evaluate(() => {
+      const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = ME.Model.page(p, e.label);
+      const before = ME.RecogView.sideForSegmenter(p, e).why;
+      const arr = pg.boxes.main = (pg.boxes.main || []).slice();
+      let n = 0;
+      while (n < arr.length && ME.TEI.hasContent(arr[n])) n++;
+      for (let k = n; k < arr.length; k++) if (ME.TEI.hasContent(arr[k])) { for (let j = n; j < k; j++) arr[j] = 'पङ्क्तिः'; n = k + 1; }
+      arr.length = n;
+      const L = ME.Model.defaultLeaf(e);
+      ME.Model.setRegions(p, e, { leaf: L, boxes: { main: [L[0] + 0.04 * L[2], L[1] + 0.05 * L[3], 0.92 * L[2], 0.9 * L[3]] } }, 'page');
+      pg.lines = { main: n };
+      const short = Object.assign({}, pg.lines, { main: n + 1 });
+      pg.lines = short;
+      const wrongCount = ME.RecogView.sideForSegmenter(p, e).why;
+      pg.lines = { main: n };
+      ME.App.changed();
+      return { before, wrongCount, ok: ME.RecogView.sideForSegmenter(p, e), n, lines1: ME.RecogView.givesSides({ answer: 'yes', wording: '1' }), lines2: ME.RecogView.givesSides(p.consent.training) };
+    });
+    T.check('a folio side teaches the segmenter only with its blocks drawn and each holding as many lines of text as it was given (' + side.n + ' here), and only on a consent that gives sides',
+      !!side.before && /not drawn/.test(side.before) && /not \d+/.test(side.wrongCount || '') && side.ok.layout === 'linear' && side.ok.boxes.main.lines === side.n && side.lines1 === false && side.lines2 === true, side);
+    const nFiles = await page.evaluate(() => window.recogGot.files.length);
+    const sending2 = page.evaluate(() => ME.RecogView.contribute(ME.App.project).then((r) => r && { ids: r.packages.map((k) => k.id), lines: r.lines, sides: r.sides, url: r.url }));
+    for (const dlg of ['.recog-contribute-dialog', '.recog-send-dialog']) {
+      for (let k = 0; k < 100 && !(await page.evaluate((c) => !!document.querySelector(c), dlg)); k++) await sleep(100);
+      await page.evaluate((c) => { const b = document.querySelector(c + ' .btn.primary'); if (b) b.click(); }, dlg);
+    }
+    const run2 = await sending2;
+    const saved2 = await page.evaluate(async (b64src, from) => {
+      const b64 = new Function(b64src + ' return b64;')();
+      const f = window.recogGot.files[from], z = await ME.Zip.read(f.blob);
+      return { about: ME.Zip.text(z.get('contribution.json')), sealed: b64(z.get('sealed.bin')) };
+    }, b64, nFiles);
+    const about2 = JSON.parse(saved2.about), inner2 = openSealed(about2.seal, Buffer.from(saved2.sealed, 'base64'));
+    const sideBack = await page.evaluate(async (b) => {
+      const z = await ME.Zip.read(new Blob([Uint8Array.from(atob(b), (c) => c.charCodeAt(0))]));
+      const a = JSON.parse(ME.Zip.text(z.get('contribution.json')));
+      const sd = a.sides[0], jpg = sd && z.get(sd.image), g = sd && JSON.parse(ME.Zip.text(z.get(sd.geometry)));
+      const r = g && g.boxes.main.rect;
+      return { n: a.sides.length, jpeg: !!jpg && jpg[0] === 0xff && jpg[1] === 0xd8, kb: jpg && Math.round(jpg.length / 1024), w: g && g.width, h: g && g.height, rect: r, lines: g && g.boxes.main.lines, layout: g && g.layout,
+        inside: !!r && r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= g.width + 1 && r[1] + r[3] <= g.height + 1, script: a.manuscript.script, found: g && Object.keys(g.found || {}).length };
+    }, inner2.toString('base64'));
+    T.check('the side goes sealed in a package of its own (the lines sent before are not sent again): its image (a JPEG, ' + sideBack.kb + ' KB, ' + sideBack.w + 'x' + sideBack.h + ' px, at the height the segmenter learned from), its drawn block in the image\'s own pixels with its line count, its language and script',
+      !!run2 && run2.sides === 1 && run2.lines === 0 && about2.count === 0 && about2.sides === 1 && about2.manuscript.script === 'sa-Deva' && sideBack.n === 1 && sideBack.jpeg && sideBack.inside && sideBack.lines === side.n && sideBack.layout === 'linear' && sideBack.script === 'sa-Deva' && Math.abs(sideBack.h - 685) <= 2,
+      { run2, sideBack });
+    if (process.env.MANUSCRIBE_SAVE_CONTRIBUTION) {
+      const out = path.resolve(process.env.MANUSCRIBE_SAVE_CONTRIBUTION);
+      const zip2 = await page.evaluate(async (b64src, from) => { const b64 = new Function(b64src + ' return b64;')(); return b64(new Uint8Array(await window.recogGot.files[from].blob.arrayBuffer())); }, b64, nFiles);
+      fs.writeFileSync(path.join(out, 'manuscribe-contribution-' + about2.id + '.zip'), Buffer.from(zip2, 'base64'));
+    }
+
     // ---- withdrawn
     const withdrawing = page.evaluate(() => ME.RecogView.withdraw(ME.App.project));
     for (let k = 0; k < 30 && !(await page.evaluate(() => !!document.querySelector('.modal .btn.danger'))); k++) await sleep(100);
@@ -279,11 +331,11 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     for (let k = 0; k < 50 && !(await page.evaluate(() => !!document.querySelector('.recog-withdraw-dialog'))); k++) await sleep(100);
     await page.evaluate(() => { const b = document.querySelector('.recog-withdraw-dialog .btn.primary'); if (b) b.click(); });
     await withdrawing;
-    const after = await page.evaluate(async () => ({ t: ME.App.project.consent.training, h: ME.App.project.consent.history.map((x) => x.what), pkg: await ME.RecogView.contribute(ME.App.project), opened: window.recogGot.opened.slice(1) }));
-    T.check('consent withdrawn: kept with its date, and nothing more can be contributed', after.t.answer === 'withdrawn' && after.t.withdrawn && after.h.join() === 'yes,contributed,withdrawn' && after.pkg === null, after);
+    const after = await page.evaluate(async () => ({ t: ME.App.project.consent.training, h: ME.App.project.consent.history.map((x) => x.what), pkg: await ME.RecogView.contribute(ME.App.project), opened: window.recogGot.opened.slice(2) }));
+    T.check('consent withdrawn: kept with its date, and nothing more can be contributed', after.t.answer === 'withdrawn' && after.t.withdrawn && after.h.join() === 'yes,contributed,contributed,withdrawn' && after.pkg === null, after);
     const req = after.opened.length ? new URL(after.opened[0]) : null;
     T.check('the lines already sent are withdrawn by a request in the inbox they went to, opened filled in with their ids',
-      !!req && after.opened.length === 1 && req.pathname === '/test-owner/test-inbox/issues/new' && req.searchParams.get('template') === 'withdrawal.yml' && req.searchParams.get('ids') === about.id, after.opened);
+      !!req && after.opened.length === 1 && req.pathname === '/test-owner/test-inbox/issues/new' && req.searchParams.get('template') === 'withdrawal.yml' && req.searchParams.get('ids') === [about.id].concat(run2 ? run2.ids : []).join('\n'), after.opened);
 
     T.check('no errors in the page', !page.errors.length, page.errors);
   } finally {

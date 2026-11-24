@@ -1095,15 +1095,19 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
 - **Nothing is sent anywhere.** Reading a page needs nothing from anyone.
 - **Helping to train the models is your choice, per manuscript.** If you tick, in Settings › Recognition, that you
   wish to be asked, Manuscribe asks for each manuscript you read here whether its corrected lines may be used to train
-  the models, and whether you have the right to share its images. Nothing is ticked for you; the answer is kept in
-  the project, with its date and the version of the consent text it was given on.
+  the models, whether you have the right to share its images, and its language and script (a tag as `sa-Deva`). Nothing
+  is ticked for you; the answer is kept in the project, with its date and the version of the consent text it was given
+  on. Lines and pages of one language or script train only the models of that language and script.
 - **Contribute corrected lines…** (Manuscript tab, after a yes) makes a file of the lines you have corrected and
   accepted (their images, their text, what the model proposed) and the consent record, **sealed** so that only the
   maintainer of the models can open the lines, and saves it. Manuscribe then opens a new issue in the
   [manuscribe-contributions](https://github.com/drdhaval2785/manuscribe-contributions) repository on GitHub with its
   form filled in, and you attach the file there (a GitHub account is needed). The issue is public: it shows the
   manuscript's name you gave, the number of lines and your GitHub account, not the lines. A bot answers on it once
-  the package is registered. Lines beyond 20 MB go in several files.
+  the package is registered. Lines beyond 20 MB go in several files. With the consent of the present wording (2),
+  the file also holds the image of each folio side whose blocks you have drawn (Calibrate) and whose every block holds
+  as many lines of text as you gave it, with the blocks and their counts: those teach the segmenter, which finds the
+  lines on a page. What was sent before is not sent again.
 - **Withdrawing** (Manuscript tab) stops anything more being contributed, and opens a withdrawal request for the lines
   already sent: they are deleted and left out of every model trained afterwards; models already trained on them while
   the consent was given remain. Without a GitHub account, write to drdhaval2785@gmail.com.
