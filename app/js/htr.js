@@ -134,6 +134,7 @@
           pg.proposed = pg.proposed || {};
           pg.proposed[box] = pg.proposed[box] || {};
           pg.proposed[box][i] = { text: tei, src: plan.src, conf: l.conf };
+          if (typeof l.confs === 'string' && l.confs.length === l.text.length) pg.proposed[box][i].confs = l.confs;
           out.placed++;
         }
         const n = (pg.lines && pg.lines[box]) || p.layout.lines[box] || 0;
@@ -260,11 +261,48 @@
 
   H.mark = function (folio, p, label) {
     const pg = p.pages[label];
+    H.doubt(p, label, folio);
     if (!pg || !pg.proposed) return;
     for (const el of folio.querySelectorAll('.line[data-box]')) {
       const e = entryOf(pg, el.dataset.box, +el.dataset.i);
       if (e && !e.accepted) { el.classList.add('proposed'); const s = H.source(p, e.src); el.title = 'Proposed by ' + (s ? H.describe(s) : 'a program') + (e.conf !== null && e.conf !== undefined ? ', confidence ' + Math.round(e.conf * 100) + '%' : '') + '. Correct it, then accept it (' + (ME.Commands ? ME.Commands.keyLabel('Y') : 'Alt+Y') + ').'; }
     }
+  };
+
+  /* Letters the program was unsure of, in its proposed lines still as it proposed them: marked through the browser's
+     Highlight API (::highlight(recog-doubt) in app.css), the text of the lines untouched, so that proofreading goes to
+     them first. e.confs: a digit for each character of the proposed text, its probability in tenths, a space where the
+     text has one. A line edited or accepted loses its marks. The threshold, in tenths, is Settings › Recognition's
+     (RecogPack prefs.doubt: 0 off; 7, under 70 %, unless chosen otherwise). Measured with ft4 on three manuscripts'
+     corrected pages, 24 November 2026: under 70 %, 6-10 % of letters marked and 29-37 % of the mistakes among them;
+     under 90 %, 14-22 % and 51-58 %; under 50 %, 1 % and 10 %. -> the number of runs of letters marked */
+  H.DOUBT = 'recog-doubt';
+  H.doubtBelow = () => { const v = ME.RecogPack && ME.RecogPack.prefs().doubt; return v === undefined || v === null ? 7 : +v; };
+  H.doubt = function (p, label, root) {
+    if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return 0;
+    const below = H.doubtBelow(), pg = p && label && p.pages[label], ranges = [];
+    if (below > 0 && pg && pg.proposed) {
+      for (const el of (root || document).querySelectorAll('.line[data-box]')) {
+        const e = entryOf(pg, el.dataset.box, +el.dataset.i);
+        if (!e || e.accepted || typeof e.confs !== 'string') continue;
+        if (((pg.boxes[el.dataset.box] || [])[+el.dataset.i] || '') !== e.text || el.textContent.length !== e.confs.length) continue;
+        const nodes = [];
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(), off = 0; n; off += n.data.length, n = walk.nextNode()) nodes.push([n, off]);
+        const at = (k) => { for (let j = nodes.length - 1; j >= 0; j--) if (nodes[j][1] <= k) return [nodes[j][0], k - nodes[j][1]]; return null; };
+        const low = (k) => e.confs[k] !== ' ' && +e.confs[k] < below;
+        for (let k = 0; k < e.confs.length; k++) {
+          if (!low(k)) continue;
+          let j = k;
+          while (j + 1 < e.confs.length && low(j + 1)) j++;
+          const a = at(k), b = at(j);
+          if (a && b) { const r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(b[0], b[1] + 1); ranges.push(r); }
+          k = j;
+        }
+      }
+    }
+    if (ranges.length) CSS.highlights.set(H.DOUBT, new Highlight(...ranges)); else CSS.highlights.delete(H.DOUBT);
+    return ranges.length;
   };
 
   ME.HTR = H;

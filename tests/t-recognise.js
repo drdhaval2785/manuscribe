@@ -182,6 +182,39 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     });
     T.check('a side read is marked “OCR: recognised, not yet read”, given its blocks from the rows found (no calibrating), and the guide follows each line\'s own outline, inside its block',
       read.level === 'ocr' && read.from === 'recognition' && read.calibrated && read.inside, read);
+    // ---- the letters the model was unsure of, marked in the proposed lines
+    const doubt = await page.evaluate(() => {
+      const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = p.pages[e.label], H = ME.HTR;
+      const plain = (t) => new DOMParser().parseFromString('<x>' + t + '</x>', 'text/xml').documentElement.textContent;
+      const entries = Object.entries(pg.proposed.main).filter(([, x]) => !x.accepted);
+      const aligned = entries.every(([, x]) => typeof x.confs === 'string' && x.confs.length === plain(x.text).length
+        && [...plain(x.text)].every((c, k) => (c === ' ') === (x.confs[k] === ' ')));
+      // the runs of letters under 70 % expected in the lines shown, as unchanged and not accepted
+      const runs = (x, below) => { let n = 0; for (let k = 0; k < x.confs.length; k++) if (x.confs[k] !== ' ' && +x.confs[k] < below && (k === 0 || x.confs[k - 1] === ' ' || +x.confs[k - 1] >= below)) n++; return n; };
+      const shown = entries.filter(([i]) => ME.Editor.lineEl('main', +i));
+      const want = shown.reduce((a, [, x]) => a + runs(x, 7), 0);
+      const hl = () => (CSS.highlights.get(H.DOUBT) || { size: 0 }).size;
+      const first = hl();
+      // a line edited loses its marks
+      const withMarks = shown.find(([, x]) => runs(x, 7) > 0);
+      let afterEdit = null, afterAccept = null;
+      if (withMarks) {
+        const [i, x] = withMarks, el = ME.Editor.lineEl('main', +i);
+        el.textContent = el.textContent + 'क';
+        el.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        afterEdit = { got: hl(), want: want - runs(x, 7) };
+      }
+      ME.RecogPack.savePrefs({ doubt: 0 }); H.doubt(p, e.label); const off = hl();
+      ME.RecogPack.savePrefs({ doubt: 9 }); H.doubt(p, e.label); const at90 = hl();
+      ME.RecogPack.savePrefs({ doubt: 7 }); H.doubt(p, e.label);
+      const other = shown.find(([i, x]) => (!withMarks || i !== withMarks[0]) && runs(x, 7) > 0);
+      if (other) { H.accept(p, e.label, 'main', +other[0]); H.doubt(p, e.label); afterAccept = { got: hl(), want: want - (withMarks ? runs(withMarks[1], 7) : 0) - runs(other[1], 7) }; }
+      const lowShare = entries.reduce((a, [, x]) => a + [...x.confs].filter((c) => c !== ' ' && +c < 7).length, 0) / entries.reduce((a, [, x]) => a + x.confs.replace(/ /g, '').length, 0);
+      return { lines: entries.length, aligned, want, first, afterEdit, afterAccept, off, at90, lowShare: Math.round(1000 * lowShare) / 10, api: typeof Highlight !== 'undefined' && !!CSS.highlights };
+    });
+    T.check('every letter read keeps its probability, letter for letter with the text placed (word spaces lined up); the ones under 70 % are marked (' + doubt.want + ' run(s), ' + doubt.lowShare + ' % of the letters), a line edited or accepted loses its marks, the setting turns them off or to 90 %',
+      doubt.api && doubt.aligned && doubt.first === doubt.want && (!doubt.afterEdit || doubt.afterEdit.got === doubt.afterEdit.want) && (!doubt.afterAccept || doubt.afterAccept.got === doubt.afterAccept.want)
+        && doubt.off === 0 && doubt.at90 >= doubt.want, doubt);
     T.check('Recognise is a button on the scan\'s toolbar; Calibrate a plain one, still there to correct blocks recognition found; and blocks found so never count as drawn for the segmenter',
       read.toolbar && !/accent/.test(read.calibrateClass) && read.calibrateShown && /found by recognition/.test(read.segmenter || ''), read);
 

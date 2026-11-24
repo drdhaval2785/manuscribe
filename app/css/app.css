@@ -1100,3 +1100,5 @@ body.touch .ct-touch { display: block; }
 .recog-bg .sbtn { margin-left: 4px; }
 /* on a phone with the keyboard open, the hint over the typing area makes way for the lines typed */
 body.keyboard-open #calib-hint { display: none; }
+/* letters the recognition model was unsure of, in proposed lines (htr.js, the Highlight API) */
+::highlight(recog-doubt) { background-color: rgba(214, 69, 65, 0.24); text-decoration: underline wavy rgba(200, 40, 40, 0.9); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }

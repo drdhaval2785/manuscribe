@@ -194,6 +194,19 @@
 
   /* ---------- placing what was read ---------- */
 
+  // each letter's probability (a digit in tenths) for the text as placed: a space where the spacer put one, which it
+  // only ever adds; null where the two do not match
+  function alignLetters(text, letters) {
+    if (typeof letters !== 'string') return null;
+    let out = '', j = 0;
+    for (const ch of text.split('')) {
+      if (/\s/.test(ch)) { out += ' '; continue; }
+      if (j >= letters.length) return null;
+      out += letters[j++];
+    }
+    return j === letters.length ? out : null;
+  }
+
   function sourceFor(p, man, space) {
     const model = SOFTWARE + ': segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + (space ? ', word spacer ' + runOf(man, 'spacer') : '');
     const s = (p.sources || []).find((x) => x.software === SOFTWARE && x.version === man.pack && x.model === model);
@@ -208,7 +221,7 @@
     for (const [box, rows] of Object.entries(res.boxes)) {
       if (!rows.length) continue;
       if (!boxes.includes(box)) { lost += rows.length; continue; }
-      regions.push({ id: box, type: box, lines: rows.map((r) => ({ text: space && typeof r.spaced === 'string' ? r.spaced : r.text, conf: r.conf })) });
+      regions.push({ id: box, type: box, lines: rows.map((r) => { const text = space && typeof r.spaced === 'string' ? r.spaced : r.text; return { text, conf: r.conf, confs: alignLetters(text, r.letters) }; }) });
       names.push(box);
     }
     if (!regions.length) return { placed: 0, skipped: 0, lost, counts: 0 };
@@ -854,6 +867,13 @@
       const backend = U.el('select', { 'aria-label': 'How the models run', onchange: () => { Pack().savePrefs({ backend: backend.value }); RV.stop(); } },
         U.el('option', { value: 'auto', selected: prefs.backend !== 'wasm' }, 'WebGPU where this browser has it (faster), else WebAssembly'),
         U.el('option', { value: 'wasm', selected: prefs.backend === 'wasm' }, 'WebAssembly only'));
+      const dv = ME.HTR ? ME.HTR.doubtBelow() : 7;
+      const doubt = U.el('select', { 'aria-label': 'Mark the letters the model was unsure of', 'data-recog': 'doubt', onchange: () => {
+        Pack().savePrefs({ doubt: +doubt.value });
+        const A = App();
+        if (ME.HTR && A && A.project && A.entries[A.idx]) ME.HTR.doubt(A.project, A.entries[A.idx].label);
+      } }, [[0, 'Not marked'], [5, 'Under 50 %: fewest marks, about half of them mistakes, a tenth of the mistakes'], [7, 'Under 70 %: about a third of the mistakes, a quarter of the marks wrong'], [9, 'Under 90 %: more than half the mistakes, the most marks']]
+        .map(([v, t]) => U.el('option', { value: String(v), selected: v === dv }, t)));
       const ask = U.el('input', { type: 'checkbox', checked: !!prefs.askTraining && RV.CONSENT.approved, disabled: !RV.CONSENT.approved, 'data-recog': 'ask', onchange: () => Pack().savePrefs({ askTraining: ask.checked }) });
       host.append(
         U.el('h4', null, 'Recognition pack'), status,
@@ -865,6 +885,8 @@
           m ? U.el('button', { class: 'btn small ghost', 'data-action': 'remove-pack', onclick: async () => { if (await UI.confirm('Remove the recognition pack from this browser? Lines already proposed stay.', { ok: 'Remove', danger: true })) { RV.stop(); await Pack().remove(); draw(); } } }, 'Remove') : null),
         list, bar, say,
         U.el('label', { class: 'field' }, U.el('span', null, 'How the models run'), backend),
+        U.el('label', { class: 'field' }, U.el('span', null, 'Mark the letters the model was unsure of, in lines proposed and not yet changed or accepted'), doubt),
+        U.el('p', { class: 'help' }, 'Each letter read has the model\'s own probability for it. The ones under the threshold are underlined in red, so that proofreading goes to them first; a line loses its marks once you change or accept it. Many mistakes are made with confidence, though (a letter or a virama left out has no letter to mark), so a line without marks still needs reading.'),
         U.el('h4', null, 'Training the models'),
         U.el('label', { class: 'field checkbox' }, ask, U.el('span', null, 'Ask me, for each manuscript I read here, whether its corrected lines may help train the recognition models')),
         U.el('p', { class: 'help' + (RV.CONSENT.approved ? '' : ' recog-draft') }, RV.CONSENT.approved ? 'Off unless you tick it. Nothing is ever contributed without a yes for that manuscript, and then only as a sealed file you send yourself, attached to a GitHub issue.' : DRAFT_NOTE),

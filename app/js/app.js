@@ -1237,6 +1237,7 @@
       const untrusted = [...new Set(pend.map((x) => x.src))].map((id) => H.source(p, id)).filter((s) => !H.trusted(s));
       if (untrusted.length) { U.toast('Lines from ' + H.describe(untrusted[0]) + ' are accepted one at a time until it passes the memorisation test (Manuscript tab)', 'warn', 7000); return; }
       for (const x of pend) { H.accept(p, e.label, x.box, x.i); const el = Editor.lineEl(x.box, x.i); if (el) { el.classList.remove('proposed'); el.title = ''; } }
+      H.doubt(p, e.label);
       U.toast('Accepted ' + pend.length + ' line(s) on this side');
     } else {
       const cur = Editor.current;
@@ -1244,6 +1245,7 @@
       H.accept(p, e.label, cur.box, cur.i);
       const el = Editor.lineEl(cur.box, cur.i);
       if (el) { el.classList.remove('proposed'); el.title = ''; }
+      H.doubt(p, e.label);
       U.toast('Accepted' + (pend.length > 1 ? '; ' + (pend.length - 1) + ' proposed line(s) left on this side' : ''));
     }
     App.changed();
