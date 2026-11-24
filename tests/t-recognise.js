@@ -4,11 +4,14 @@
 // from disk, reading the reference's fixture pages as the reference reads them (rows, text and word spaces, on
 // WebAssembly; on WebGPU too where the browser has it, which is reported); then, on linear.pdf, "Recognise this side"
 // from the Folio tab proposing lines with where they were cut from, nothing over typed text; and the training consent
-// (the draft refused, then, approved for the test, the question asked, the answer kept in the project), the package of
-// corrected lines (their images cut again, their corrected text, the consent record) and the withdrawal.
+// (approved, version 1; a draft refused; the question asked, the answer kept in the project), the package of corrected
+// lines (their images cut again, their corrected text, the consent record), sealed to a key of the test's own served as
+// the site's contribute.json and opened here by OpenSSL, saved, with the inbox's issue form opened filled in, and the
+// withdrawal with its request. MANUSCRIBE_SAVE_CONTRIBUTION=<folder> keeps the sealed package and the test's key there
+// (for manuscribe-contributions/tools/inbox.py check and msocr.contributions to open).
 // Site: MANUSCRIBE_RECOG_SITE, or ../../lexicon_manuscripts/manuscribe-models; fixtures as in t-recog-conformance.js.
 // Skipped where they are absent (the models are not in this repository; the fixtures hold manuscript pages).
-const fs = require('fs'), path = require('path'), http = require('http');
+const fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto');
 const { launch, sleep, checks, ROOT } = require('./h');
 const { readPng } = require('./png');
 
@@ -16,12 +19,26 @@ const T = checks('recognition in the app: pack, worker, proposed lines, consent'
 const SITE = process.env.MANUSCRIBE_RECOG_SITE || path.resolve(ROOT, '..', '..', 'lexicon_manuscripts', 'manuscribe-models');
 const FIXTURES = path.resolve(ROOT, '..', '..', 'lexicon_manuscripts', 'manuscript_ocr', 'data', 'fixtures');
 
-// the site, with /tampered/ the same but for one byte of the recogniser
+// a key of the test's own, published as the site's contribute.json
+const KEY = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+const SPKI = KEY.publicKey.export({ type: 'spki', format: 'der' });
+const CONTRIBUTE = { schema: 1, inbox: 'test-owner/test-inbox', email: 'maintainer@example.org', wordings: ['1'],
+  key: { id: crypto.createHash('sha256').update(SPKI).digest('hex').slice(0, 16), alg: 'RSA-OAEP-256+A256GCM', spki: SPKI.toString('base64') } };
+// what msocr.seal and the inbox do, by OpenSSL: the AES key unwrapped, the lines opened (the tag is GCM's last 16 bytes)
+function openSealed(seal, sealed) {
+  const k = crypto.privateDecrypt({ key: KEY.privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, Buffer.from(seal.wrapped, 'base64'));
+  const d = crypto.createDecipheriv('aes-256-gcm', k, Buffer.from(seal.iv, 'base64'));
+  d.setAuthTag(sealed.subarray(sealed.length - 16));
+  return Buffer.concat([d.update(sealed.subarray(0, sealed.length - 16)), d.final()]);
+}
+
+// the site, with /tampered/ the same but for one byte of the recogniser, and the test's contribute.json
 function siteServer() {
   const server = http.createServer((req, res) => {
     let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
     const tampered = rel.startsWith('tampered/');
     if (tampered) rel = rel.slice('tampered/'.length);
+    if (rel === 'contribute.json') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(CONTRIBUTE)); return; }
     const f = path.join(SITE, rel);
     if (!f.startsWith(SITE) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404, { 'access-control-allow-origin': '*' }); res.end(); return; }
     let body = fs.readFileSync(f);
@@ -149,11 +166,18 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     T.check('a line typed by hand is left as it was, and counted as left out', run.typed === 'typed by hand' && run.last.skipped >= 1 && run.firstProposed !== 0, { typed: run.typed, skipped: run.last && run.last.skipped });
     T.check('the source is recorded with the pack and its models', run.sources.some((s) => /segmenter .* recogniser .*pack-/.test(s)), run.sources);
 
-    // ---- consent: the draft cannot be answered
-    const draft = await page.evaluate(async () => ({ asked: await ME.RecogView.askConsent(ME.App.project), consent: ME.App.project.consent || null, pkg: await ME.RecogView.contribute(ME.App.project) }));
-    T.check('while the consent text is a draft, nothing is asked and nothing can be contributed', draft.asked === null && !draft.consent && draft.pkg === null, draft);
+    // ---- consent: the text approved; a draft could not be answered
+    const shipped = await page.evaluate(() => ({ v: ME.RecogView.CONSENT.version, ok: ME.RecogView.CONSENT.approved, text: ME.RecogView.CONSENT.paragraphs.join(' ') }));
+    T.check('the consent text is approved (version ' + shipped.v + '), names the inbox and the maintainer\'s address, and says that models trained before a withdrawal remain',
+      shipped.v === '1' && shipped.ok && /drdhaval2785\/manuscribe-contributions/.test(shipped.text) && /drdhaval2785@gmail\.com/.test(shipped.text) && /remain, and are not withdrawn/.test(shipped.text), shipped);
+    const draft = await page.evaluate(async () => {
+      const C = ME.RecogView.CONSENT, was = C.approved;
+      C.approved = false;
+      try { return { asked: await ME.RecogView.askConsent(ME.App.project), consent: ME.App.project.consent || null, pkg: await ME.RecogView.contribute(ME.App.project) }; } finally { C.approved = was; }
+    });
+    T.check('were the consent text a draft, nothing would be asked and nothing could be contributed', draft.asked === null && !draft.consent && draft.pkg === null, draft);
 
-    // ---- consent approved (for the test): asked after recognising, kept in the project
+    // ---- consent: asked after recognising, kept in the project
     // (linear.pdf may have one side only: the side is emptied, as a side not yet read would be)
     await page.evaluate(() => { ME.RecogView.CONSENT.approved = true; ME.RecogPack.savePrefs({ askTraining: true }); const p = ME.App.project, e = ME.App.entries[ME.App.idx]; p.pages[e.label] = { boxes: {} }; ME.App.changed(); ME.App.rerender(); });
     await sleep(500);
@@ -187,13 +211,79 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     T.check('the package holds each corrected line\'s image (cut again from the PDF), its corrected text, what was proposed, and the consent record (' + pkg.lines + ' lines, ' + pkg.names.length + ' files)',
       pkg.n === 2 && pkg.lines === 2 && pkg.names.length === 5 && pkg.png && pkg.about.consent === 'yes' && pkg.about.texts[0] === 'संशोधितम् 0' && pkg.txt === 'संशोधितम् 0\n' && pkg.about.proposed.every(Boolean), pkg);
 
+    // ---- contributed: sealed to the site's key, saved, and the inbox's issue form opened, filled in
+    await page.evaluate((url) => {
+      ME.RecogPack.setSource(url);
+      window.recogGot = { files: [], opened: [] };
+      ME.U.download = (name, blob) => window.recogGot.files.push({ name, blob });
+      window.open = (u) => { window.recogGot.opened.push(u); return null; };
+    }, url);
+    const sending = page.evaluate(() => ME.RecogView.contribute(ME.App.project).then((r) => r && { ids: r.packages.map((k) => k.id), url: r.url, lines: r.lines }));
+    for (const dlg of ['.recog-contribute-dialog', '.recog-send-dialog']) {
+      for (let k = 0; k < 100 && !(await page.evaluate((c) => !!document.querySelector(c), dlg)); k++) await sleep(100);
+      await page.evaluate((c) => { const b = document.querySelector(c + ' .btn.primary'); if (b) b.click(); }, dlg);
+    }
+    const sentRun = await sending;
+    const b64 = 'const b64 = (u) => { let t = ""; for (let i = 0; i < u.length; i += 32768) t += String.fromCharCode.apply(null, u.subarray(i, i + 32768)); return btoa(t); };';
+    const saved = await page.evaluate(async (b64src) => {
+      const b64 = new Function(b64src + ' return b64;')();
+      return Promise.all(window.recogGot.files.map(async (f) => {
+        const z = await ME.Zip.read(f.blob);
+        return { name: f.name, names: [...z.keys()], about: ME.Zip.text(z.get('contribution.json')), sealed: z.get('sealed.bin') ? b64(z.get('sealed.bin')) : '', zip: b64(new Uint8Array(await f.blob.arrayBuffer())) };
+      }));
+    }, b64);
+    const one = saved[0] || {}, about = one.about ? JSON.parse(one.about) : {};
+    const sealedBytes = Buffer.from(one.sealed || '', 'base64');
+    const sha = crypto.createHash('sha256').update(sealedBytes).digest('hex');
+    T.check('one sealed package saved (' + one.name + '): contribution.json in the clear (its id, the name, the count, the consent) and sealed.bin, no line\'s text in the clear',
+      saved.length === 1 && sentRun && one.name === 'manuscribe-contribution-' + about.id + '.zip' && one.names.join() === 'contribution.json,sealed.bin' && about.version === 2 && about.sealed === true
+        && about.id === 'c' + about.made.slice(0, 10).replace(/-/g, '') + '-' + sha.slice(0, 12) && about.seal.sha256 === sha && about.seal.bytes === sealedBytes.length && about.seal.key === CONTRIBUTE.key.id
+        && about.count === 2 && about.consent.answer === 'yes' && about.wording.version === '1' && about.inbox === CONTRIBUTE.inbox && !one.about.includes('संशोधितम्'),
+      { name: one.name, names: one.names, about: Object.assign({}, about, { wording: undefined, seal: about.seal && { key: about.seal.key, bytes: about.seal.bytes } }) });
+    let inner = null;
+    try { inner = openSealed(about.seal, sealedBytes); } catch (e) { inner = null; }
+    const opened = inner && await page.evaluate(async (b) => {
+      const z = await ME.Zip.read(new Blob([Uint8Array.from(atob(b), (c) => c.charCodeAt(0))]));
+      const a = JSON.parse(ME.Zip.text(z.get('contribution.json')));
+      return { names: [...z.keys()].length, version: a.version, texts: a.lines.map((l) => l.text), png: a.lines.every((l) => z.get(l.image) && z.get(l.image)[0] === 0x89), consent: a.consent, part: a.part };
+    }, inner.toString('base64'));
+    T.check('the sealed lines open with the private key by OpenSSL, as msocr.seal opens them: the lines\' package, the same consent inside',
+      !!opened && opened.version === 1 && opened.names === 5 && opened.texts.join('|') === 'संशोधितम् 0|संशोधितम् 1' && opened.png && JSON.stringify(opened.consent) === JSON.stringify(about.consent) && opened.part.join() === '1,1', opened);
+    const issue = sentRun ? new URL(sentRun.url) : null;
+    const opens = await page.evaluate(() => window.recogGot.opened);
+    T.check('the inbox\'s issue form (from contribute.json) is opened filled in: the manuscript, the package id, the lines',
+      !!issue && opens[0] === sentRun.url && issue.origin + issue.pathname === 'https://github.com/test-owner/test-inbox/issues/new' && issue.searchParams.get('template') === 'contribution.yml'
+        && issue.searchParams.get('ids') === about.id && issue.searchParams.get('lines') === '2' && issue.searchParams.get('manuscript') === about.consent.name, { url: sentRun && sentRun.url, opens });
+    const parts = await page.evaluate(async () => {
+      const p = ME.App.project, cfg = await ME.RecogPack.contribution();
+      const k = await ME.RecogView.sealedPackages(p, ME.RecogView.corrected(p), cfg, 1);
+      const abouts = await Promise.all(k.map(async (x) => JSON.parse(ME.Zip.text((await ME.Zip.read(x.blob)).get('contribution.json')))));
+      const h = p.consent.history.filter((x) => x.what === 'contributed');
+      return { n: k.length, parts: abouts.map((a) => a.part.join('/')), counts: abouts.map((a) => a.count), ids: new Set(k.map((x) => x.id)).size, history: h.map((x) => ({ ids: x.ids, inbox: x.inbox, lines: x.lines })) };
+    });
+    T.check('lines beyond the size of an attachment go in parts, each a package of its own; the project keeps what was sent and where',
+      parts.n === 2 && parts.parts.join() === '1/2,2/2' && parts.counts.join() === '1,1' && parts.ids === 2 && parts.history.length === 1 && parts.history[0].ids.join() === about.id && parts.history[0].inbox === CONTRIBUTE.inbox && parts.history[0].lines === 2, parts);
+    if (process.env.MANUSCRIBE_SAVE_CONTRIBUTION && one.zip) {
+      const out = path.resolve(process.env.MANUSCRIBE_SAVE_CONTRIBUTION);
+      fs.mkdirSync(out, { recursive: true });
+      fs.writeFileSync(path.join(out, one.name), Buffer.from(one.zip, 'base64'));
+      fs.writeFileSync(path.join(out, 'test-key.pem'), KEY.privateKey.export({ type: 'pkcs8', format: 'pem' }));
+      fs.writeFileSync(path.join(out, 'test-contribute.json'), JSON.stringify(CONTRIBUTE, null, 1));
+      console.log('  sealed package and the test key kept in ' + out);
+    }
+
     // ---- withdrawn
-    page.evaluate(() => ME.RecogView.withdraw(ME.App.project));
+    const withdrawing = page.evaluate(() => ME.RecogView.withdraw(ME.App.project));
     for (let k = 0; k < 30 && !(await page.evaluate(() => !!document.querySelector('.modal .btn.danger'))); k++) await sleep(100);
     await page.evaluate(() => document.querySelector('.modal .btn.danger').click());
-    await sleep(300);
-    const after = await page.evaluate(async () => ({ t: ME.App.project.consent.training, h: ME.App.project.consent.history.map((x) => x.what), pkg: await ME.RecogView.contribute(ME.App.project) }));
-    T.check('consent withdrawn: kept with its date, and nothing more can be contributed', after.t.answer === 'withdrawn' && after.t.withdrawn && after.h.join() === 'yes,withdrawn' && after.pkg === null, after);
+    for (let k = 0; k < 50 && !(await page.evaluate(() => !!document.querySelector('.recog-withdraw-dialog'))); k++) await sleep(100);
+    await page.evaluate(() => { const b = document.querySelector('.recog-withdraw-dialog .btn.primary'); if (b) b.click(); });
+    await withdrawing;
+    const after = await page.evaluate(async () => ({ t: ME.App.project.consent.training, h: ME.App.project.consent.history.map((x) => x.what), pkg: await ME.RecogView.contribute(ME.App.project), opened: window.recogGot.opened.slice(1) }));
+    T.check('consent withdrawn: kept with its date, and nothing more can be contributed', after.t.answer === 'withdrawn' && after.t.withdrawn && after.h.join() === 'yes,contributed,withdrawn' && after.pkg === null, after);
+    const req = after.opened.length ? new URL(after.opened[0]) : null;
+    T.check('the lines already sent are withdrawn by a request in the inbox they went to, opened filled in with their ids',
+      !!req && after.opened.length === 1 && req.pathname === '/test-owner/test-inbox/issues/new' && req.searchParams.get('template') === 'withdrawal.yml' && req.searchParams.get('ids') === about.id, after.opened);
 
     T.check('no errors in the page', !page.errors.length, page.errors);
   } finally {

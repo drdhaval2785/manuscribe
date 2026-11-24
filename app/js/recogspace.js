@@ -112,8 +112,9 @@
     for (let k = 0; k < u.length; k++) {
       out.push(u[k][0]);
       pos += Array.from(u[k][1]).length;
-      // p[pos - 1] as Python indexes it: a unit with no letters (a stray virama) at the start of a run reads p[-1],
-      // the run's last letter
+      // p[pos - 1] as Python indexes it: a unit with no letters (a stray virama) decides from the letter before it, at
+      // the start of a run from p[-1], the run's last letter; so a stray virama gets a space after it, as the reference
+      // gives it, which is wanted ("्यायने" -> "् यायने")
       if (k < u.length - 1 && p.at(pos - 1) >= threshold) out.push(' ');
     }
     return out.join('');

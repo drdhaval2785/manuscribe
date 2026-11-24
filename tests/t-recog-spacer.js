@@ -135,6 +135,14 @@ function decisions(units, p) {
       !probBad.length, probBad.slice(0, 5));
     const kindList = Object.keys(kinds).map((k) => kinds[k] + ' ' + k).join(', ');
     T.check('spaced text identical on ' + (items.length - spacedBad.length - ties.length) + ' of ' + items.length + ' texts (' + kindList + ')', !spacedBad.length, spacedBad.slice(0, 3));
+    // a virama after no consonant is a unit with no letters: the reference decides a space after it from the letter
+    // before (at a run's start, from the run's last), so it gets one after it, and often one before; kept so on
+    // purpose (24 November 2026), and the port with it
+    const stray = items.filter((it) => /(^|[^\u0915-\u0939\u0958-\u095f\u093c])\u094d/u.test(it.text));
+    const strayBad = spacedBad.filter((b) => stray.some((it) => it.id === b.id));
+    const example = await SP.spaceText('्यायने', sp.memo, sp.S, index.threshold);
+    T.check('a stray virama gets the space after it that the reference gives it, on ' + (stray.length - strayBad.length) + ' of ' + stray.length + ' texts with one ("्यायने" → "' + example + '", as on 082328_00063_1)',
+      stray.length > 0 && !strayBad.length && example === '् यायने', { example, bad: strayBad.slice(0, 3) });
     console.log('  texts with a probability within 1e-5 of the threshold ' + index.threshold + ': ' + (near.length ? near.join(', ') : 'none'));
     // the same texts with the windows run 16 at a time (spaceTextBatched), as the recognition worker runs them
     const t1 = Date.now(), batchBad = [];

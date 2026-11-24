@@ -726,8 +726,8 @@ Every output below is in **Export…**, by block or by work. The dialog asks fir
 the options of that kind; it remembers your choice in each.
 
 **Versions.** Every page of the PDF, the print page and the LaTeX edition carries, in small type at its foot, the
-edition's version and Manuscribe's: *Draft of 8 November 2026 · Manuscribe 0.10.8*, or *Version 1.0, issued 8
-November 2026 · Manuscribe 0.10.8* once a version is issued (Publish › Issue). The citation on the front page, the
+edition's version and Manuscribe's: *Draft of 8 November 2026 · Manuscribe 0.11.0*, or *Version 1.0, issued 8
+November 2026 · Manuscribe 0.11.0* once a version is issued (Publish › Issue). The citation on the front page, the
 reader, the plain text and the TEI (`editionStmt`, `appInfo`) carry them too, and so do a transcription's TEI and
 HTML page (Manuscribe's). On screen, Manuscribe's version is beside its name, and an edition's under its title.
 
@@ -1096,10 +1096,17 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
 - **Helping to train the models is your choice, per manuscript.** If you tick, in Settings › Recognition, that you
   wish to be asked, Manuscribe asks for each manuscript you read here whether its corrected lines may be used to train
   the models, and whether you have the right to share its images. Nothing is ticked for you; the answer is kept in
-  the project, with its date, and can be withdrawn in the Manuscript tab. With a yes, **Contribute corrected lines…**
-  makes a file (a zip) of the lines you have corrected and accepted (their images, their text, what the model
-  proposed) and the consent record, for you to look at and send yourself. *The consent text is still a draft: until
-  it is approved, the question is not asked and nothing can be contributed.*
+  the project, with its date and the version of the consent text it was given on.
+- **Contribute corrected lines…** (Manuscript tab, after a yes) makes a file of the lines you have corrected and
+  accepted (their images, their text, what the model proposed) and the consent record, **sealed** so that only the
+  maintainer of the models can open the lines, and saves it. Manuscribe then opens a new issue in the
+  [manuscribe-contributions](https://github.com/drdhaval2785/manuscribe-contributions) repository on GitHub with its
+  form filled in, and you attach the file there (a GitHub account is needed). The issue is public: it shows the
+  manuscript's name you gave, the number of lines and your GitHub account, not the lines. A bot answers on it once
+  the package is registered. Lines beyond 20 MB go in several files.
+- **Withdrawing** (Manuscript tab) stops anything more being contributed, and opens a withdrawal request for the lines
+  already sent: they are deleted and left out of every model trained afterwards; models already trained on them while
+  the consent was given remain. Without a GitHub account, write to drdhaval2785@gmail.com.
 
 ## Bringing in an existing transcription
 
@@ -1309,7 +1316,8 @@ app/js/
   recogpage.js          recognition: a whole folio side, from its pixels to its rows' text
   recogworker.js        recognition: ONNX Runtime Web and the modules above in a worker built from source
   recogpack.js          recognition: the pack of models fetched or read from disk, checked and kept
-  recogview.js          recognition: Settings › Recognition, Recognise this side, consent and contribution
+  recogview.js          recognition: Settings › Recognition, Recognise this side, consent, and the contribution
+                        of corrected lines (sealed, then sent by a GitHub issue)
   dts.js                the edition as static files in the shape of DTS 1.0
   printhtml.js          the print edition as pages laid out by the browser, in any script, for Save as PDF
   shaper.js             HarfBuzz text shaping, from WebAssembly, for the PDF

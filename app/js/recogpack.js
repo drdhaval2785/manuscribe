@@ -21,6 +21,9 @@
    installed()                        -> the record of what is kept, or null
    load()                             -> what recogworker.js's start() takes
    remove()                           forget the pack and the runtime
+   contribution(url)                  -> the site's contribute.json: where contributed lines go (a GitHub repository whose
+                                      issues take them) and the public key that seals them; the last one read is kept,
+                                      for a contribution made offline
    Kept in IndexedDB (database manuscribe-recognition: files, meta), apart from the projects' own database. */
 (function (ME) {
   const CODE = { pipeline: [1], spacer: [1], runtimes: ['onnxruntime-web-1.31.1'] };
@@ -111,6 +114,19 @@
     let o = 0;
     for (const p of parts) { out.set(p, o); o += p.length; }
     return out.buffer;
+  }
+
+  async function contribution(url) {
+    url = slash(url || source());
+    let c;
+    try { c = await fetchJson(url + 'contribute.json'); } catch (err) {
+      const kept = prefs().contribute;
+      if (kept && kept.from === url) return kept;
+      throw err;
+    }
+    if (c.schema !== 1 || !c.inbox || !c.key || !c.key.spki || !c.key.id) throw new Error('this site\'s contribute.json is of a kind this Manuscribe does not read');
+    savePrefs({ contribute: Object.assign({ from: url }, c) });
+    return c;
   }
 
   async function catalogue(url) {
@@ -221,5 +237,5 @@
     };
   }
 
-  ME.RecogPack = { CODE, SOURCE, source, setSource, prefs, savePrefs, catalogue, variant, install, installFiles, installed, load, remove, usable, sha256, spacerLength };
+  ME.RecogPack = { CODE, SOURCE, source, setSource, prefs, savePrefs, catalogue, contribution, variant, install, installFiles, installed, load, remove, usable, sha256, spacerLength };
 })(window.ME);
