@@ -1099,7 +1099,8 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   recognition's until you set them yourself, and only then do they vouch for the side when it is offered to train the
   segmenter.
 - **Doubtful letters marked.** Every letter read keeps the model's own probability for it, and the ones under a
-  threshold are underlined in red in the proposed lines, so that proofreading goes to them first; a line loses its marks
+  threshold are put on a red ground in the proposed lines (their text black, like all proposed text), so that
+  proofreading goes to them first; a line loses its marks
   once you change or accept it. Settings › Recognition chooses the threshold (under 50, 70, the default, or 90 %) or
   none. Measured on three manuscripts' corrected pages: under 70 %, 6–10 % of the letters are marked and about a third
   of the mistakes are among them; under 90 %, 14–22 % and more than half. Many mistakes are made with confidence (a

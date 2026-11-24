@@ -886,7 +886,7 @@
         list, bar, say,
         U.el('label', { class: 'field' }, U.el('span', null, 'How the models run'), backend),
         U.el('label', { class: 'field' }, U.el('span', null, 'Mark the letters the model was unsure of, in lines proposed and not yet changed or accepted'), doubt),
-        U.el('p', { class: 'help' }, 'Each letter read has the model\'s own probability for it. The ones under the threshold are underlined in red, so that proofreading goes to them first; a line loses its marks once you change or accept it. Many mistakes are made with confidence, though (a letter or a virama left out has no letter to mark), so a line without marks still needs reading.'),
+        U.el('p', { class: 'help' }, 'Each letter read has the model\'s own probability for it. The ones under the threshold are put on a red ground, so that proofreading goes to them first; a line loses its marks once you change or accept it. Many mistakes are made with confidence, though (a letter or a virama left out has no letter to mark), so a line without marks still needs reading.'),
         U.el('h4', null, 'Training the models'),
         U.el('label', { class: 'field checkbox' }, ask, U.el('span', null, 'Ask me, for each manuscript I read here, whether its corrected lines may help train the recognition models')),
         U.el('p', { class: 'help' + (RV.CONSENT.approved ? '' : ' recog-draft') }, RV.CONSENT.approved ? 'Off unless you tick it. Nothing is ever contributed without a yes for that manuscript, and then only as a sealed file you send yourself, attached to a GitHub issue.' : DRAFT_NOTE),
