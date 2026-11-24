@@ -695,7 +695,7 @@ tr.cov-bad th .ly-abbr-tag, tr.cov-bad th, tr.cv-bad .cv-unit { color: #8a2a17; 
 .ct-conflict ul { margin: 6px 0 0; padding-left: 18px; }
 
 /* text proposed by a program, not yet accepted */
-.line.proposed { color: #5a4a8a; background: repeating-linear-gradient(90deg, rgba(120, 100, 180, 0.07) 0 6px, transparent 6px 12px); text-decoration: underline dotted rgba(90, 74, 138, 0.6); text-underline-offset: 4px; }
+.line.proposed { color: inherit; background: repeating-linear-gradient(90deg, rgba(120, 100, 180, 0.07) 0 6px, transparent 6px 12px); text-decoration: underline dotted rgba(90, 74, 138, 0.6); text-underline-offset: 4px; }
 .proposed-panel { background: #f1edf8; border: 1px solid #d6cdea; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
 table.sources td .help { font-size: 11px; }
 .nv-ok { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: #e9f6ea; border: 1px solid #b9dcbc; font-size: 13px; }
@@ -1101,4 +1101,4 @@ body.touch .ct-touch { display: block; }
 /* on a phone with the keyboard open, the hint over the typing area makes way for the lines typed */
 body.keyboard-open #calib-hint { display: none; }
 /* letters the recognition model was unsure of, in proposed lines (htr.js, the Highlight API) */
-::highlight(recog-doubt) { background-color: rgba(214, 69, 65, 0.24); text-decoration: underline wavy rgba(200, 40, 40, 0.9); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+::highlight(recog-doubt) { background-color: rgba(232, 60, 48, 0.45); color: inherit; }
