@@ -78,6 +78,9 @@ const { LANGS, make, buildInPage } = require('./languages');
         await ME.Store.putProject(p);
         await ME.App.open(p.id);
         await new Promise((r) => setTimeout(r, 1500));
+        // a font comes from the internet, and goes into the stack once it is in: a slow fetch takes longer than that
+        const stack = () => getComputedStyle(document.documentElement).getPropertyValue('--script');
+        for (let k = 0; k < 60 && ME.FontLib.onScreen().some((f) => f !== 'TiroDevanagariSanskrit' && !stack().includes(f)); k++) await new Promise((r) => setTimeout(r, 250));
         return { onScreen: ME.FontLib.onScreen().join(), stack: getComputedStyle(document.documentElement).getPropertyValue('--script'), tiro: [...document.fonts].some((f) => /Tiro/.test(f.family)) };
       };
       const grc = await open('grc', 'ἐν ἀρχῇ ἦν ὁ λόγος');
