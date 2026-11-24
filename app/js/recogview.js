@@ -6,8 +6,13 @@
    settingsPanel()       Settings › Recognition: the pack (fetched from the site, or read from files on disk; what it
                          is, what its models learned from), how it runs, and the training question asked once of the user
    folioSection()        the Folio tab's "Recognise this side…"
-   recognise()           this side, or this and the next ones: rendered from the PDF at the scale the segmenter learned
-                         from, read, and proposed (the command palette too, and the tag key with J)
+   recognise()           this side, or this and the next ones (the others in the background, RV.background, while the
+                         editor is used): rendered from the PDF at the scale the segmenter learned from, read, and
+                         proposed (the toolbar's Recognise, the command palette, the tag key with J); each side read is
+                         marked 'OCR: recognised, not yet read', and given blocks from its rows where none were drawn
+                         on it; a proofread side is read again only with its editor's leave, its text then replaced
+   recogniseWhole()      every folio side, this one first and the rest in the background; offerWhole() asks after a
+                         manuscript is imported
    msFold(p)             the Manuscript tab's fold: what was read here, the manuscript's consent, the contribution
    askConsent(p)         the per-manuscript question; withdraw(p), with the request that withdraws the lines sent
    contribute(p)         the corrected lines chosen, and the folio sides that can teach the segmenter
@@ -146,7 +151,7 @@
     ctx.fillRect(0, 0, w, h);
     await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale, rotation, offsetX: -x0, offsetY: -y0 }) }).promise;
     const img = ctx.getImageData(0, 0, w, h);
-    return { data: new Uint8Array(img.data.buffer), width: w, height: h, channels: 4, render: { scale, rotation, rect } };
+    return { data: new Uint8Array(img.data.buffer), width: w, height: h, channels: 4, render: { scale, rotation, rect, vw: vp.width, vh: vp.height } };
   }
 
   // the side (the page, or its half) as the segmenter learned from sides: at the height of its training images
@@ -230,40 +235,223 @@
         if (pr && pr.src === src.id && !pr.accepted && pr.text === U.escXml(r.lines[i].text)) pr.cut = { b: row.baseline, o: row.outline, r: Object.assign({ smooth }, render) };
       });
     });
-    return { placed: out.placed, skipped: out.skipped, lost, counts };
+    // the side's blocks from its rows, where no blocks were drawn on it (or they were found so before): each block the
+    // rectangle round its rows' outlines, in the page's own fractions, so that the typing area and the line guide follow
+    // the manuscript without calibrating; kept as recognition's (from), never taken for blocks an editor drew
+    const reg = Model.regions(p, e);
+    const drawn = reg && reg.boxes && Object.keys(reg.boxes).length && reg.from !== 'recognition';
+    let blocks = false;
+    if (!drawn && ['linear', 'tripatha', 'panchapatha'].includes(type) && render.vw && render.vh && !render.rotation) {
+      const [rx, ry] = render.rect, found = {};
+      for (const box of boxes) {
+        const pts = (res.boxes[box] || []).flatMap((row) => row.outline || []);
+        if (pts.length < 3) continue;
+        const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+        const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+        found[box] = [rx + x0 / render.vw, ry + y0 / render.vh, (x1 - x0) / render.vw, (y1 - y0) / render.vh];
+      }
+      if (Object.keys(found).length) {
+        pg.regions = { leaf: (reg && reg.leaf) || Model.defaultLeaf(e), boxes: found, from: 'recognition' };
+        blocks = true;
+      }
+    }
+    // the side's state: recognised by a program, not yet read (a side proofread already is left as it is)
+    if (out.placed && !Model.proofOf(p, e.label)) Model.setLevel(p, e.label, 'ocr');
+    return { placed: out.placed, skipped: out.skipped, lost, counts, blocks };
   }
 
   /* ---------- recognising ---------- */
+
+  // the side's text taken away, before it is recognised again (a proofread side whose editor said to replace it)
+  function clearSide(p, label) {
+    const pg = Model.page(p, label);
+    pg.boxes = {};
+    delete pg.proposed; delete pg.lines; delete pg.linesFrom;
+    Model.setLevel(p, label, 'ocr');
+  }
+
+  // sides proofread already are recognised again only with their editor's leave: -> {sides, replace} or null
+  async function overwriteAsk(p, sides) {
+    const high = sides.filter((e) => Model.proofOf(p, e.label) && Model.pageHasContent(p.pages[e.label]));
+    if (!high.length) return { sides, replace: new Set() };
+    const one = high.length === 1;
+    const name = (e) => e.label + ' (' + ((Model.levelWords(p, e.label) || {}).short || '') + ')';
+    const v = await UI.modal({ title: one ? 'A proofread folio side' : 'Proofread folio sides', className: 'recog-overwrite-dialog', body: U.el('div', null,
+      U.el('p', null, one ? 'Folio side ' + name(high[0]) + ' has been proofread.' : high.length + ' of these folio sides have been proofread: ' + high.slice(0, 8).map(name).join(', ') + (high.length > 8 ? ' …' : '') + '.'),
+      U.el('p', null, 'Recognising ' + (one ? 'it' : 'them') + ' again replaces ' + (one ? 'its' : 'their') + ' text with what the models read, and marks ' + (one ? 'it' : 'them') + ' “OCR: recognised, not yet read”. A backup of the project is kept first.')),
+    buttons: [{ label: 'Cancel', value: null, kind: 'ghost' }].concat(high.length < sides.length ? [{ label: 'Leave ' + (one ? 'it' : 'them') + ' as ' + (one ? 'it is' : 'they are'), value: 'skip' }] : [])
+      .concat([{ label: 'Replace ' + (one ? 'its' : 'their') + ' text', value: 'replace', kind: 'danger' }]) });
+    if (!v) return null;
+    if (v === 'skip') return { sides: sides.filter((e) => !high.includes(e)), replace: new Set() };
+    return { sides, replace: new Set(high.map((e) => e.label)) };
+  }
+
+  // no pack yet: say where it comes from -> false
+  async function needPack() {
+    if (await Pack().installed()) return true;
+    const go = await UI.modal({ title: 'Recognise folio sides', body: U.el('p', null, 'There is no recognition pack in this browser yet. Settings › Recognition fetches one (about 45 MB, once), or reads one from a folder on disk.'),
+      buttons: [{ label: 'Close', value: false, kind: 'ghost' }, { label: 'Settings…', value: true, kind: 'primary' }] });
+    if (go) App().showSettings('recognition');
+    return false;
+  }
+
+  async function busy() {
+    if (!RV.bg) return false;
+    if (!await UI.confirm('Folio sides are being recognised in the background (' + RV.bg.done + ' of ' + RV.bg.total + '). Stop that, and recognise from here?', { title: 'Recognition is running', ok: 'Stop it' })) return true;
+    RV.bg.stopped = true;
+    while (RV.bg) await new Promise((r) => setTimeout(r, 100));
+    return false;
+  }
 
   RV.recognise = async function () {
     const A = App(), p = A && A.project;
     if (!p || !A.entries.length) return;
     if (A.flush) A.flush();
-    const m = await Pack().installed();
-    if (!m) {
-      const go = await UI.modal({ title: 'Recognise this folio side', body: U.el('p', null, 'There is no recognition pack in this browser yet. Settings › Recognition fetches one (about 45 MB, once), or reads one from files on disk; recognition then runs here, offline, and sends nothing anywhere.'),
-        buttons: [{ label: 'Close', value: false, kind: 'ghost' }, { label: 'Settings…', value: true, kind: 'primary' }] });
-      if (go) A.showSettings('recognition');
-      return;
-    }
+    if (!await needPack()) return;
     if (!ME.PdfView.doc) { U.toast('The PDF is not open', 'warn'); return; }
-    const prefs = Pack().prefs(), e0 = A.entries[A.idx], left = A.entries.length - A.idx;
-    const count = U.el('input', { type: 'number', min: '1', max: String(left), value: '1', 'aria-label': 'Folio sides', 'data-recog': 'count' });
-    const space = U.el('input', { type: 'checkbox', checked: prefs.space !== false, 'data-recog': 'space' });
-    const man = m.manifest;
+    if (await busy()) return;
+    const m = await Pack().installed(), man = m.manifest;
     // a pack reads one language and script: another's manuscript would be read as if it were in them
     const want = man.script, have = tagOf(p);
     if (want && have && want !== have && !await UI.confirm('This recognition pack reads ' + want + ' (language-script); this manuscript is marked ' + have + ' in its Manuscript tab. Its lines would be read as if they were in ' + want + '. Read it all the same?', { title: 'Another language or script', ok: 'Read all the same' })) return;
+    const prefs = Pack().prefs(), e0 = A.entries[A.idx], left = A.entries.length - A.idx;
+    const count = U.el('input', { type: 'number', min: '1', max: String(left), value: '1', 'aria-label': 'Folio sides', 'data-recog': 'count' });
+    const space = U.el('input', { type: 'checkbox', checked: prefs.space !== false, 'data-recog': 'space' });
+    const back = U.el('input', { type: 'checkbox', checked: true, 'data-recog': 'background' });
     const ok = await UI.modal({ title: 'Recognise folio sides', body: U.el('div', null,
-      U.el('p', { class: 'help' }, 'Read in this browser with ' + man.pack + ' (segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + '). The lines found go, as proposed lines, into the lines of their blocks that are still empty: nothing you have typed is changed, and nothing is sent anywhere. Read and correct each line, then accept it with ' + ME.Commands.keyLabel('Y') + '.'),
+      U.el('p', { class: 'help' }, 'Read in this browser with ' + man.pack + ' (segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + '). The lines found go, as proposed lines, into the empty lines of each block, to be read and accepted; each side read is marked “OCR: recognised, not yet read”, and where no blocks were drawn on it, its blocks are taken from the rows found.'),
       U.el('label', { class: 'field small' }, U.el('span', null, 'Folio sides, from ' + e0.label), count),
+      U.el('label', { class: 'field checkbox' }, back, U.el('span', null, 'After this side, the others in the background, while you work')),
       U.el('label', { class: 'field checkbox' }, space, U.el('span', null, 'Put in word spaces (a line that ends in a space ends its word)'))),
     buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Recognise', value: true, kind: 'primary' }] });
     if (!ok) return;
     Pack().savePrefs({ space: space.checked });
     const n = Math.max(1, Math.min(left, parseInt(count.value, 10) || 1));
     const sides = A.entries.slice(A.idx, A.idx + n).filter((e) => !e.orphan && e.pdfPage);
-    await RV.run(p, sides, { space: space.checked });
+    return RV.recogniseSides(p, sides, { space: space.checked, background: back.checked });
+  };
+
+  /* Every folio side of the manuscript: this one now, the others after it and then those before it in the background.
+     opts.ask false: the question was asked already (the offer after a manuscript is imported) */
+  RV.recogniseWhole = async function (opts) {
+    const A = App(), p = A && A.project;
+    if (!p || !A.entries.length) return null;
+    if (A.flush) A.flush();
+    if (!await needPack()) return null;
+    if (!ME.PdfView.doc) { U.toast('The PDF is not open', 'warn'); return null; }
+    if (await busy()) return null;
+    const all = A.entries.filter((e) => !e.orphan && e.pdfPage), at = Math.max(0, all.indexOf(A.entries[A.idx]));
+    const sides = all.slice(at).concat(all.slice(0, at));
+    const prefs = Pack().prefs();
+    let space = prefs.space !== false;
+    if (!opts || opts.ask !== false) {
+      const sp = U.el('input', { type: 'checkbox', checked: space, 'data-recog': 'space' });
+      const ok = await UI.modal({ title: 'Recognise the whole manuscript', className: 'recog-whole-dialog', body: U.el('div', null,
+        U.el('p', { class: 'help' }, 'All ' + sides.length + ' folio sides: this one now, the rest in the background while you work (the status bar shows how far it has got, and stops it). Their lines come in as proposed lines, only into empty lines; each side read is marked “OCR: recognised, not yet read”, and where no blocks were drawn on it, its blocks are taken from the rows found.'),
+        U.el('label', { class: 'field checkbox' }, sp, U.el('span', null, 'Put in word spaces'))),
+      buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Recognise all ' + sides.length, value: true, kind: 'primary' }] });
+      if (!ok) return null;
+      space = sp.checked;
+      Pack().savePrefs({ space });
+    }
+    return RV.recogniseSides(p, sides, { space, background: true });
+  };
+
+  // after a manuscript is imported: read it all now?
+  RV.offerWhole = async function () {
+    const A = App(), p = A && A.project;
+    if (!p) return;
+    const m = await Pack().installed();
+    const v = await UI.modal({ title: 'Read this manuscript?', className: 'recog-offer-dialog', body: U.el('div', null,
+      U.el('p', null, m ? 'The recognition models in this browser can read every folio side of it: the first now, the rest in the background while you work. Their lines come in as proposed lines, to be read and accepted; each side read is marked “OCR: recognised, not yet read”, and its blocks are taken from the rows found, so that calibrating by hand is needed only where they are wrong.'
+        : 'Manuscribe can read every folio side of it with recognition models that run in this browser, once they are fetched: Settings › Recognition (about 45 MB, once).'),
+      U.el('p', { class: 'help' }, 'Or draw the leaf and the text blocks on the PDF yourself (Calibrate), and type.')),
+    buttons: [{ label: 'Not now', value: null, kind: 'ghost' }, { label: 'Calibrate…', value: 'calibrate' },
+      m ? { label: 'Recognise the whole manuscript', value: 'all', kind: 'primary' } : { label: 'Fetch the models…', value: 'settings', kind: 'primary' }] });
+    if (v === 'calibrate') A.calibrate();
+    else if (v === 'settings') A.showSettings('recognition');
+    else if (v === 'all') await RV.recogniseWhole({ ask: false });
+  };
+
+  // these sides: the first now, the rest now too or in the background; proofread ones only with leave
+  RV.recogniseSides = async function (p, sides, opts) {
+    const ask = await overwriteAsk(p, sides);
+    if (!ask || !ask.sides.length) return null;
+    const o = Object.assign({}, opts, { replace: ask.replace });
+    const rest = opts.background ? ask.sides.slice(1) : [];
+    const tot = await RV.run(p, opts.background ? ask.sides.slice(0, 1) : ask.sides, Object.assign({}, o, { noAsk: rest.length > 0 }));
+    if (rest.length && !tot.stopped && !tot.error) {
+      RV.background(p, rest, o);
+      if (tot.placed) await maybeAsk(p);
+    }
+    return tot;
+  };
+
+  // the manuscript's own question about training, for a user who asked to be asked, once
+  async function maybeAsk(p) {
+    if (Pack().prefs().askTraining && RV.CONSENT.approved && !RV.consentRecord(p) && RV._notNow !== p.id) await RV.askConsent(p);
+  }
+
+  /* ---------- the others in the background ---------- */
+
+  RV.bg = null;
+  function bgStatus() {
+    let el = document.getElementById('recog-bg');
+    if (!el) {
+      el = U.el('span', { id: 'recog-bg', class: 'recog-bg', hidden: true });
+      const host = document.querySelector('#statusbar .status-right');
+      if (host) host.prepend(el); else document.body.append(el);
+    }
+    return el;
+  }
+
+  /* Read these sides one after another while the editor is used: each placed as it is read (the side open in the
+     editor written to the project first and shown again after), saved, and counted in the status bar, which stops it.
+     A side proofread already is left as it is unless its editor said to replace it; a change of project or of PDF stops
+     it. -> {total, done, placed, skipped, stopped, error} */
+  RV.background = async function (p, sides, opts) {
+    const A = App(), m = await Pack().installed();
+    if (!m || !sides.length || RV.bg) return null;
+    const man = m.manifest, doc = ME.PdfView.doc;
+    const bg = RV.bg = { p, total: sides.length, done: 0, placed: 0, skipped: [], stopped: false, error: null };
+    const el = bgStatus();
+    const show = () => {
+      el.innerHTML = '';
+      el.append('Recognising: ' + bg.done + ' of ' + bg.total + ' folio sides ', U.el('button', { class: 'sbtn', 'data-action': 'recognise-stop', title: 'Stop recognising; what was read stays', onclick: () => { bg.stopped = true; } }, 'Stop'));
+      el.hidden = false;
+    };
+    show();
+    try {
+      const w = await worker(m);
+      const src = sourceFor(p, man, opts.space);
+      const targetH = (man.page_height && man.page_height.median) || 700;
+      for (const e of sides) {
+        if (bg.stopped || A.project !== p || ME.PdfView.doc !== doc) { bg.stopped = true; break; }
+        if (Model.proofOf(p, e.label) && Model.pageHasContent(p.pages[e.label]) && !(opts.replace && opts.replace.has(e.label))) { bg.skipped.push(e.label); bg.done++; show(); continue; }
+        const px = await RV.sidePixels(e, targetH);
+        const res = await w.api.read(px, Model.pageLayout(p, e.label), { space: opts.space });
+        if (bg.stopped || A.project !== p) { bg.stopped = true; break; }
+        const cur = A.entries[A.idx] && A.entries[A.idx].label === e.label;
+        if (cur && A.flush) A.flush();
+        if (opts.replace && opts.replace.has(e.label)) clearSide(p, e.label);
+        const r = place(p, e, res, src, px.render, opts.space, w.P.cutter.smooth);
+        bg.placed += r.placed;
+        bg.done++;
+        A.changed();
+        if (cur && A.rerender) A.rerender();
+        show();
+      }
+    } catch (err) {
+      bg.error = err.message || String(err);
+    }
+    RV.bg = null;
+    el.hidden = true;
+    idle();
+    if (A.project === p) { A.changed(); rerenderMs(); if (A.refreshSidebar) A.refreshSidebar(); }
+    U.toast((bg.error ? 'Recognition in the background stopped: ' + bg.error + '. ' : bg.stopped ? 'Recognition in the background stopped. ' : 'Recognition in the background finished: ')
+      + bg.placed + ' line(s) proposed on ' + bg.done + ' of ' + bg.total + ' folio sides' + (bg.skipped.length ? '; ' + bg.skipped.length + ' proofread side(s) left as they were' : ''), bg.error ? 'err' : 'ok', 8000);
+    RV.lastBackground = bg;
+    return bg;
   };
 
   // read these sides and propose their lines -> {placed, skipped, lost, sides, stopped, error}
@@ -289,6 +477,7 @@
           bar.value = (k + (pr.stage === 'read' ? 0.2 + 0.7 * pr.k / Math.max(1, pr.n) : pr.stage === 'segment' ? 0.05 : 0.95)) / sides.length;
         });
         if (stopped) break;
+        if (opts.replace && opts.replace.has(e.label)) clearSide(p, e.label);
         const r = place(p, e, res, src, px.render, opts.space, w.P.cutter.smooth);
         tot.placed += r.placed; tot.skipped += r.skipped; tot.lost += r.lost; tot.counts += r.counts; tot.sides++;
         tot.times.push(Object.assign({ label: e.label, backends: res.backends }, res.times));
@@ -307,8 +496,9 @@
     RV.last = tot;
     if (tot.error && !stopped) U.toast('Recognition stopped: ' + tot.error, 'err', 8000);
     else U.toast((stopped ? 'Stopped. ' : '') + tot.placed + ' line(s) proposed on ' + tot.sides + ' folio side(s)' + (tot.counts ? '; ' + tot.counts + ' block(s) given the number of lines found in them' : '') + (tot.skipped ? '; ' + tot.skipped + ' left out where you had typed already' : '') + (tot.lost ? '; ' + tot.lost + ' in blocks this layout does not have' : ''), 'ok', 6000);
-    // the manuscript's own question, for a user who asked to be asked
-    if (!stopped && tot.placed && Pack().prefs().askTraining && RV.CONSENT.approved && !RV.consentRecord(p) && RV._notNow !== p.id) await RV.askConsent(p);
+    // the manuscript's own question, for a user who asked to be asked (after the background reading has started, when
+    // there is one: it waits for no answer)
+    if (!stopped && tot.placed && !opts.noAsk) await maybeAsk(p);
     return tot;
   };
 
@@ -385,6 +575,7 @@
     const reg = Model.regions(p, e);
     if (!reg || !reg.boxes) return { why: 'its blocks are not drawn (Calibrate)' };
     const pg = p.pages[e.label] || {};
+    if (reg.from === 'recognition') return { why: 'its blocks were found by recognition, not drawn by you (Calibrate this side to give it)' };
     if (!pg.regions && reg.drawnOn !== e.label) return { why: 'its blocks were drawn on another folio side and applied to all (Calibrate this side to give it)' };
     const boxes = {};
     for (const b of Model.LAYOUTS[type].boxes) {

@@ -1094,3 +1094,9 @@ body.touch .ct-touch { display: block; }
 .recog-consent p { margin: 0 0 8px; line-height: 1.45; }
 .field.checkbox { display: flex; gap: 8px; align-items: flex-start; }
 .field.checkbox input { margin-top: 3px; flex: none; }
+
+/* recognition running in the background: how far, and Stop (recogview.js) */
+.recog-bg { font-size: 12px; margin-right: 10px; white-space: nowrap; }
+.recog-bg .sbtn { margin-left: 4px; }
+/* on a phone with the keyboard open, the hint over the typing area makes way for the lines typed */
+body.keyboard-open #calib-hint { display: none; }

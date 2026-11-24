@@ -1085,14 +1085,24 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   checksum its manifest gives, and keeps them in this browser. It can also read a pack from a folder on disk (the
   site's folder, copied). After that recognition works offline, and from a copy of Manuscribe opened from disk.
   The panel says what each model learned from; the weights are under CC BY-SA 4.0.
-- **Recognise this side…** in the Folio tab (or Alt+J; Ctrl+Alt+J if that is your modifier): the side is drawn from the PDF at the scale the models learned
-  from, its rows and blocks found, each row read, and word spaces put in if you wish (a line that ends in a space
-  ends its word; one that does not runs on into the next). The lines come in as proposed lines, as above: only into
-  empty lines, to be read, corrected and accepted. Each block in which rows were found then has as many lines as rows,
-  never fewer than its last line with text, its empty lines after them dropped (a block with no rows found keeps its
-  count); a count set so is recognition's until you set it yourself (Folio tab, or Calibrate), and only then does it
-  vouch for the side when the side is offered to train the segmenter. This side and the next ones can be read in one go. A side takes
-  1–3 s where the browser has WebGPU, 5–10 s where it has not.
+- **Recognise** on the scan's toolbar (also in the Folio tab, Alt+J, or Ctrl+Alt+J if that is your modifier, and the
+  palette); on a folio side with no text yet, **Recognise this side** is offered over the typing area, with **The whole
+  manuscript…** beside it. The side is drawn from the PDF at the scale the models learned from, its rows and blocks
+  found, each row read, and word spaces put in if you wish (a line that ends in a space ends its word; one that does
+  not runs on into the next). The lines come in as proposed lines, as above: only into empty lines, to be read,
+  corrected and accepted. A side takes 1–3 s where the browser has WebGPU, 5–10 s where it has not.
+- **What a side read gets.** It is marked *OCR: recognised, not yet read*. Each block in which rows were found has as
+  many lines as rows, never fewer than its last line with text, its empty lines after them dropped (a block with no
+  rows found keeps its count). Where no blocks were drawn on the side, its blocks are taken from the rows found, so
+  that the typing area follows the manuscript, and the guide on the scan follows each line's own outline, without
+  calibrating; **Calibrate** stays, a plain button, to draw or correct them by hand. Counts and blocks found so are
+  recognition's until you set them yourself, and only then do they vouch for the side when it is offered to train the
+  segmenter.
+- **Many sides at once.** This side is read in front of you, and the next ones (or the whole manuscript) in the
+  background while you work: the status bar shows how far it has got, with **Stop**. When a new manuscript is
+  imported, Manuscribe offers to read it all this way. A side already proofread is left as it is in the background;
+  recognising it yourself asks first, and with your leave replaces its text with what is read (a backup of the
+  project is kept first).
 - **The first recogniser reads the hands it learned from well and others poorly.** Newer models replace it through
   the site, with no change to Manuscribe; the Manuscript tab's error rate tells you how well it reads yours.
 - **Nothing is sent anywhere.** Reading a page needs nothing from anyone.

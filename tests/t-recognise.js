@@ -169,6 +169,21 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       run.count === run.proposed + run.last.skipped && run.from === run.count && run.length <= run.count, { count: run.count, rows: run.proposed + (run.last && run.last.skipped), from: run.from, length: run.length });
     T.check('a line typed by hand is left as it was, and counted as left out', run.typed === 'typed by hand' && run.last.skipped >= 1 && run.firstProposed !== 0, { typed: run.typed, skipped: run.last && run.last.skipped });
     T.check('the source is recorded with the pack and its models', run.sources.some((s) => /segmenter .* recogniser .*pack-/.test(s)), run.sources);
+    const read = await page.evaluate(() => {
+      const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = p.pages[e.label];
+      const g = ME.Model.geometry(p, e, ME.App.pageSizes[e.pdfPage] || p.pdf.size);
+      const i = Object.keys(pg.proposed.main).map(Number).find((k) => pg.proposed.main[k].cut);
+      const line = ME.Model.lineRect(p, e, 'main', i), box = pg.regions && pg.regions.boxes.main;
+      const shown = (id) => { const b = document.getElementById(id); return !!b && !b.hidden && getComputedStyle(b).display !== 'none'; };
+      return { level: ME.Model.levelOf(p, e.label), from: pg.regions && pg.regions.from, calibrated: g.calibrated, line, box,
+        inside: !!line && !!box && line[0] >= box[0] - 1e-6 && line[1] >= box[1] - 1e-6 && line[0] + line[2] <= box[0] + box[2] + 1e-6 && line[1] + line[3] <= box[1] + box[3] + 1e-6,
+        toolbar: shown('btn-recognise'), calibrateClass: document.getElementById('btn-calibrate').className, calibrateShown: shown('btn-calibrate'),
+        segmenter: ME.RecogView.sideForSegmenter(p, e).why };
+    });
+    T.check('a side read is marked “OCR: recognised, not yet read”, given its blocks from the rows found (no calibrating), and the guide follows each line\'s own outline, inside its block',
+      read.level === 'ocr' && read.from === 'recognition' && read.calibrated && read.inside, read);
+    T.check('Recognise is a button on the scan\'s toolbar; Calibrate a plain one, still there to correct blocks recognition found; and blocks found so never count as drawn for the segmenter',
+      read.toolbar && !/accent/.test(read.calibrateClass) && read.calibrateShown && /found by recognition/.test(read.segmenter || ''), read);
 
     // ---- consent: the text approved; a draft could not be answered
     const shipped = await page.evaluate(() => ({ v: ME.RecogView.CONSENT.version, ok: ME.RecogView.CONSENT.approved, text: ME.RecogView.CONSENT.paragraphs.join(' ') }));
@@ -185,6 +200,8 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     // (linear.pdf may have one side only: the side is emptied, as a side not yet read would be)
     await page.evaluate(() => { ME.RecogView.CONSENT.approved = true; ME.RecogPack.savePrefs({ askTraining: true }); const p = ME.App.project, e = ME.App.entries[ME.App.idx]; p.pages[e.label] = { boxes: {} }; ME.App.changed(); ME.App.rerender(); });
     await sleep(500);
+    const cta = await page.evaluate(() => { const b = document.querySelector('#calib-hint [data-action="recognise-cta"]'); return { shown: !!b && !document.getElementById('calib-hint').hidden, whole: !!document.querySelector('#calib-hint [data-action="recognise-whole"]'), cls: b && b.className }; });
+    T.check('a folio side with no text is offered recognition in the typing area, as the call to action, with the whole manuscript beside it', cta.shown && cta.whole && /primary/.test(cta.cls), cta);
     page.evaluate(() => ME.RecogView.run(ME.App.project, [ME.App.entries[ME.App.idx]], { space: true }));
     for (let k = 0; k < 600 && !(await page.evaluate(() => !!document.querySelector('.recog-consent-dialog'))); k++) await sleep(200);
     const asked = await page.evaluate(() => !!document.querySelector('.recog-consent-dialog'));
@@ -351,6 +368,64 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     const req = after.opened.length ? new URL(after.opened[0]) : null;
     T.check('the lines already sent are withdrawn by a request in the inbox they went to, opened filled in with their ids',
       !!req && after.opened.length === 1 && req.pathname === '/test-owner/test-inbox/issues/new' && req.searchParams.get('template') === 'withdrawal.yml' && req.searchParams.get('ids') === [about.id].concat(run2 ? run2.ids : []).join('\n'), after.opened);
+
+    // ---- a proofread side is read again only with leave, and then its text is replaced
+    const proof = await page.evaluate(() => {
+      const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = ME.Model.page(p, e.label);
+      pg.boxes = { main: ['पठितम् एतत्', 'द्वितीया पङ्क्तिः'] };
+      delete pg.proposed;
+      ME.Model.setLevel(p, e.label, 'proof1');
+      ME.App.changed(); ME.App.rerender();
+      return ME.Model.levelOf(p, e.label);
+    });
+    let asking = page.evaluate(() => ME.RecogView.recogniseSides(ME.App.project, [ME.App.entries[ME.App.idx]], { space: true, background: false }).then((t) => !!t));
+    for (let k = 0; k < 50 && !(await page.evaluate(() => !!document.querySelector('.recog-overwrite-dialog'))); k++) await sleep(100);
+    await page.evaluate(() => document.querySelector('.recog-overwrite-dialog .btn.ghost').click());
+    const cancelled = { ran: await asking, kept: await page.evaluate(() => { const p = ME.App.project, e = ME.App.entries[ME.App.idx]; return p.pages[e.label].boxes.main[0] === 'पठितम् एतत्' && ME.Model.levelOf(p, e.label) === 'proof1'; }) };
+    asking = page.evaluate(() => ME.RecogView.recogniseSides(ME.App.project, [ME.App.entries[ME.App.idx]], { space: true, background: false }).then((t) => !!t));
+    for (let k = 0; k < 50 && !(await page.evaluate(() => !!document.querySelector('.recog-overwrite-dialog'))); k++) await sleep(100);
+    await page.evaluate(() => document.querySelector('.recog-overwrite-dialog .btn.danger').click());
+    const replacedRan = await asking;
+    const replaced = await page.evaluate(() => {
+      const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = p.pages[e.label];
+      return { level: ME.Model.levelOf(p, e.label), old: (pg.boxes.main || []).some((l) => /पठितम्|द्वितीया/.test(l)), proposed: Object.keys((pg.proposed && pg.proposed.main) || {}).length };
+    });
+    T.check('a proofread side (' + proof + ') is recognised again only after a dialog: Cancel leaves it as it was; Replace replaces its text with what was read and marks it OCR',
+      proof === 'proof1' && !cancelled.ran && cancelled.kept && replacedRan && replaced.level === 'ocr' && !replaced.old && replaced.proposed > 0, { cancelled, replaced });
+
+    // ---- a new manuscript read whole: the first side now, the rest in the background
+    await page.evaluate(async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const p = ME.Model.newProject({ meta: { title: 'Read whole', siglum: 'W' }, layoutType: 'linear', lines: { main: 8 }, folios: { sidesPerPage: 2 }, pdf: { name: 'linear.pdf', bytes: bytes.length } });
+      const info = await ME.PdfView.load(blob);
+      p.pdf.pages = info.pages; p.pdf.size = { width: info.width, height: info.height };
+      await ME.Store.putProject(p);
+      await ME.Store.putPdf(p.id, blob);
+      await ME.App.open(p.id);
+    }, fs.readFileSync(pdf).toString('base64'));
+    for (let k = 0; k < 40 && !(await page.evaluate(() => !!document.querySelector('.pdf-stage canvas'))); k++) await sleep(200);
+    // (the training question, which a user who asked to be asked gets after the first side, waits for no answer: it is
+    // answered No here once the background reading runs)
+    page.evaluate(() => ME.RecogView.offerWhole());
+    for (let k = 0; k < 50 && !(await page.evaluate(() => !!document.querySelector('.recog-offer-dialog'))); k++) await sleep(100);
+    await page.evaluate(() => document.querySelector('.recog-offer-dialog .btn.primary').click());
+    let sawStatus = false;
+    for (let k = 0; k < 900; k++) {
+      const st = await page.evaluate(() => ({ bg: !!ME.RecogView.bg, shown: !!document.getElementById('recog-bg') && !document.getElementById('recog-bg').hidden, last: !!ME.RecogView.lastBackground }));
+      if (st.shown) sawStatus = true;
+      if (st.bg) await page.evaluate(() => { const d = document.querySelector('.recog-consent-dialog'); if (d) d.querySelector('.btn.ghost').click(); });
+      if (st.last && !st.bg) break;
+      await sleep(200);
+    }
+    const whole = await page.evaluate(() => {
+      const p = ME.App.project;
+      return { title: p.meta.title, sides: ME.App.entries.map((e) => ({ label: e.label, level: ME.Model.levelOf(p, e.label), proposed: Object.keys(((p.pages[e.label] || {}).proposed || {}).main || {}).length })),
+        bg: ME.RecogView.lastBackground && { total: ME.RecogView.lastBackground.total, done: ME.RecogView.lastBackground.done, error: ME.RecogView.lastBackground.error } };
+    });
+    T.check('offered after import, the whole manuscript is read: the first side now, the other in the background with its progress in the status bar, each side marked OCR',
+      whole.title === 'Read whole' && whole.sides.length === 2 && whole.sides.every((x) => x.level === 'ocr' && x.proposed > 0) && sawStatus && whole.bg && whole.bg.done === 1 && whole.bg.total === 1 && !whole.bg.error,
+      Object.assign({ sawStatus }, whole));
 
     T.check('no errors in the page', !page.errors.length, page.errors);
   } finally {

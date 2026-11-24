@@ -190,7 +190,7 @@
     const nav = document.querySelector('#midbar .folio-nav'), pane = $('editor-pane'), view = tools && tools.querySelector('details.pdf-view');
     if (!tools || !right || !nav || !pane || !view) return;
     laid = on;
-    const cal = $('btn-calibrate'), pop = $('filters-pop');
+    const cal = $('btn-calibrate'), rec = $('btn-recognise'), pop = $('filters-pop');
     if (on) {
       // the scan's controls and the status bar's in one ⋯ menu at the end of the folio bar (a choice made closes it;
       // the zoom buttons keep it open), ⌖ Calibrate a button before it; only Follow stays over the scan
@@ -206,11 +206,13 @@
       cal.title = 'Calibrate this folio side: draw the leaf and the text blocks on the scan';
       cal.className = 'nbtn cal-bar';
       cal.hidden = false;
+      // ⚡ Recognise likewise a button in the bar, before ⌖ (it keeps its own hidden: no PDF, no recognition)
+      if (rec) { rec.dataset.label = rec.textContent; rec.textContent = '⚡'; rec.className = 'nbtn rec-bar'; }
       tools.append($('btn-follow'));
       // the brightness pop-up floats under the scan
       pop.classList.add('pf-float');
       document.body.appendChild(pop);
-      nav.append(right.querySelector('.line-nav'), cal, menu);
+      nav.append(right.querySelector('.line-nav'), ...(rec ? [rec] : []), cal, menu);
       // the position, fixed at the top of the typing area, with − / + for the lines of the block
       pane.prepend(U.el('div', { class: 'lv-head' }, $('status-pos'), U.el('span', { class: 'lv-lines', hidden: true })));
       Narrow.headLines(ME.Editor && ME.Editor.current);
@@ -220,10 +222,11 @@
       view.hidden = false;
       cal.textContent = cal.dataset.label || '⌖ Calibrate';
       cal.title = 'Draw the leaf and the text blocks on the PDF';
-      cal.className = 'pbtn accent';
+      cal.className = 'pbtn';
+      if (rec) { rec.textContent = rec.dataset.label || '⚡ Recognise'; rec.className = 'pbtn accent'; }
       pop.classList.remove('pf-float');
       pop.style.top = '';
-      tools.append($('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in'), view, $('btn-follow'), cal, pop);
+      tools.append($('btn-zoom-out'), $('pdf-zoom'), $('btn-zoom-in'), view, $('btn-follow'), ...(rec ? [rec] : []), cal, pop);
       right.append($('storage-warning'), nav.querySelector('.line-nav'), $('btn-view'), $('sel-proof'), $('translit-badge'), ...(menu ? menu.querySelectorAll('.ed-zoom-ctl') : []));
       if (menu) menu.remove();
       status.prepend($('status-pos'));

@@ -407,6 +407,14 @@
      Before the blocks are drawn, a guess: the standard block inside the leaf (the leaf is found on the scan when a
      transcription is made); the rect then carries guessed: true, and the guide on the scan shows it fainter. */
   Model.lineRect = function (project, entry, box, i) {
+    // a line recognition found: its own outline, as it lies on the page (the render it was found on says where)
+    const pg = project.pages[entry.label];
+    const cut = pg && pg.proposed && pg.proposed[box] && pg.proposed[box][i] && pg.proposed[box][i].cut;
+    if (cut && cut.r && cut.r.vw && cut.r.vh && !cut.r.rotation && cut.o && cut.o.length > 2) {
+      const xs = cut.o.map((q) => q[0]), ys = cut.o.map((q) => q[1]), R = cut.r.rect;
+      const x0 = Math.min(...xs), y0 = Math.min(...ys);
+      return [R[0] + x0 / cut.r.vw, R[1] + y0 / cut.r.vh, (Math.max(...xs) - x0) / cut.r.vw, (Math.max(...ys) - y0) / cut.r.vh];
+    }
     const reg = Model.regions(project, entry);
     if (!reg || !reg.leaf) return null;
     const type = Model.pageLayout(project, entry.label);

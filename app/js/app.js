@@ -382,6 +382,8 @@
       rerender();
     }
     if (xmlFile) await App.importXml(xmlFile, { fresh: true });
+    // a manuscript to type from scratch: read it all with the recognition models?
+    if (!xmlFile && ME.RecogView) { setTimeout(() => ME.RecogView.offerWhole(), 300); return; }
     setTimeout(async () => {
       if (await UI.confirm('To make the typing area match the manuscript exactly, draw rectangles around the leaf and the text blocks on the PDF. You can do this now or later (Folio tab → Calibrate).', { title: 'Calibrate the layout?', ok: 'Calibrate now' })) App.calibrate();
     }, 300);
@@ -606,9 +608,10 @@
     App.pdfShown = PdfView.doc ? PdfView.show(e, g.leaf).catch((err) => console.warn(err)) : Promise.resolve();
     Editor.render(p, e, App.pageSizes[e.pdfPage] || (p.pdf && p.pdf.size), { keepMulti: !!(opts && opts.keepMulti) });
     if (ME.Narrow) ME.Narrow.fit();
-    $('calib-hint').hidden = g.calibrated || !PdfView.doc;
+    App.refreshHint(g, e);
     // once a folio side is calibrated, Calibrate is in the Folio tab; on a phone it stays at the scan's corner
-    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc && !(ME.Narrow && ME.Narrow.on());
+    $('btn-calibrate').hidden = !!g.calibrated && !(g.regions && g.regions.from === 'recognition') && !!PdfView.doc && !(ME.Narrow && ME.Narrow.on());
+    $('btn-recognise').hidden = !PdfView.doc || !ME.RecogView;
     PdfView.setGuide(null);
     App.refreshSidebar();
     updateStatus();
@@ -819,9 +822,10 @@
     screenFonts(folioText());
     if (PdfView.doc) App.pdfShown = PdfView.show(e, g.leaf);
     Editor.render(App.project, e, App.pageSizes[e.pdfPage] || (App.project.pdf && App.project.pdf.size));
-    $('calib-hint').hidden = g.calibrated || !PdfView.doc;
+    App.refreshHint(g, e);
     // once a folio side is calibrated, Calibrate is in the Folio tab; on a phone it stays at the scan's corner
-    $('btn-calibrate').hidden = !!g.calibrated && !!PdfView.doc && !(ME.Narrow && ME.Narrow.on());
+    $('btn-calibrate').hidden = !!g.calibrated && !(g.regions && g.regions.from === 'recognition') && !!PdfView.doc && !(ME.Narrow && ME.Narrow.on());
+    $('btn-recognise').hidden = !PdfView.doc || !ME.RecogView;
     App.refreshSidebar();
     if (ME.Narrow) ME.Narrow.fit();
     if (pos && g.lines[pos.box] && Editor.lineEl(pos.box, Math.min(pos.i, g.lines[pos.box] - 1))) {
@@ -853,6 +857,26 @@
     }
     App.changed();
     rerender();
+  };
+
+  /* The hint over the typing area. A folio side with no text yet is offered recognition, as the call to action, with
+     the whole manuscript and calibrating beside it; a side with text but no blocks drawn or found, calibrating. */
+  App.refreshHint = function (g, e) {
+    const h = $('calib-hint'), p = App.project;
+    const empty = !Model.pageHasContent(p.pages[e.label]);
+    const ocr = !!(ME.RecogView && PdfView.doc && e.pdfPage);
+    if (!PdfView.doc || (g.calibrated && !(empty && ocr))) { h.hidden = true; return; }
+    h.innerHTML = '';
+    const hide = U.el('button', { class: 'btn small ghost', onclick: () => { h.hidden = true; } }, 'Hide');
+    const cal = U.el('button', { class: 'btn small', onclick: () => App.calibrate() }, '⌖ Calibrate…');
+    if (empty && ocr) {
+      h.append(U.el('span', null, 'No text on this folio side yet. '),
+        U.el('button', { class: 'btn small primary', 'data-action': 'recognise-cta', onclick: () => ME.RecogView.recognise() }, '⚡ Recognise this side'), ' ',
+        U.el('button', { class: 'btn small ghost', 'data-action': 'recognise-whole', onclick: () => ME.RecogView.recogniseWhole() }, 'The whole manuscript…'), ' ', cal, ' ', hide);
+    } else {
+      h.append(U.el('span', null, 'Not calibrated yet — the typing area uses a standard layout, and the line guide on the PDF is only a guess. '), cal, ' ', hide);
+    }
+    h.hidden = false;
   };
 
   /* ---------- calibration ---------- */
@@ -1532,6 +1556,7 @@
     $('btn-follow').onclick = () => PdfView.resumeFollow();
     $('btn-follow').onpointerdown = (e) => e.preventDefault(); // the caret stays in its line
     $('btn-calibrate').onclick = () => App.calibrate();
+    $('btn-recognise').onclick = () => ME.RecogView && ME.RecogView.recognise();
     $('btn-filters').onclick = () => {
       const pop = $('filters-pop');
       pop.hidden = !pop.hidden;

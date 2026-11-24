@@ -41,7 +41,8 @@
           <button id="btn-filters" class="pbtn" title="Brightness / contrast">◐ Brightness</button>
         </div></details>
         <button id="btn-follow" class="pbtn accent" hidden title="You moved the scan by hand: the scan follows the line being typed again">↩ Follow</button>
-        <button id="btn-calibrate" class="pbtn accent" title="Draw the leaf and the text blocks on the PDF">⌖ Calibrate</button>
+        <button id="btn-recognise" class="pbtn accent" data-action="recognise-toolbar" title="Read this folio side with the recognition models (OCR): its lines are proposed, and its blocks found">⚡ Recognise</button>
+        <button id="btn-calibrate" class="pbtn" title="Draw the leaf and the text blocks on the PDF yourself (recognition finds them on most sides)">⌖ Calibrate</button>
         <div id="filters-pop" class="filters-pop" hidden>
           <label>Brightness <input id="f-b" type="range" min="40" max="200" value="100"></label>
           <label>Contrast <input id="f-c" type="range" min="40" max="300" value="100"></label>
@@ -68,7 +69,7 @@
     <div id="editor-pane">
       <div id="calib-hint" class="calib-hint" hidden>
         Not calibrated yet — the typing area uses a standard layout, and the line guide on the PDF is only a guess.
-        <button class="btn small primary" onclick="ME.App.calibrate()">⌖ Calibrate…</button>
+        <button class="btn small" onclick="ME.App.calibrate()">⌖ Calibrate…</button>
         <button class="btn small ghost" onclick="this.parentNode.hidden = true">Hide</button>
       </div>
     </div>
