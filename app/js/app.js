@@ -775,6 +775,7 @@
       pg.lines = pg.lines || {};
       pg.lines[b] = n;
     }
+    if (pg.linesFrom) delete pg.linesFrom[b];       // a count set here is the editor's, whatever recognition found
     for (const x of affected) if (pg.boxes[x] && pg.boxes[x].length > n) pg.boxes[x].length = n;
     App.changed();
     rerender(focus);
@@ -893,6 +894,7 @@
       if (n !== n0) U.toast(Model.BOX_LABEL[b] + ': kept ' + n + ' lines, because line ' + last + ' has text', 'warn', 4000);
       if (scope === 'page') pg.lines = Object.assign(pg.lines || {}, { [b]: n });
       else { p.layout.lines[b] = n; if (pg.lines) delete pg.lines[b]; }
+      if (pg.linesFrom) delete pg.linesFrom[b];     // a count given here is the editor's, whatever recognition found
     }
     App.changed();
     rerender();
@@ -952,7 +954,7 @@
       U.el('p', { class: 'help' }, 'Rename to fix the numbering (e.g. a missing or doubled folio). Following folios are not renumbered.'),
       U.el('h4', null, 'Layout'), layoutSel,
       U.el('h4', null, 'Lines on this folio side'), linesBox,
-      pg.lines ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.lines; App.changed(); rerender(); } }, 'Use the project defaults') : null,
+      pg.lines ? U.el('button', { class: 'btn small ghost', onclick: () => { delete pg.lines; delete pg.linesFrom; App.changed(); rerender(); } }, 'Use the project defaults') : null,
       U.el('h4', null, 'Calibration'),
       U.el('p', { class: 'help' }, reg ? (ownReg ? 'This folio side has its own calibration.' : 'Calibrated (shared with other folio sides).') + ' The typing area copies the blocks drawn on the PDF.' : 'Not calibrated: the typing area uses a standard layout and the line guide on the PDF is only a guess.'),
       U.el('div', { class: 'btn-row' },

@@ -146,7 +146,8 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     }, fs.readFileSync(pdf).toString('base64'));
     for (let k = 0; k < 40 && !(await page.evaluate(() => !!document.querySelector('.pdf-stage canvas'))); k++) await sleep(200);
     // a line typed already, which recognition must leave alone
-    await page.evaluate(() => { const p = ME.App.project, e = ME.App.entries[ME.App.idx]; p.pages[e.label] = p.pages[e.label] || { boxes: {} }; p.pages[e.label].boxes = { main: ['typed by hand'] }; ME.App.changed(); ME.App.rerender(); });
+    // and a line count far above the rows the side has, which recognition is to bring down to them
+    await page.evaluate(() => { const p = ME.App.project, e = ME.App.entries[ME.App.idx]; p.pages[e.label] = p.pages[e.label] || { boxes: {} }; p.pages[e.label].boxes = { main: ['typed by hand'] }; p.pages[e.label].lines = { main: 40 }; ME.App.changed(); ME.App.rerender(); });
     await page.evaluate(() => { const t = document.querySelector('.side-tab[data-tab="folio"]'); if (t) t.click(); else { ME.App.project.ui.sidebarTab = 'folio'; ME.App.refreshSidebar(); } });
     await sleep(300);
     const button = await page.evaluate(() => !!document.querySelector('[data-action="recognise"]'));
@@ -159,10 +160,13 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = p.pages[e.label] || {};
       const prop = Object.entries(pg.proposed || {}).flatMap(([box, l]) => Object.entries(l).map(([i, x]) => ({ box, i: +i, x })));
       return { last: ME.RecogView.last, proposed: prop.length, withCut: prop.filter((y) => y.x.cut && y.x.cut.b.length > 1).length, typed: pg.boxes.main[0], firstProposed: prop.length ? prop[0].i : null,
+        count: ME.Model.lineCount(p, e.label, 'main'), from: pg.linesFrom && pg.linesFrom.main, length: pg.boxes.main.length, shown: document.querySelectorAll('.line').length,
         sources: (p.sources || []).map((s) => s.model + ' ' + s.version), marked: document.querySelectorAll('.line.proposed').length, sample: prop.slice(0, 3).map((y) => y.x.text) };
     });
     T.check('"Recognise this side" proposes lines (' + run.proposed + ', ' + (run.last && run.last.times[0] ? run.last.times[0].total + ' ms, ' + Object.entries(run.last.times[0].backends || {}).map(([k, v]) => k + ' ' + v).join(', ') : '') + '), each with where it was cut from, marked as proposed in the folio',
       run.proposed > 0 && run.withCut === run.proposed && run.marked > 0 && !run.last.error, run);
+    T.check('the side\'s line count becomes the rows found (' + run.count + ', it was 40), its empty lines after them dropped, the count kept as recognition\'s',
+      run.count === run.proposed + run.last.skipped && run.from === run.count && run.length <= run.count, { count: run.count, rows: run.proposed + (run.last && run.last.skipped), from: run.from, length: run.length });
     T.check('a line typed by hand is left as it was, and counted as left out', run.typed === 'typed by hand' && run.last.skipped >= 1 && run.firstProposed !== 0, { typed: run.typed, skipped: run.last && run.last.skipped });
     T.check('the source is recorded with the pack and its models', run.sources.some((s) => /segmenter .* recogniser .*pack-/.test(s)), run.sources);
 
@@ -276,6 +280,7 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     // ---- a folio side for the segmenter: its block drawn, holding as many lines of text as it was given
     const side = await page.evaluate(() => {
       const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = ME.Model.page(p, e.label);
+      delete pg.linesFrom;
       const before = ME.RecogView.sideForSegmenter(p, e).why;
       const arr = pg.boxes.main = (pg.boxes.main || []).slice();
       let n = 0;
@@ -292,15 +297,18 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       ME.Model.setRegions(p, e, { leaf: L, boxes: box, drawnOn: e.label }, 'all');
       const sharedHere = !ME.RecogView.sideForSegmenter(p, e).why;        // drawn on this very side, then applied to all
       ME.Model.setRegions(p, e, { leaf: L, boxes: box }, 'page');
+      pg.linesFrom = { main: n };                                          // the count as recognition found it ...
+      const auto = ME.RecogView.sideForSegmenter(p, e).why;
+      delete pg.linesFrom.main;                                            // ... until the editor gives it (App.setLines)
       const short = Object.assign({}, pg.lines, { main: n + 1 });
       pg.lines = short;
       const wrongCount = ME.RecogView.sideForSegmenter(p, e).why;
       pg.lines = { main: n };
       ME.App.changed();
-      return { before, wrongCount, shared, sharedOld, sharedHere, ok: ME.RecogView.sideForSegmenter(p, e), n, lines1: ME.RecogView.givesSides({ answer: 'yes', wording: '1' }), lines2: ME.RecogView.givesSides(p.consent.training) };
+      return { before, wrongCount, shared, sharedOld, sharedHere, auto, ok: ME.RecogView.sideForSegmenter(p, e), n, lines1: ME.RecogView.givesSides({ answer: 'yes', wording: '1' }), lines2: ME.RecogView.givesSides(p.consent.training) };
     });
     T.check('a folio side teaches the segmenter only with its blocks drawn on it (not a calibration drawn on another side and applied to all) and each holding as many lines of text as it was given (' + side.n + ' here), and only on a consent that gives sides',
-      !!side.before && /not drawn/.test(side.before) && /not \d+/.test(side.wrongCount || '') && /another folio side/.test(side.shared || '') && /another folio side/.test(side.sharedOld || '') && side.sharedHere && side.ok.layout === 'linear' && side.ok.boxes.main.lines === side.n && side.lines1 === false && side.lines2 === true, side);
+      !!side.before && /not drawn/.test(side.before) && /not \d+/.test(side.wrongCount || '') && /another folio side/.test(side.shared || '') && /another folio side/.test(side.sharedOld || '') && side.sharedHere && /recognition found/.test(side.auto || '') && side.ok.layout === 'linear' && side.ok.boxes.main.lines === side.n && side.lines1 === false && side.lines2 === true, side);
     const nFiles = await page.evaluate(() => window.recogGot.files.length);
     const sending2 = page.evaluate(() => ME.RecogView.contribute(ME.App.project).then((r) => r && { ids: r.packages.map((k) => k.id), lines: r.lines, sides: r.sides, url: r.url }));
     for (const dlg of ['.recog-contribute-dialog', '.recog-send-dialog']) {

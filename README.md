@@ -1088,7 +1088,10 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
 - **Recognise this side…** in the Folio tab (or Alt+J; Ctrl+Alt+J if that is your modifier): the side is drawn from the PDF at the scale the models learned
   from, its rows and blocks found, each row read, and word spaces put in if you wish (a line that ends in a space
   ends its word; one that does not runs on into the next). The lines come in as proposed lines, as above: only into
-  empty lines, to be read, corrected and accepted. This side and the next ones can be read in one go. A side takes
+  empty lines, to be read, corrected and accepted. Each block in which rows were found then has as many lines as rows,
+  never fewer than its last line with text, its empty lines after them dropped (a block with no rows found keeps its
+  count); a count set so is recognition's until you set it yourself (Folio tab, or Calibrate), and only then does it
+  vouch for the side when the side is offered to train the segmenter. This side and the next ones can be read in one go. A side takes
   1–3 s where the browser has WebGPU, 5–10 s where it has not.
 - **The first recogniser reads the hands it learned from well and others poorly.** Newer models replace it through
   the site, with no change to Manuscribe; the Manuscript tab's error rate tells you how well it reads yours.

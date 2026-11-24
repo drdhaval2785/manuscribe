@@ -201,9 +201,28 @@
       regions.push({ id: box, type: box, lines: rows.map((r) => ({ text: space && typeof r.spaced === 'string' ? r.spaced : r.text, conf: r.conf })) });
       names.push(box);
     }
-    if (!regions.length) return { placed: 0, skipped: 0, lost };
+    if (!regions.length) return { placed: 0, skipped: 0, lost, counts: 0 };
     const out = ME.HTR.place(p, { pages: [{ regions }] }, { labels: [e.label], boxes: names, src: src.id });
     const pg = p.pages[e.label];
+    // the side's line counts become the rows found: each block in which the segmenter found rows gets as many lines,
+    // never fewer than its last line with text, the empty lines after them dropped (a block with no rows found keeps
+    // its count: more likely a block missed than an empty one). Kept as recognition's (linesFrom): a count no editor
+    // gave does not vouch for the side when it is offered to train the segmenter (sideForSegmenter)
+    let counts = 0;
+    const type = Model.pageLayout(p, e.label);
+    if (['linear', 'tripatha', 'panchapatha'].includes(type)) {
+      for (const box of boxes) {
+        if (!(res.boxes[box] || []).length) continue;
+        const arr = pg.boxes[box] || (pg.boxes[box] = []);
+        let last = 0;
+        arr.forEach((l, k) => { if (ME.TEI.hasContent(l)) last = k + 1; });
+        const n = Math.max((res.boxes[box] || []).length, last, 1);
+        if (arr.length > n) arr.length = n;
+        if (Model.lineCount(p, e.label, box) !== n) counts++;
+        pg.lines = Object.assign(pg.lines || {}, { [box]: n });
+        pg.linesFrom = Object.assign(pg.linesFrom || {}, { [box]: n });
+      }
+    }
     regions.forEach((r, j) => {
       const box = names[j];
       res.boxes[box].forEach((row, i) => {
@@ -211,7 +230,7 @@
         if (pr && pr.src === src.id && !pr.accepted && pr.text === U.escXml(r.lines[i].text)) pr.cut = { b: row.baseline, o: row.outline, r: Object.assign({ smooth }, render) };
       });
     });
-    return { placed: out.placed, skipped: out.skipped, lost };
+    return { placed: out.placed, skipped: out.skipped, lost, counts };
   }
 
   /* ---------- recognising ---------- */
@@ -255,7 +274,7 @@
     let close = null, finished = false, stopped = false;
     UI.modal({ title: 'Recognition', body: U.el('div', null, say, bar), buttons: [{ label: 'Stop', value: 'stop', kind: 'ghost' }], onOpen: (d, c) => { close = c; } })
       .then(() => { if (!finished) { stopped = true; RV.stop(); } });
-    const tot = { placed: 0, skipped: 0, lost: 0, sides: 0, stopped: false, error: null, times: [] };
+    const tot = { placed: 0, skipped: 0, lost: 0, counts: 0, sides: 0, stopped: false, error: null, times: [] };
     try {
       const w = await worker(m);
       const src = sourceFor(p, man, opts.space);
@@ -271,7 +290,7 @@
         });
         if (stopped) break;
         const r = place(p, e, res, src, px.render, opts.space, w.P.cutter.smooth);
-        tot.placed += r.placed; tot.skipped += r.skipped; tot.lost += r.lost; tot.sides++;
+        tot.placed += r.placed; tot.skipped += r.skipped; tot.lost += r.lost; tot.counts += r.counts; tot.sides++;
         tot.times.push(Object.assign({ label: e.label, backends: res.backends }, res.times));
         A.changed();
       }
@@ -287,7 +306,7 @@
     rerenderMs();
     RV.last = tot;
     if (tot.error && !stopped) U.toast('Recognition stopped: ' + tot.error, 'err', 8000);
-    else U.toast((stopped ? 'Stopped. ' : '') + tot.placed + ' line(s) proposed on ' + tot.sides + ' folio side(s)' + (tot.skipped ? '; ' + tot.skipped + ' left out where you had typed already' : '') + (tot.lost ? '; ' + tot.lost + ' in blocks this layout does not have' : ''), 'ok', 6000);
+    else U.toast((stopped ? 'Stopped. ' : '') + tot.placed + ' line(s) proposed on ' + tot.sides + ' folio side(s)' + (tot.counts ? '; ' + tot.counts + ' block(s) given the number of lines found in them' : '') + (tot.skipped ? '; ' + tot.skipped + ' left out where you had typed already' : '') + (tot.lost ? '; ' + tot.lost + ' in blocks this layout does not have' : ''), 'ok', 6000);
     // the manuscript's own question, for a user who asked to be asked
     if (!stopped && tot.placed && Pack().prefs().askTraining && RV.CONSENT.approved && !RV.consentRecord(p) && RV._notNow !== p.id) await RV.askConsent(p);
     return tot;
@@ -373,6 +392,7 @@
       if (!reg.boxes[b]) return { why: 'block ' + name + ' is not drawn' };
       const n = (pg.lines && pg.lines[b]) || (p.layout.lines && p.layout.lines[b]);
       if (!n) return { why: 'block ' + name + ' has no line count' };
+      if (pg.linesFrom && pg.linesFrom[b] === n) return { why: 'the line count of block ' + name + ' is the one recognition found, not one you gave (set it, or calibrate this side, to give it)' };
       const arr = (pg.boxes && pg.boxes[b]) || [];
       const filled = arr.filter((l) => ME.TEI.hasContent(l)).length;
       const first = arr.slice(0, n).filter((l) => ME.TEI.hasContent(l)).length;
