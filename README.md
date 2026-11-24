@@ -1105,9 +1105,10 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   form filled in, and you attach the file there (a GitHub account is needed). The issue is public: it shows the
   manuscript's name you gave, the number of lines and your GitHub account, not the lines. A bot answers on it once
   the package is registered. Lines beyond 20 MB go in several files. With the consent of the present wording (2),
-  the file also holds the image of each folio side whose blocks you have drawn (Calibrate) and whose every block holds
-  as many lines of text as you gave it, with the blocks and their counts: those teach the segmenter, which finds the
-  lines on a page. What was sent before is not sent again.
+  the file also holds the image of each folio side whose blocks you have drawn on that side itself (Calibrate; not a
+  calibration drawn on another side and applied to all, which only roughly fits the others) and whose every block
+  holds as many lines of text as you gave it, with the blocks and their counts: those teach the segmenter, which finds
+  the lines on a page. What was sent before is not sent again.
 - **Withdrawing** (Manuscript tab) stops anything more being contributed, and opens a withdrawal request for the lines
   already sent: they are deleted and left out of every model trained afterwards; models already trained on them while
   the consent was given remain. Without a GitHub account, write to drdhaval2785@gmail.com.

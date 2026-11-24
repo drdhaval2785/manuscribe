@@ -873,7 +873,9 @@
     if (!existing.leaf) { const leaf = PdfView.detectLeaf(); if (leaf) existing.leaf = leaf; }
     const res = await PdfView.calibrate(steps, existing);
     if (!res) return;
-    const regions = { leaf: res.rects.leaf || Model.defaultLeaf(e), boxes: {} };
+    // drawnOn: the folio side the blocks were drawn on, kept when they are applied to every side: only on that side are
+    // they the side's own (the segmenter learns from sides whose blocks were drawn on them, recogview.js)
+    const regions = { leaf: res.rects.leaf || Model.defaultLeaf(e), boxes: {}, drawnOn: e.label };
     for (const b of boxes) if (res.rects[b]) regions.boxes[b] = res.rects[b];
     const scope = await UI.modal({
       title: 'Apply calibration to…',

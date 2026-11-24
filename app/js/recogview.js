@@ -44,7 +44,7 @@
     title: 'Corrected lines and folio sides for training the recognition models',
     paragraphs: [
       'Manuscribe reads manuscript pages with recognition models that run in this browser. The models read better when they learn from pages that people have read and corrected. You may choose to give the corrected lines and folio sides of this manuscript for that.',
-      'What is given: for each line that Manuscribe read and you accepted after correcting it, the image of that line as Manuscribe cut it from the scan, its text as you corrected it, the text the model first proposed, the folio side and block it belongs to, and which model read it. And for each folio side whose blocks you have drawn (Calibrate) and whose every block holds as many lines of text as you gave it, the image of that whole side as Manuscribe draws it from the scan, the blocks you drew and the number of lines in each. With them, the language and script of the manuscript, as you state them below. Not the PDF itself, not your notes or markup, not other manuscripts.',
+      'What is given: for each line that Manuscribe read and you accepted after correcting it, the image of that line as Manuscribe cut it from the scan, its text as you corrected it, the text the model first proposed, the folio side and block it belongs to, and which model read it. And for each folio side whose blocks you have drawn on that side itself (Calibrate, not a calibration applied to the whole manuscript) and whose every block holds as many lines of text as you gave it, the image of that whole side as Manuscribe draws it from the scan, the blocks you drew and the number of lines in each. With them, the language and script of the manuscript, as you state them below. Not the PDF itself, not your notes or markup, not other manuscripts.',
       'How it is given: never automatically. “Contribute corrected lines” makes a file (a zip) and seals the lines and the images in it, so that only the maintainer of the models can open them. You send it yourself, by attaching it to a new issue in the GitHub repository drdhaval2785/manuscribe-contributions, which Manuscribe opens for you (a GitHub account is needed). That issue is public: it shows the name you give this manuscript below, its language and script, the number of lines and folio sides, the date and wording of this consent, and your GitHub account, but not the lines or the images. They are kept by the maintainer of the models, who can be written to at drdhaval2785@gmail.com.',
       'How it is used: only to train the line segmenter (which finds the lines on a page) and the line recogniser (which reads them), and only those for the manuscript’s own language and script: the lines and pages of one language or script are never mixed into the training of another’s. The models trained on them are published under CC BY-SA 4.0, and each model’s card names the manuscripts it learned from, this one included, by the name you give below. The images and their texts are not republished.',
       'Your rights: give them only if you have the right to share these images, of lines and of whole folio sides, for this purpose. Many libraries restrict the reuse of their scans.',
@@ -355,7 +355,8 @@
   }
 
   /* A folio side that can teach the segmenter, which finds the lines on a page: of a layout in blocks (linear,
-     tripāṭha, pañcapāṭha), its blocks drawn (Calibrate: a rectangle for each), and each block holding exactly as many
+     tripāṭha, pañcapāṭha), its blocks drawn on it (Calibrate: a rectangle for each, on this side, not drawn on another
+     and applied to the whole manuscript, which only roughly fits the others), and each block holding exactly as many
      lines of text as it was given, its first lines and none after -> {layout, boxes: {box: {region, lines}}}, or
      {why} where it cannot. The segmenter's own lines on the side are then held to these counts before it learns from
      them (manuscript_ocr's msocr/sidequality.py). */
@@ -365,6 +366,7 @@
     const reg = Model.regions(p, e);
     if (!reg || !reg.boxes) return { why: 'its blocks are not drawn (Calibrate)' };
     const pg = p.pages[e.label] || {};
+    if (!pg.regions && reg.drawnOn !== e.label) return { why: 'its blocks were drawn on another folio side and applied to all (Calibrate this side to give it)' };
     const boxes = {};
     for (const b of Model.LAYOUTS[type].boxes) {
       const name = (Model.BOX_LABEL && Model.BOX_LABEL[b]) || b;
@@ -402,7 +404,7 @@
         if (pr.cut && JSON.stringify([pr.cut.r.scale, pr.cut.r.rotation, pr.cut.r.rect]) === here) (found[b] = found[b] || []).push({ line: +i + 1, baseline: pr.cut.b, outline: pr.cut.o });
       }
     }
-    return { jpg: await jpegOf(px), about: { folio: e.label, layout: side.layout, width: px.width, height: px.height, render: px.render, boxes, found } };
+    return { jpg: await jpegOf(px), about: { folio: e.label, layout: side.layout, width: px.width, height: px.height, render: px.render, drawn: 'here', boxes, found } };
   }
 
   // the package, unsealed: contribution.json (version 2), lines/ and sides/ -> Blob

@@ -282,18 +282,25 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       while (n < arr.length && ME.TEI.hasContent(arr[n])) n++;
       for (let k = n; k < arr.length; k++) if (ME.TEI.hasContent(arr[k])) { for (let j = n; j < k; j++) arr[j] = 'पङ्क्तिः'; n = k + 1; }
       arr.length = n;
-      const L = ME.Model.defaultLeaf(e);
-      ME.Model.setRegions(p, e, { leaf: L, boxes: { main: [L[0] + 0.04 * L[2], L[1] + 0.05 * L[3], 0.92 * L[2], 0.9 * L[3]] } }, 'page');
+      const L = ME.Model.defaultLeaf(e), box = { main: [L[0] + 0.04 * L[2], L[1] + 0.05 * L[3], 0.92 * L[2], 0.9 * L[3]] };
       pg.lines = { main: n };
+      // blocks drawn on another side and applied to the whole manuscript: not this side's own
+      ME.Model.setRegions(p, e, { leaf: L, boxes: box, drawnOn: 'another side' }, 'all');
+      const shared = ME.RecogView.sideForSegmenter(p, e).why;
+      ME.Model.setRegions(p, e, { leaf: L, boxes: box }, 'all');
+      const sharedOld = ME.RecogView.sideForSegmenter(p, e).why;          // a calibration made before drawnOn was kept
+      ME.Model.setRegions(p, e, { leaf: L, boxes: box, drawnOn: e.label }, 'all');
+      const sharedHere = !ME.RecogView.sideForSegmenter(p, e).why;        // drawn on this very side, then applied to all
+      ME.Model.setRegions(p, e, { leaf: L, boxes: box }, 'page');
       const short = Object.assign({}, pg.lines, { main: n + 1 });
       pg.lines = short;
       const wrongCount = ME.RecogView.sideForSegmenter(p, e).why;
       pg.lines = { main: n };
       ME.App.changed();
-      return { before, wrongCount, ok: ME.RecogView.sideForSegmenter(p, e), n, lines1: ME.RecogView.givesSides({ answer: 'yes', wording: '1' }), lines2: ME.RecogView.givesSides(p.consent.training) };
+      return { before, wrongCount, shared, sharedOld, sharedHere, ok: ME.RecogView.sideForSegmenter(p, e), n, lines1: ME.RecogView.givesSides({ answer: 'yes', wording: '1' }), lines2: ME.RecogView.givesSides(p.consent.training) };
     });
-    T.check('a folio side teaches the segmenter only with its blocks drawn and each holding as many lines of text as it was given (' + side.n + ' here), and only on a consent that gives sides',
-      !!side.before && /not drawn/.test(side.before) && /not \d+/.test(side.wrongCount || '') && side.ok.layout === 'linear' && side.ok.boxes.main.lines === side.n && side.lines1 === false && side.lines2 === true, side);
+    T.check('a folio side teaches the segmenter only with its blocks drawn on it (not a calibration drawn on another side and applied to all) and each holding as many lines of text as it was given (' + side.n + ' here), and only on a consent that gives sides',
+      !!side.before && /not drawn/.test(side.before) && /not \d+/.test(side.wrongCount || '') && /another folio side/.test(side.shared || '') && /another folio side/.test(side.sharedOld || '') && side.sharedHere && side.ok.layout === 'linear' && side.ok.boxes.main.lines === side.n && side.lines1 === false && side.lines2 === true, side);
     const nFiles = await page.evaluate(() => window.recogGot.files.length);
     const sending2 = page.evaluate(() => ME.RecogView.contribute(ME.App.project).then((r) => r && { ids: r.packages.map((k) => k.id), lines: r.lines, sides: r.sides, url: r.url }));
     for (const dlg of ['.recog-contribute-dialog', '.recog-send-dialog']) {
@@ -313,10 +320,10 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       const sd = a.sides[0], jpg = sd && z.get(sd.image), g = sd && JSON.parse(ME.Zip.text(z.get(sd.geometry)));
       const r = g && g.boxes.main.rect;
       return { n: a.sides.length, jpeg: !!jpg && jpg[0] === 0xff && jpg[1] === 0xd8, kb: jpg && Math.round(jpg.length / 1024), w: g && g.width, h: g && g.height, rect: r, lines: g && g.boxes.main.lines, layout: g && g.layout,
-        inside: !!r && r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= g.width + 1 && r[1] + r[3] <= g.height + 1, script: a.manuscript.script, found: g && Object.keys(g.found || {}).length };
+        inside: !!r && r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= g.width + 1 && r[1] + r[3] <= g.height + 1, script: a.manuscript.script, found: g && Object.keys(g.found || {}).length, drawn: g && g.drawn };
     }, inner2.toString('base64'));
     T.check('the side goes sealed in a package of its own (the lines sent before are not sent again): its image (a JPEG, ' + sideBack.kb + ' KB, ' + sideBack.w + 'x' + sideBack.h + ' px, at the height the segmenter learned from), its drawn block in the image\'s own pixels with its line count, its language and script',
-      !!run2 && run2.sides === 1 && run2.lines === 0 && about2.count === 0 && about2.sides === 1 && about2.manuscript.script === 'sa-Deva' && sideBack.n === 1 && sideBack.jpeg && sideBack.inside && sideBack.lines === side.n && sideBack.layout === 'linear' && sideBack.script === 'sa-Deva' && Math.abs(sideBack.h - 685) <= 2,
+      !!run2 && run2.sides === 1 && run2.lines === 0 && about2.count === 0 && about2.sides === 1 && about2.manuscript.script === 'sa-Deva' && sideBack.n === 1 && sideBack.jpeg && sideBack.inside && sideBack.lines === side.n && sideBack.drawn === 'here' && sideBack.layout === 'linear' && sideBack.script === 'sa-Deva' && Math.abs(sideBack.h - 685) <= 2,
       { run2, sideBack });
     if (process.env.MANUSCRIBE_SAVE_CONTRIBUTION) {
       const out = path.resolve(process.env.MANUSCRIBE_SAVE_CONTRIBUTION);
