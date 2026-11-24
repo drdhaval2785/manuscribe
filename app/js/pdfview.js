@@ -213,6 +213,10 @@
     return U.clamp(Math.max(200, scroller.clientWidth - 28) / (fraction * PdfView.pagePx1), 0.3, 8);
   };
   PdfView.setZoom = function (z) { PdfView.zoom = U.clamp(z, 0.3, 8); if (PdfView.cb.onZoom) PdfView.cb.onZoom(PdfView.zoom); return PdfView.render(); };
+  /* The turn a page is drawn at: its own (a PDF page may say it is to be shown turned, /Rotate: a scan of a long leaf
+     stored upright, for one) and the one given by hand (the ⟳ button, kept in the project) on top of it. pdf.js takes
+     the turn it is given in place of the page's own, so every page drawn is drawn at this */
+  PdfView.turn = (page, r) => (((page && page.rotate) || 0) + (r || 0)) % 360;
   PdfView.setRotation = function (r) { PdfView.rotation = ((r % 360) + 360) % 360; dropCache(); return PdfView.render(); };
 
   PdfView.setFilters = function (f) {
@@ -234,7 +238,7 @@
     const hit = PdfView.cache.get(key);
     if (hit) { PdfView.cache.delete(key); PdfView.cache.set(key, hit); return hit; }
     const page = await PdfView.doc.getPage(pageNo);
-    const vp = page.getViewport({ scale, rotation: PdfView.rotation });
+    const vp = page.getViewport({ scale, rotation: PdfView.turn(page, PdfView.rotation) });
     const x0 = Math.floor(reg[0] * vp.width), y0 = Math.floor(reg[1] * vp.height);
     const rw = Math.max(1, Math.ceil((reg[0] + reg[2]) * vp.width) - x0), rh = Math.max(1, Math.ceil((reg[1] + reg[3]) * vp.height) - y0);
     let dpr = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -247,7 +251,7 @@
     canvas.style.height = rh + 'px';
     canvas.style.left = x0 + 'px';
     canvas.style.top = y0 + 'px';
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale: scale * dpr, rotation: PdfView.rotation, offsetX: -x0 * dpr, offsetY: -y0 * dpr }) }).promise;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale: scale * dpr, rotation: PdfView.turn(page, PdfView.rotation), offsetX: -x0 * dpr, offsetY: -y0 * dpr }) }).promise;
     const out = { canvas, w: vp.width, h: vp.height, x0, y0, rw, rh, region: reg };
     PdfView.cache.set(key, out);
     while (PdfView.cache.size > cachePages()) { const k = PdfView.cache.keys().next().value; const v = PdfView.cache.get(k); PdfView.cache.delete(k); free(v); }
@@ -269,7 +273,7 @@
     PdfView.showEmpty('');
     const seq = ++PdfView.renderSeq;
     const page = await PdfView.doc.getPage(entry.pdfPage);
-    const vp1 = page.getViewport({ scale: 1, rotation: PdfView.rotation });
+    const vp1 = page.getViewport({ scale: 1, rotation: PdfView.turn(page, PdfView.rotation) });
     const region = visibleRegion();
     // while calibrating on a touch screen the page is kept away from the screen's edges, where a finger put down
     // starts the phone's own gestures (back, the home screen) instead of a box: zoomed in too, at either end
@@ -345,6 +349,36 @@
   PdfView.detectLeaf = function () {
     const canvas = stage.querySelector('canvas');
     if (!canvas) return null;
+    return PdfView.leafIn(canvas, (PdfView._shown && PdfView._shown.region) || [0, 0, 1, 1]);
+  };
+
+  /* The leaf on a page drawn off screen, for recognition: the part `region` of the page (in its own measure, as a
+     side's Model.defaultLeaf) drawn small, and the leaf found in it as detectLeaf finds it -> [x, y, w, h] in the
+     page's own measure, or null */
+  PdfView.leafOn = async function (page, rotation, region, info) {
+    try {
+      const turn = PdfView.turn(page, rotation);
+      const vp1 = page.getViewport({ scale: 1, rotation: turn });
+      const scale = 480 / (vp1.width * region[2]);
+      const vp = page.getViewport({ scale, rotation: turn });
+      const x0 = Math.round(region[0] * vp.width), y0 = Math.round(region[1] * vp.height);
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(region[2] * vp.width)); c.height = Math.max(1, Math.round(region[3] * vp.height));
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale, rotation: turn, offsetX: -x0, offsetY: -y0 }) }).promise;
+      const r = PdfView.leafIn(c, region, info);
+      c.width = 0; c.height = 0;
+      return r;
+    } catch (e) { return null; }
+  };
+
+  /* the leaf in a canvas showing the part `reg` of a page -> [x, y, w, h] in the page's own measure, or null. A leaf
+     is told from what lies round it (the scanner's bed, a page's white) by its colour, nearly all of it: where the scan
+     is the leaf itself, its own paper is taken for the background, and only its densest lines of writing stand out from
+     it, never filling it as a leaf would (info, when given, is told how much did: fill) */
+  PdfView.LEAF_FILL = 0.9;   // measured: leaves on a background 0.99-1 (11 libraries' scans), scans that are the leaf 0.73-0.87
+  PdfView.leafIn = function (canvas, reg, info) {
     try {
       const W = 240, H = Math.max(40, Math.round((W * canvas.height) / canvas.width));
       const t = document.createElement('canvas');
@@ -381,8 +415,12 @@
       for (let x = 0; x < W; x++) { let n = 0; for (let y = y0; y <= y1; y++) n += fg[y * W + x]; cols.push(n / (y1 - y0 + 1)); }
       const [x0, x1] = longestRun(cols, 0.5);
       if (x1 <= x0) return null;
+      let n = 0;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) n += fg[y * W + x];
+      const fill = n / ((y1 - y0 + 1) * (x1 - x0 + 1));
+      if (info) info.fill = fill;
+      if (fill < PdfView.LEAF_FILL) return null;
       // in the part of the page that was drawn: given back in the page's own measure
-      const reg = (PdfView._shown && PdfView._shown.region) || [0, 0, 1, 1];
       const r = [reg[0] + (x0 / W) * reg[2], reg[1] + (y0 / H) * reg[3], ((x1 - x0 + 1) / W) * reg[2], ((y1 - y0 + 1) / H) * reg[3]];
       if (r[2] * r[3] < 0.08 * reg[2] * reg[3] || r[2] * r[3] > 0.97 * reg[2] * reg[3]) return null;
       return r;

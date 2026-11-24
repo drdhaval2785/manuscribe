@@ -776,7 +776,7 @@
     if (!doc) return null;
     const page = await doc.getPage(pageNo);
     // turned as the witness is shown, since its calibration was done that way
-    const rotation = (p.ui && p.ui.rotation) || 0;
+    const rotation = ME.PdfView.turn(page, (p.ui && p.ui.rotation) || 0);
     const first = page.getViewport({ scale: 1, rotation });
     const scale = Math.min(4, 2400 / first.width);
     const view = page.getViewport({ scale, rotation });

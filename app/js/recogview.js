@@ -140,8 +140,10 @@
 
   /* ---------- the side's pixels ---------- */
 
+  // rotation: the turn given by hand (the project's), drawn on top of the page's own (PdfView.turn)
   async function renderSide(page, scale, rotation, rect) {
-    const vp = page.getViewport({ scale, rotation });
+    const turn = ME.PdfView.turn(page, rotation);
+    const vp = page.getViewport({ scale, rotation: turn });
     const x0 = Math.round(rect[0] * vp.width), y0 = Math.round(rect[1] * vp.height);
     const w = Math.max(1, Math.round(rect[2] * vp.width)), h = Math.max(1, Math.round(rect[3] * vp.height));
     const c = document.createElement('canvas');
@@ -149,22 +151,38 @@
     const ctx = c.getContext('2d', { willReadFrequently: true });
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, w, h);
-    await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale, rotation, offsetX: -x0, offsetY: -y0 }) }).promise;
+    await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale, rotation: turn, offsetX: -x0, offsetY: -y0 }) }).promise;
     const img = ctx.getImageData(0, 0, w, h);
     // let go at once of the canvas (Safari keeps a canvas's memory until it is emptied)
     c.width = 0; c.height = 0;
     return { data: new Uint8Array(img.data.buffer), width: w, height: h, channels: 4, render: { scale, rotation, rect, vw: vp.width, vh: vp.height } };
   }
 
-  // the side (the page, or its half) as the segmenter learned from sides: at the height of its training images
+  /* Where the leaf is on the side's page, for reading: as the segmenter learned from sides, the leaf alone (a scanned
+     page often has a library's header and footer and wide margins round it, and drawn whole at the training height its
+     letters come out too small: measured on AKGM 0025383's own PDF, whose leaf takes 58 % of the page's height, the
+     tripāṭha blocks of a side were found from the leaf as the local pipeline finds them, main 3, top 8, bottom 10, and
+     from the whole page not at all, main 22, top 1, bottom 1). A leaf drawn by hand (Calibrate) is taken as it is;
+     otherwise the leaf is found on the side's own page (one found on the first page at import may not fit the others);
+     otherwise the whole side. */
+  async function leafOf(p, e, page, rotation) {
+    const reg = p && Model.regions(p, e);
+    const drawn = reg && reg.leaf && reg.from !== 'recognition' && (reg.drawnOn || (reg.boxes && Object.keys(reg.boxes).length));
+    if (drawn) return reg.leaf;
+    const side = Model.defaultLeaf(e);
+    return (ME.PdfView.leafOn && await ME.PdfView.leafOn(page, rotation, side)) || side;
+  }
+
+  // the side as the segmenter learned from sides: its leaf (leafOf), at the height of its training images
   RV.sidePixels = async function (e, targetH) {
     const PV = ME.PdfView;
     if (PV.ensureWorker) await PV.ensureWorker();
     if (!PV.doc) throw new Error('the PDF is not open');
     const page = await PV.doc.getPage(e.pdfPage);
     const rotation = PV.rotation || 0;
-    const rect = Model.defaultLeaf(e);
-    const vp1 = page.getViewport({ scale: 1, rotation });
+    const A = App();
+    const rect = await leafOf(A && A.project, e, page, rotation);
+    const vp1 = page.getViewport({ scale: 1, rotation: PV.turn(page, rotation) });
     const scale = Math.max(0.05, Math.min(8, targetH / (vp1.height * rect[3])));
     return renderSide(page, scale, rotation, rect);
   };
@@ -269,7 +287,7 @@
         found[box] = [rx + x0 / render.vw, ry + y0 / render.vh, (x1 - x0) / render.vw, (y1 - y0) / render.vh];
       }
       if (Object.keys(found).length) {
-        pg.regions = { leaf: (reg && reg.leaf) || Model.defaultLeaf(e), boxes: found, from: 'recognition' };
+        pg.regions = { leaf: render.rect, boxes: found, from: 'recognition' };   // the leaf it was read from (leafOf)
         blocks = true;
       }
     }
