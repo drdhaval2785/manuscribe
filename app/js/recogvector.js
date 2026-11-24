@@ -13,7 +13,7 @@
                                         `step` columns and the last, Python's rounding, the baseline simplified
                                         (Ramer–Douglas–Peucker); sorted by mean baseline height, then first x
    P is pipeline.json's "segmenter" section. */
-(function (ME) {
+(window.ME.recogModule = window.ME.recogModule || function (f) { (window.ME.recogSources = window.ME.recogSources || []).push(f); f(window.ME); })(function (ME) {
   const pyRound = (x) => ME.RecogImage.pyRound(x);
 
   function maps(raw, h, W, width, P) {
@@ -130,4 +130,4 @@
   }
 
   ME.RecogVector = { maps, components, smooth, simplify, vectorize };
-})(window.ME);
+});

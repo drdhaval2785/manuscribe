@@ -10,7 +10,11 @@
    segmenterSize(w, h, imgH)            the width and height the page is resized to for the segmenter
    recogniserSize(w, h, height, stride) the width and height a line image is resized to for the recogniser
    pyRound(x)                           Python's round(): halves to the even number */
-(function (ME) {
+/* Each recognition module (recogimage, recogvector, recogrows, recogread, recogspace, recogpage) is handed to
+   recogModule, which keeps its source as well as running it, so that the recognition worker (recogworker.js) can be
+   built from the sources: a Worker of a page opened from disk can load nothing. Each file defines recogModule if no
+   file before it has, so that any of them can be loaded on its own (the tests do). */
+(window.ME.recogModule = window.ME.recogModule || function (f) { (window.ME.recogSources = window.ME.recogSources || []).push(f); f(window.ME); })(function (ME) {
   const PRECISION_BITS = 32 - 8 - 2;
   const ONE = 2 ** PRECISION_BITS;
 
@@ -103,4 +107,4 @@
   const recogniserSize = (w, h, height, stride) => [Math.max(stride * 2, pyRound(w * height / h)), height];
 
   ME.RecogImage = { grey, resize, pyRound, segmenterSize, recogniserSize };
-})(window.ME);
+});

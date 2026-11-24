@@ -12,10 +12,10 @@ const { checks, ROOT } = require('./h');
 const { readPng } = require('./png');
 
 const T = checks('recognition stages against the reference fixtures');
-const ctx = { window: { ME: {} }, Math, Uint8Array, Int32Array, Float32Array, Float64Array, Array, Map, Infinity };
+const ctx = { window: { ME: {} }, Math, Uint8Array, Int32Array, Float32Array, Float64Array, BigInt64Array, Array, Map, Infinity };
 vm.createContext(ctx);
-for (const f of ['recogimage.js', 'recogvector.js', 'recogrows.js', 'recogread.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, 'app', 'js', f), 'utf8'), ctx);
-const R = ctx.window.ME.RecogImage, V = ctx.window.ME.RecogVector, RR = ctx.window.ME.RecogRows, RD = ctx.window.ME.RecogRead;
+for (const f of ['recogimage.js', 'recogvector.js', 'recogrows.js', 'recogread.js', 'recogspace.js', 'recogpage.js'].filter((f) => fs.existsSync(path.join(ROOT, 'app', 'js', f)))) vm.runInContext(fs.readFileSync(path.join(ROOT, 'app', 'js', f), 'utf8'), ctx);
+const R = ctx.window.ME.RecogImage, V = ctx.window.ME.RecogVector, RR = ctx.window.ME.RecogRows, RD = ctx.window.ME.RecogRead, RP = ctx.window.ME.RecogPage;
 const ort = require('onnxruntime-web');
 ort.env.wasm.numThreads = 1;
 
@@ -213,6 +213,37 @@ if (!rowPages.length) {
       }
       T.check(j.page + ': recogniser logits on ' + j.lineJobs.length + ' lines within 1e-3 of the reference (largest ' + worst.toExponential(1) + ')', worst <= 1e-3, worst);
       T.check(j.page + ': decoded text identical on ' + same + ' of ' + j.lineJobs.length + ' lines, confidence within 0.01 (largest difference ' + confWorst.toFixed(4) + ')', same === j.lineJobs.length && confWorst <= 0.01, differ);
+    }
+
+    // the whole side at once (recogpage.js), from the page's pixels to the text of its rows, the networks run here
+    const spacing = !!ctx.window.ME.RecogSpace;
+    const sp = spacing ? await ort.InferenceSession.create(path.join(pack, 'spacer.onnx'), { executionProviders: ['wasm'] }) : null;
+    const nets = {
+      segment: async (x, h, W) => (await session.run({ x: new ort.Tensor('float32', x, [1, 1, h, W]) })).y.data,
+      recognise: async (x, h, w) => { const y = (await rec.run({ x: new ort.Tensor('float32', x, [1, 1, h, w]) })).y; return { data: y.data, T: y.dims[1], C: y.dims[2] }; },
+    };
+    const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8'));
+    const packData = { P: pipeline, chars, S: JSON.parse(fs.readFileSync(path.join(pack, 'spacer.json'), 'utf8')), threshold: manifest.models.spacer.threshold };
+    // as the worker does: a spacer of any length a window at a time, one of a fixed length in batches
+    const spLen = typeof manifest.models.spacer.input.shape[1] === 'number' ? manifest.models.spacer.input.shape[1] : null;
+    if (sp && spLen) nets.spaceBatch = ctx.window.ME.RecogSpace.ortBatchNetwork(ort, sp, packData.S, spLen);
+    else if (sp) nets.space = ctx.window.ME.RecogSpace.ortNetwork(ort, sp, packData.S, null);
+    for (const j of jobs) {
+      const page = readPng(path.join(j.d, '00_page.png'));
+      const fx = JSON.parse(fs.readFileSync(path.join(j.d, 'fixture.json'), 'utf8'));
+      const t0 = Date.now();
+      const res = await RP.run(page, fx.layout, nets, packData, { space: spacing });
+      const ms = Date.now() - t0;
+      const want = j.text, got = res.boxes;
+      const sameBoxes = Object.keys(got).sort().join() === Object.keys(want).sort().join();
+      let rowsN = 0, same = 0;
+      for (const b of Object.keys(want)) (want[b] || []).forEach((l, k) => { rowsN++; if (got[b] && got[b][k] && got[b][k].text === l.text) same++; });
+      T.check(j.page + ': the whole side from its pixels (' + ms + ' ms on one thread: ' + Object.entries(res.times).map(([k, v]) => k + ' ' + v).join(', ') + '): ' + same + ' of ' + rowsN + ' rows read as the reference reads them', sameBoxes && same === rowsN && Object.values(got).every((rs, i) => rs.length === Object.values(want)[i].length), { boxes: Object.keys(got), times: res.times });
+      if (spacing) {
+        const ref = JSON.parse(fs.readFileSync(path.join(j.d, '10_spaced.json'), 'utf8'));
+        const bad = Object.keys(ref).filter((b) => !got[b] || got[b].map((r) => r.spaced).join('').replace(/\s+/g, ' ').trim() !== ref[b].replace(/\s+/g, ' ').trim());
+        T.check(j.page + ': word spaces as the reference puts them, given back to the rows (' + Object.keys(ref).length + ' blocks)', !bad.length, bad);
+      }
     }
   }
   T.done();

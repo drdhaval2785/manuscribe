@@ -19,7 +19,7 @@
                                         dropped -> {text, conf}: conf the mean probability of the classes kept, in %
    The page is the page's pixels as read (grey, RGB or RGBA: `ch` values a pixel), not the grey page: the reference
    cuts the colour page and turns the line image grey afterwards. */
-(function (ME) {
+(window.ME.recogModule = window.ME.recogModule || function (f) { (window.ME.recogSources = window.ME.recogSources || []).push(f); f(window.ME); })(function (ME) {
   const pyRound = (x) => ME.RecogImage.pyRound(x);
   const hyp = (x, y) => Math.sqrt(x * x + y * y);
 
@@ -146,4 +146,4 @@
   }
 
   ME.RecogRead = { bandOf, cutLine, cut, input, decode, pairwise };
-})(window.ME);
+});

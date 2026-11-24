@@ -16,7 +16,7 @@
    in float32), a float32 mean as numpy's pairwise sum, stable sorts, the first of equal maxima. Where numpy hands a dot
    product to the BLAS (np.correlate, np.convolve) the order of its additions is unknown; here they run left to right,
    but for a flat kernel over counts, whose sums are exact (convolveSame). */
-(function (ME) {
+(window.ME.recogModule = window.ME.recogModule || function (f) { (window.ME.recogSources = window.ME.recogSources || []).push(f); f(window.ME); })(function (ME) {
   const pyRound = (x) => ME.RecogImage.pyRound(x);
   const trunc = Math.trunc;                                        // int()
   const f32 = Math.fround;
@@ -1402,4 +1402,4 @@
   }
 
   ME.RecogRows = { rows, findRows, fillEdgeRows, merge, uneven, pageBlocks, findBlocks, rowsInBlock, imagePitch, mean, median, pstdev, percentile };
-})(window.ME);
+});
