@@ -1090,7 +1090,11 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   manuscript…** beside it. The side's leaf is drawn from the PDF at the scale the models learned from (the leaf you
   drew with Calibrate, or else the leaf found on that page, so that a library's header, footer and margins round it do
   not shrink its letters), its rows and blocks found, each row read, and word spaces put in if you wish (a line that
-  ends in a space ends its word; one that does not runs on into the next). The lines come in as proposed lines, as
+  ends in a space ends its word; one that does not runs on into the next). A pack since 25 November 2026 carries a
+  **language model** of how Sanskrit runs letter by letter (from the lexica texts and the transcribed manuscripts),
+  and each row is read with it: where the recogniser hesitates between two letters, the one that makes a word wins
+  (about a sixth fewer wrong letters). Daṇḍas and digits it leaves to the recogniser, and the confidence shown for a
+  letter is still the recogniser's own. The lines come in as proposed lines, as
   above: only into empty lines, to be read, corrected and accepted. A side takes 1–3 s where the browser has WebGPU,
   5–10 s where it has not.
 - **The layout, looked at first.** Before a manuscript with nothing typed in it is first read, a dozen of its folio

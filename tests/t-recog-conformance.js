@@ -14,8 +14,16 @@ const { readPng } = require('./png');
 const T = checks('recognition stages against the reference fixtures');
 const ctx = { window: { ME: {} }, Math, Uint8Array, Int32Array, Float32Array, Float64Array, BigInt64Array, Array, Map, Infinity };
 vm.createContext(ctx);
-for (const f of ['recogimage.js', 'recogvector.js', 'recogrows.js', 'recogread.js', 'recogspace.js', 'recogpage.js'].filter((f) => fs.existsSync(path.join(ROOT, 'app', 'js', f)))) vm.runInContext(fs.readFileSync(path.join(ROOT, 'app', 'js', f), 'utf8'), ctx);
-const R = ctx.window.ME.RecogImage, V = ctx.window.ME.RecogVector, RR = ctx.window.ME.RecogRows, RD = ctx.window.ME.RecogRead, RP = ctx.window.ME.RecogPage;
+const ctxGlobals = { TextDecoder, DataView, Uint16Array, Blob: globalThis.Blob, Response: globalThis.Response, DecompressionStream: globalThis.DecompressionStream };
+Object.assign(ctx, ctxGlobals);
+for (const f of ['recogimage.js', 'recogvector.js', 'recogrows.js', 'recogread.js', 'recoglm.js', 'recogspace.js', 'recogpage.js'].filter((f) => fs.existsSync(path.join(ROOT, 'app', 'js', f)))) vm.runInContext(fs.readFileSync(path.join(ROOT, 'app', 'js', f), 'utf8'), ctx);
+const R = ctx.window.ME.RecogImage, V = ctx.window.ME.RecogVector, RR = ctx.window.ME.RecogRows, RD = ctx.window.ME.RecogRead, RP = ctx.window.ME.RecogPage, RL = ctx.window.ME.RecogLM;
+const zlib = require('zlib');
+// a pack's language model as the worker builds it (recoglm.js), from the pack's files; null where it has none
+function packLM(pack, manifest) {
+  if (!manifest.lm || !manifest.lm.components || !RL) return null;
+  return RL.mix(manifest.lm.components.map((c) => ({ weight: c.weight, model: RL.load(new Uint8Array(zlib.gunzipSync(fs.readFileSync(path.join(pack, c.file))))) })));
+}
 const ort = require('onnxruntime-web');
 ort.env.wasm.numThreads = 1;
 
@@ -212,22 +220,40 @@ if (!rowPages.length) {
     // the recogniser on the JavaScript's own line images, and its output decoded
     const rec = await ort.InferenceSession.create(path.join(pack, 'recogniser.onnx'), { executionProviders: ['wasm'] });
     const chars = JSON.parse(fs.readFileSync(path.join(pack, 'recogniser_chars.json'), 'utf8'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8'));
+    const lm = packLM(pack, manifest);
+    if (manifest.lm) {
+      // the language model itself: every distribution sums to one, and the odds it gives are the reference's (lm.json)
+      const probs = (ctx) => { let s = 0; for (let k = 0; k < lm.symbols.length; k++) s += Math.exp(lm.logp(ctx, k)); return s; };
+      const sums = [[], [lm.symbol('क')], [lm.symbol('अ'), lm.symbol('म'), lm.symbol('ृ')], [0, lm.symbol('ध'), lm.symbol('र'), lm.symbol('्'), lm.symbol('म'), lm.symbol('क')]].map(probs);
+      T.check('the pack\'s language model loaded (' + manifest.lm.components.map((c) => c.name).join(' + ') + '): P(next letter | context) sums to one for every context tried (within the thousandth of a nat its tables keep)', sums.every((s) => Math.abs(s - 1) < 2e-3), sums);
+    } else T.skip('the pack\'s language model', 'none in ' + manifest.pack);
     for (const j of jobs) {
-      let worst = 0, same = 0, confWorst = 0;
-      const differ = [];
+      let worst = 0, same = 0, confWorst = 0, greedySame = 0, portSame = 0, portConf = 0;
+      const differ = [], portDiffer = [];
       for (const lj of j.lineJobs) {
         const out = await rec.run({ x: new ort.Tensor('float32', lj.x.data, [1, 1, lj.x.height, lj.x.width]) });
         const [, t, c] = out.y.dims;
         const ref = readF32(path.join(j.d, '08_logits_' + lj.name + '.f32'));
         worst = Math.max(worst, maxDiff(out.y.data, ref));
-        const got = RD.decode(out.y.data, t, c, chars);
         const [box, k] = [lj.name.replace(/_\d+$/, ''), +lj.name.slice(-2) - 1];
         const want = j.text[box][k];
-        if (got.text === want.text) same++; else differ.push(lj.name);
-        confWorst = Math.max(confWorst, Math.abs(got.conf - want.conf));
+        if (RD.decode(out.y.data, t, c, chars).text === RD.decode(ref, t, c, chars).text) greedySame++;
+        if (lm) {
+          const port = RL.decode(ref, t, c, chars, lm, pipeline.lm);
+          if (port.text === want.text) portSame++; else portDiffer.push(lj.name);
+          portConf = Math.max(portConf, Math.abs(port.conf - want.conf));
+        }
+        const got = lm ? RL.decode(out.y.data, t, c, chars, lm, pipeline.lm) : RD.decode(out.y.data, t, c, chars);
+        if (got.text === want.text) { same++; confWorst = Math.max(confWorst, Math.abs(got.conf - want.conf)); } else differ.push(lj.name);
       }
-      T.check(j.page + ': recogniser logits on ' + j.lineJobs.length + ' lines within 1e-3 of the reference (largest ' + worst.toExponential(1) + ')', worst <= 1e-3, worst);
-      T.check(j.page + ': decoded text identical on ' + same + ' of ' + j.lineJobs.length + ' lines, confidence within 0.01 (largest difference ' + confWorst.toFixed(4) + ')', same === j.lineJobs.length && confWorst <= 0.01, differ);
+      const n = j.lineJobs.length;
+      T.check(j.page + ': recogniser logits on ' + n + ' lines within 1e-3 of the reference (largest ' + worst.toExponential(1) + ')', worst <= 1e-3, worst);
+      T.check(j.page + ': the runtime\'s logits read greedily give the reference\'s greedy text on all ' + n + ' lines', greedySame === n, greedySame);
+      if (lm) T.check(j.page + ': the language-model search on the reference\'s own logits gives its text on all ' + n + ' lines, confidence within 0.01 (largest difference ' + portConf.toFixed(4) + ')', portSame === n && portConf <= 0.01, portDiffer);
+      // the runtime's logits differ from the reference's in the fifth decimal; a beam search may then tip between two
+      // readings of nearly equal score, so a few lines may differ: not more than one in eight
+      T.check(j.page + ': decoded text' + (lm ? ' (with the language model)' : '') + ' on the runtime\'s logits identical on ' + same + ' of ' + n + ' lines' + (lm ? ' (at least seven of eight)' : '') + ', confidence within 0.01 where identical (largest difference ' + confWorst.toFixed(4) + ')', (lm ? same >= Math.ceil(7 * n / 8) : same === n) && confWorst <= 0.01, differ);
     }
 
     // the whole side at once (recogpage.js), from the page's pixels to the text of its rows, the networks run here
@@ -237,8 +263,7 @@ if (!rowPages.length) {
       segment: async (x, h, W) => (await session.run({ x: new ort.Tensor('float32', x, [1, 1, h, W]) })).y.data,
       recognise: async (x, h, w) => { const y = (await rec.run({ x: new ort.Tensor('float32', x, [1, 1, h, w]) })).y; return { data: y.data, T: y.dims[1], C: y.dims[2] }; },
     };
-    const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8'));
-    const packData = { P: pipeline, chars, S: JSON.parse(fs.readFileSync(path.join(pack, 'spacer.json'), 'utf8')), threshold: manifest.models.spacer.threshold };
+    const packData = { P: pipeline, chars, S: JSON.parse(fs.readFileSync(path.join(pack, 'spacer.json'), 'utf8')), threshold: manifest.models.spacer.threshold, lm };
     // as the worker does: a spacer of any length a window at a time, one of a fixed length in batches
     const spLen = typeof manifest.models.spacer.input.shape[1] === 'number' ? manifest.models.spacer.input.shape[1] : null;
     if (sp && spLen) nets.spaceBatch = ctx.window.ME.RecogSpace.ortBatchNetwork(ort, sp, packData.S, spLen);
@@ -252,12 +277,15 @@ if (!rowPages.length) {
       const want = j.text, got = res.boxes;
       const sameBoxes = Object.keys(got).sort().join() === Object.keys(want).sort().join();
       let rowsN = 0, same = 0;
-      for (const b of Object.keys(want)) (want[b] || []).forEach((l, k) => { rowsN++; if (got[b] && got[b][k] && got[b][k].text === l.text) same++; });
-      T.check(j.page + ': the whole side from its pixels (' + ms + ' ms on one thread: ' + Object.entries(res.times).map(([k, v]) => k + ' ' + v).join(', ') + '): ' + same + ' of ' + rowsN + ' rows read as the reference reads them', sameBoxes && same === rowsN && Object.values(got).every((rs, i) => rs.length === Object.values(want)[i].length), { boxes: Object.keys(got), times: res.times });
+      const agreed = {};      // blocks whose every row is read as the reference reads it
+      for (const b of Object.keys(want)) { agreed[b] = true; (want[b] || []).forEach((l, k) => { rowsN++; if (got[b] && got[b][k] && got[b][k].text === l.text) same++; else agreed[b] = false; }); }
+      const enough = lm ? same >= Math.ceil(7 * rowsN / 8) : same === rowsN;     // as above: a beam search on logits a shade apart
+      T.check(j.page + ': the whole side from its pixels (' + ms + ' ms on one thread: ' + Object.entries(res.times).map(([k, v]) => k + ' ' + v).join(', ') + '): ' + same + ' of ' + rowsN + ' rows read as the reference reads them' + (lm ? ' (at least seven of eight)' : ''), sameBoxes && enough && Object.values(got).every((rs, i) => rs.length === Object.values(want)[i].length), { boxes: Object.keys(got), times: res.times });
       if (spacing) {
         const ref = JSON.parse(fs.readFileSync(path.join(j.d, '10_spaced.json'), 'utf8'));
-        const bad = Object.keys(ref).filter((b) => !got[b] || got[b].map((r) => r.spaced).join('').replace(/\s+/g, ' ').trim() !== ref[b].replace(/\s+/g, ' ').trim());
-        T.check(j.page + ': word spaces as the reference puts them, given back to the rows (' + Object.keys(ref).length + ' blocks)', !bad.length, bad);
+        const blocks = Object.keys(ref).filter((b) => agreed[b]);
+        const bad = blocks.filter((b) => !got[b] || got[b].map((r) => r.spaced).join('').replace(/\s+/g, ' ').trim() !== ref[b].replace(/\s+/g, ' ').trim());
+        T.check(j.page + ': word spaces as the reference puts them, given back to the rows (' + blocks.length + ' of ' + Object.keys(ref).length + ' blocks read as the reference reads them)', !bad.length, bad);
       }
     }
   }

@@ -80,7 +80,10 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       return { pack: rec.pack, bytes: rec.bytes, variant: kept && kept.runtime.variant, steps: steps.length, keys: kept && kept.keys.length };
     }, url);
     const index = JSON.parse(fs.readFileSync(path.join(SITE, 'index.json'), 'utf8'));
-    T.check('the pack fetched from the site, checked and kept (' + got.pack + ', ' + (got.bytes / 1e6).toFixed(1) + ' MB, runtime for ' + got.variant + ')', got.pack === index.latest && got.keys === 8 && got.steps > 8, got);
+    // kept: three models, three parameter files, the runtime's two, and the language model's files where the pack has them
+    const latestMan = JSON.parse(fs.readFileSync(path.join(SITE, index.packs.find((p) => p.id === index.latest).manifest), 'utf8'));
+    const nKeys = 8 + ((latestMan.lm && latestMan.lm.components) || []).length;
+    T.check('the pack fetched from the site, checked and kept (' + got.pack + ', ' + (got.bytes / 1e6).toFixed(1) + ' MB, runtime for ' + got.variant + (nKeys > 8 ? ', with its language model' : '') + ')', got.pack === index.latest && got.keys === nKeys && got.steps > 8, got);
     const bad = await page.evaluate(async (url) => {
       try { await ME.RecogPack.install(url + 'tampered/'); return { refused: false }; } catch (e) { return { refused: /checksum/.test(e.message), msg: e.message, still: (await ME.RecogPack.installed()).source }; }
     }, url);
@@ -103,11 +106,17 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
           r.ms = Math.round(performance.now() - t0);
           return r;
         }, Buffer.from(png.data).toString('base64'), png.width, png.height, png.channels, pg.layout);
-        const rows = sameRows(res.boxes, pg.text), spaces = sameSpaces(res.boxes, pg.spaced);
+        // with a language model in the pack, a beam search on logits a shade apart from the reference's may tip a
+        // row or two between readings of nearly equal score: at least seven rows of eight, and spaces where all agree
         const n = Object.values(pg.text).reduce((a, x) => a + x.length, 0);
+        const lmPack = !!(await page.evaluate(async () => { const m = await ME.RecogPack.installed(); return m && m.manifest.lm; }));
+        const agree = Object.keys(pg.text).filter((b) => res.boxes[b] && res.boxes[b].length === pg.text[b].length && res.boxes[b].every((r, k) => r.text === pg.text[b][k].text));
+        const sameN = Object.keys(pg.text).reduce((a, b) => a + (res.boxes[b] ? res.boxes[b].filter((r, k) => pg.text[b][k] && r.text === pg.text[b][k].text).length : 0), 0);
+        const rows = lmPack ? Object.keys(pg.text).every((b) => res.boxes[b] && res.boxes[b].length === pg.text[b].length) && sameN >= Math.ceil(7 * n / 8) : sameRows(res.boxes, pg.text);
+        const spaces = lmPack ? agree.every((b) => sameSpaces({ [b]: res.boxes[b] }, { [b]: pg.spaced[b] })) : sameSpaces(res.boxes, pg.spaced);
         const what = pg.page + (gpu ? ' on WebGPU' : ' on WebAssembly') + ' in the worker (' + res.ms + ' ms: ' + Object.entries(res.times).map(([k, v]) => k + ' ' + v).join(', ') + '; ' + Object.entries(res.backends).map(([k, v]) => k + ' ' + v).join(', ') + ')';
         if (gpu && !(rows && spaces)) T.skip(what, 'differs from the reference on WebGPU (its arithmetic is not the CPU\'s): reported, not failed');
-        else T.check(what + ': ' + n + ' rows and their word spaces as the reference reads them', rows && spaces, { rows, spaces });
+        else T.check(what + ': ' + (lmPack ? sameN + ' of ' + n + ' rows (with the language model; at least seven of eight) and the word spaces of the blocks that agree' : n + ' rows and their word spaces') + ' as the reference reads them', rows && spaces, { rows, spaces, sameN, n });
       }
       await page.evaluate(() => { window.recogW.close(); window.recogW = null; });
     }
@@ -125,7 +134,7 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       return { pack: rec.pack, source: rec.source, variant: rec.runtime.variant };
     }, url, (() => {
       const out = ['index.json'];
-      const walk = (d) => { for (const f of fs.readdirSync(path.join(SITE, d))) { const r = d ? d + '/' + f : f; if (fs.statSync(path.join(SITE, r)).isDirectory()) walk(r); else if (/\.(json|onnx|mjs|wasm)$/.test(f) && r !== 'index.json') out.push(r); } };
+      const walk = (d) => { for (const f of fs.readdirSync(path.join(SITE, d))) { const r = d ? d + '/' + f : f; if (fs.statSync(path.join(SITE, r)).isDirectory()) walk(r); else if (/\.(json|onnx|mjs|wasm|gz)$/.test(f) && r !== 'index.json') out.push(r); } };
       walk('');
       return out;
     })());

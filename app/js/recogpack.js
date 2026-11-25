@@ -24,9 +24,11 @@
    contribution(url)                  -> the site's contribute.json: where contributed lines go (a GitHub repository whose
                                       issues take them) and the public key that seals them; the last one read is kept,
                                       for a contribution made offline
+   A pack of pipeline version 2 carries a language model (manifest.lm.components: files read by recoglm.js, mixed by
+   their weights); load() hands its files on, still compressed.
    Kept in IndexedDB (database manuscribe-recognition: files, meta), apart from the projects' own database. */
 (function (ME) {
-  const CODE = { pipeline: [1], spacer: [1], runtimes: ['onnxruntime-web-1.31.1'] };
+  const CODE = { pipeline: [1, 2], spacer: [1], runtimes: ['onnxruntime-web-1.31.1'] };     // pipeline 2: a pack may carry a language model
   const SOURCE = 'https://drdhaval2785.github.io/manuscribe-models/';
   const PREFS = 'manuscribe.recognition';
   const MODELS = ['segmenter', 'recogniser', 'spacer'];
@@ -81,6 +83,7 @@
   function packFiles(m) {
     const out = MODELS.map((k) => ({ name: m.models[k].file, sha256: m.models[k].sha256, bytes: m.models[k].bytes }));
     for (const [name, h] of Object.entries(m.files || {})) out.push({ name, sha256: typeof h === 'string' ? h : h.sha256, bytes: typeof h === 'string' ? null : h.bytes });
+    for (const c of (m.lm && m.lm.components) || []) out.push({ name: c.file, sha256: c.sha256, bytes: c.bytes });
     return out;
   }
 
@@ -230,7 +233,10 @@
     const text = async (key) => new TextDecoder().decode(await get(key));
     const man = m.manifest, models = {};
     for (const k of MODELS) models[k] = await get('pack/' + man.models[k].file);
+    // the language model's files, still compressed: the worker decompresses and reads them (RecogLM)
+    const lm = man.lm && man.lm.components ? await Promise.all(man.lm.components.map(async (c) => ({ name: c.name, weight: c.weight, data: await get('pack/' + c.file) }))) : null;
     return {
+      lm,
       ortJs: await text('runtime/js'), wasm: await get('runtime/wasm'), gpu: m.runtime.variant === 'webgpu' && prefs().backend !== 'wasm',
       models, P: JSON.parse(await text('pack/pipeline.json')), chars: JSON.parse(await text('pack/' + (man.models.recogniser.chars || 'recogniser_chars.json'))),
       S: JSON.parse(await text('pack/spacer.json')), threshold: man.models.spacer.threshold, manifest: man, spacerLength: spacerLength(man),

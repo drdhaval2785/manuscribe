@@ -12,7 +12,9 @@
    start(bundle)             -> {read(page, layout, opts, onProgress) -> Promise<result>, close(), backends}
      bundle  {ortJs: the bundle's text, wasm: ArrayBuffer, gpu: whether to try WebGPU,
               models: {segmenter, recogniser, spacer: ArrayBuffer}, P, chars, S, threshold,
-              spacerLength: the fixed length of a spacer exported at one, else null}
+              spacerLength: the fixed length of a spacer exported at one, else null,
+              lm: [{name, weight, data: the model's file, gzipped}] or null (RecogLM reads them; lines are then
+              read with the language model)}
      page    {data, width, height, channels}; layout as Manuscribe names it; opts {space}
      result  RecogPage.run's, with the backend each network ran on */
 (function (ME) {
@@ -53,7 +55,12 @@
           ort.env.logLevel = 'error';
           await session('segmenter');
           await session('recogniser');
-          self.postMessage({ ready: true, backends });
+          if (cfg.lm && cfg.lm.length) {
+            const LM = self.ME.RecogLM;
+            cfg.lmModel = LM.mix(await Promise.all(cfg.lm.map(async (c) => ({ weight: c.weight, model: LM.load(await LM.gunzip(c.data)) }))));
+            cfg.lm = null;
+          }
+          self.postMessage({ ready: true, backends, lm: !!cfg.lmModel });
           return;
         }
         if (m.read) {
@@ -69,7 +76,7 @@
             else nets.space = RS.ortNetwork(ort, sp, cfg.S, null);
           }
           const res = await self.ME.RecogPage.run({ data: new Uint8Array(page.data), width: page.width, height: page.height, channels: page.channels }, layout, nets,
-            { P: cfg.P, chars: cfg.chars, S: cfg.S, threshold: cfg.threshold },
+            { P: cfg.P, chars: cfg.chars, S: cfg.S, threshold: cfg.threshold, lm: cfg.lmModel || null },
             Object.assign({}, opts, { progress: (stage, k, n) => self.postMessage({ progress: { stage, k, n } }) }));
           res.backends = Object.assign({}, backends);
           self.postMessage({ done: true, result: res });
@@ -111,8 +118,9 @@
       w.postMessage(msg, transfer || []);
     });
     const models = bundle.models;
-    const ready = ask({ init: { wasm: bundle.wasm, gpu: !!bundle.gpu, models, P: bundle.P, chars: bundle.chars, S: bundle.S, threshold: bundle.threshold, spacerLength: bundle.spacerLength || null, sessionOptions: bundle.sessionOptions || null } },
-      [bundle.wasm].concat(Object.values(models)));
+    const lm = bundle.lm || null;
+    const ready = ask({ init: { wasm: bundle.wasm, gpu: !!bundle.gpu, models, P: bundle.P, chars: bundle.chars, S: bundle.S, threshold: bundle.threshold, spacerLength: bundle.spacerLength || null, sessionOptions: bundle.sessionOptions || null, lm } },
+      [bundle.wasm].concat(Object.values(models), (lm || []).map((c) => c.data)));
     const api = {
       ready,
       backends: null,

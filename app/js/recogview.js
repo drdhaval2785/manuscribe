@@ -988,6 +988,7 @@
             U.el('li', null, 'Segmenter ' + runOf(man, 'segmenter') + (segMs ? ', learned from ' + segMs + ' manuscripts' : '')),
             U.el('li', null, 'Recogniser ' + runOf(man, 'recogniser') + (lineage ? ', trained ' + lineage : '') + '. It reads the hands it learned from well, others poorly.'),
             U.el('li', null, 'Word spacer ' + runOf(man, 'spacer') + (cards('spacer').texts ? ', learned from ' + cards('spacer').texts : '')),
+            man.lm && man.lm.components ? U.el('li', null, 'Language model: ' + man.lm.components.map((c) => c.name + ' (' + (c.order || 6) + '-gram of ' + (c.letters ? Math.round(c.letters / 1e6 * 10) / 10 + ' M letters' : 'text') + ', weight ' + c.weight + ')').join(' and ') + '. Lines are read with it: a doubtful letter is settled by how Sanskrit runs.') : U.el('li', null, 'No language model in this pack: lines are read letter by letter, as the recogniser sees them.'),
             U.el('li', null, 'Weights under CC BY-SA 4.0; ONNX Runtime Web ' + m.runtime.version + ' (' + m.runtime.licence + '), ' + (m.runtime.variant === 'webgpu' ? 'with WebGPU' : 'WebAssembly only'))));
       } else status.append(U.el('p', null, 'No recognition pack in this browser yet.'));
       const src = U.el('input', { type: 'text', value: Pack().source(), 'aria-label': 'Site of the recognition packs', 'data-recog': 'source' });

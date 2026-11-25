@@ -13,7 +13,8 @@
               as recogspace.js takes it, a window at a time (RecogSpace.ortNetwork); or spaceBatch([ids]) ->
               Promise<[logits]>, its windows run together (RecogSpace.ortBatchNetwork: for a spacer exported at a
               fixed length, where a window costs the whole length however few its letters)}
-     pack    {P: pipeline.json, chars: the recogniser's characters, S: spacer.json, threshold: the spacer's}
+     pack    {P: pipeline.json, chars: the recogniser's characters, S: spacer.json, threshold: the spacer's,
+              lm: the language model as RecogLM.mix gives it, or null: lines are then read with it (RecogLM.decode)}
      opts    {space: put in word spaces, progress(stage, k, n), untold: the lines segmented and the blocks they fall
               into found, the layout not given, and nothing read -> {untold: {box: rows}, lines, size, times}}
    `text` is the row as read, `conf` the mean probability of its letters (0-1); `spaced` the row with word spaces:
@@ -90,7 +91,7 @@
         say('read', done, n);
         const xi = RD.input(RD.cut(page.data, w, h, ch, baseline, outline, P), P);
         const y = await nets.recognise(xi.data, xi.height, xi.width);
-        const r = RD.decode(y.data, y.T, y.C, chars);
+        const r = pack.lm ? ME.RecogLM.decode(y.data, y.T, y.C, chars, pack.lm, P.lm) : RD.decode(y.data, y.T, y.C, chars);
         boxes[box].push({ baseline, outline, text: r.text, conf: r.conf / 100, letters: r.letters, pcts: r.pcts });
         done++;
       }
