@@ -212,15 +212,16 @@
 
   /* ---------- placing what was read ---------- */
 
-  // each letter's probability (a digit in tenths) for the text as placed: a space where the spacer put one, which it
-  // only ever adds; null where the two do not match
-  function alignLetters(text, letters) {
+  // each letter's probability (w characters a letter: a digit in tenths, or two in per cent) for the text as placed:
+  // spaces where the spacer put a space, which it only ever adds; null where the two do not match
+  function alignLetters(text, letters, w = 1) {
     if (typeof letters !== 'string') return null;
     let out = '', j = 0;
     for (const ch of text.split('')) {
-      if (/\s/.test(ch)) { out += ' '; continue; }
-      if (j >= letters.length) return null;
-      out += letters[j++];
+      if (/\s/.test(ch)) { out += ' '.repeat(w); continue; }
+      if (j + w > letters.length) return null;
+      out += letters.slice(j, j + w);
+      j += w;
     }
     return j === letters.length ? out : null;
   }
@@ -239,7 +240,7 @@
     for (const [box, rows] of Object.entries(res.boxes)) {
       if (!rows.length) continue;
       if (!boxes.includes(box)) { lost += rows.length; continue; }
-      regions.push({ id: box, type: box, lines: rows.map((r) => { const text = space && typeof r.spaced === 'string' ? r.spaced : r.text; return { text, conf: r.conf, confs: alignLetters(text, r.letters) }; }) });
+      regions.push({ id: box, type: box, lines: rows.map((r) => { const text = space && typeof r.spaced === 'string' ? r.spaced : r.text; return { text, conf: r.conf, confs: alignLetters(text, r.letters), pcts: alignLetters(text, r.pcts, 2) }; }) });
       names.push(box);
     }
     if (!regions.length) return { placed: 0, skipped: 0, lost, counts: 0 };

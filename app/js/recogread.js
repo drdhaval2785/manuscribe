@@ -128,9 +128,10 @@
   }
 
   // -> {text, conf: the mean probability of its letters in %, letters: each letter's probability in tenths, a digit
-  // for each UTF-16 unit of the letter ('0': under 0.1 ... '9': 0.9 and over), so that letters[k] goes with text[k]}
+  // for each UTF-16 unit of the letter ('0': under 0.1 ... '9': 0.9 and over), so that letters[k] goes with text[k],
+  // pcts: the same in whole per cent, two digits for each unit ('00' ... '99', 99 also for 100 %), pcts[2k, 2k+2] with text[k]}
   function decode(logits, T, C, chars) {
-    let text = '', sum = 0, kept = 0, prev = 0, letters = '';
+    let text = '', sum = 0, kept = 0, prev = 0, letters = '', pcts = '';
     for (let t = 0; t < T; t++) {
       const o = t * C;
       let best = 0;
@@ -142,10 +143,11 @@
         sum += 1 / z;
         kept++;
         letters += String(Math.min(9, Math.floor(10 / z))).repeat(chars[best - 1].length);
+        pcts += String(Math.min(99, Math.floor(100 / z))).padStart(2, '0').repeat(chars[best - 1].length);
       }
       prev = best;
     }
-    return { text, conf: 100 * (kept ? sum / kept : 0), letters };
+    return { text, conf: 100 * (kept ? sum / kept : 0), letters, pcts };
   }
 
   ME.RecogRead = { bandOf, cutLine, cut, input, decode, pairwise };

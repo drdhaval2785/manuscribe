@@ -135,6 +135,7 @@
           pg.proposed[box] = pg.proposed[box] || {};
           pg.proposed[box][i] = { text: tei, src: plan.src, conf: l.conf };
           if (typeof l.confs === 'string' && l.confs.length === l.text.length) pg.proposed[box][i].confs = l.confs;
+          if (typeof l.pcts === 'string' && l.pcts.length === 2 * l.text.length) pg.proposed[box][i].pcts = l.pcts;
           out.placed++;
         }
         const n = (pg.lines && pg.lines[box]) || p.layout.lines[box] || 0;
@@ -303,6 +304,71 @@
     }
     if (ranges.length) CSS.highlights.set(H.DOUBT, new Highlight(...ranges)); else CSS.highlights.delete(H.DOUBT);
     return ranges.length;
+  };
+
+  /* How sure the program was of one akṣara of a proposed line still as it proposed it (as H.doubt): the probability of
+     its least sure letter, in whole per cent from e.pcts (two digits a character), or only in tenths from e.confs for a
+     line read before pcts were kept (band: then pct is the tenth's lower end). Akṣaras as the editor counts them, a
+     conjunct one. el: the line's element; off: a place in its text (textContent); side 'before': the akṣara that ends
+     at the place (the caret stands after it; at the line's start, the first), 'at': the one that begins at or holds it.
+     -> {aksara, pct, band, letters: [[letter, pct]], span: [start, end]} or null */
+  H.confAt = function (p, label, el, off, side) {
+    const pg = p && label && p.pages[label];
+    if (!pg || !pg.proposed || !el || !el.dataset || el.dataset.box === undefined) return null;
+    const e = entryOf(pg, el.dataset.box, +el.dataset.i);
+    if (!e || e.accepted || typeof e.confs !== 'string') return null;
+    const text = el.textContent;
+    if (((pg.boxes[el.dataset.box] || [])[+el.dataset.i] || '') !== e.text || text.length !== e.confs.length) return null;
+    const pc = typeof e.pcts === 'string' && e.pcts.length === 2 * text.length ? e.pcts : null;
+    const next = (a) => (ME.Editor && ME.Editor.nextAksaraEnd ? ME.Editor.nextAksaraEnd(text, a) : a + 1);
+    let span = null;
+    for (let a = 0; a < text.length && !span;) {
+      const b = Math.max(a + 1, next(a));
+      if (side === 'before' ? (off > a && off <= b) || (off === 0 && a === 0) : off >= a && off < b) span = [a, b];
+      a = b;
+    }
+    if (!span) return null;
+    const letters = [];
+    for (let k = span[0]; k < span[1]; k++) {
+      if (e.confs[k] === ' ' || /\s/.test(text[k])) continue;
+      letters.push([text[k], pc ? +pc.slice(2 * k, 2 * k + 2) : 10 * +e.confs[k]]);
+    }
+    if (!letters.length) return null;
+    return { aksara: text.slice(span[0], span[1]), pct: Math.min(...letters.map((x) => x[1])), band: !pc, letters, span };
+  };
+
+  // the place in a line's text (as textContent counts) of a DOM position inside it
+  const offsetIn = (el, node, off) => { const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, off); return r.toString().length; };
+  const lineOf = (n) => { const el = n && (n.nodeType === 1 ? n : n.parentElement); return el && el.closest ? el.closest('.line[data-box]') : null; };
+
+  // the akṣara the caret stands after, in the line it is in -> as H.confAt, or null
+  H.confAtCaret = function (p, label) {
+    const sel = typeof getSelection === 'function' ? getSelection() : null;
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+    const el = lineOf(sel.focusNode);
+    return el ? H.confAt(p, label, el, offsetIn(el, sel.focusNode, sel.focusOffset), 'before') : null;
+  };
+
+  // the akṣara under a point of the screen (the mouse) -> as H.confAt, or null
+  H.confAtPoint = function (p, label, x, y) {
+    let node = null, off = 0;
+    if (document.caretPositionFromPoint) { const c = document.caretPositionFromPoint(x, y); if (c) { node = c.offsetNode; off = c.offset; } }
+    else if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+    const el = lineOf(node);
+    if (!el) return null;
+    const o = offsetIn(el, node, off);
+    // the nearest place between letters: the akṣara under the point is the one before it or the one after it
+    for (const c of [H.confAt(p, label, el, o, 'at'), o > 0 ? H.confAt(p, label, el, o, 'before') : null]) {
+      if (!c) continue;
+      const nodes = [], walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(), at = 0; n; at += n.data.length, n = walk.nextNode()) nodes.push([n, at]);
+      const pos = (k) => { for (let j = nodes.length - 1; j >= 0; j--) if (nodes[j][1] <= k) return [nodes[j][0], Math.min(k - nodes[j][1], nodes[j][0].data.length)]; return null; };
+      const a = pos(c.span[0]), b = pos(c.span[1]);
+      if (!a || !b) continue;
+      const r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(b[0], b[1]);
+      for (const q of r.getClientRects()) if (x >= q.left - 1 && x <= q.right + 1 && y >= q.top - 2 && y <= q.bottom + 2) return c;
+    }
+    return null;
   };
 
   ME.HTR = H;

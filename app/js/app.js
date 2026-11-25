@@ -704,9 +704,30 @@
     updateStatus(pos);
   }
 
+  /* Beside the side's level: how sure the recogniser was of the akṣara under the mouse, else of the one the cursor
+     stands after, in a line it proposed and nobody has changed yet (HTR.confAt); hidden elsewhere. */
+  let hoverConf = null;
+  function showOcrConf() {
+    const host = $('ocr-conf'), e = entry();
+    if (!host) return;
+    const hover = hoverConf && e && hoverConf.label === e.label ? hoverConf : null;
+    const c = !App.project || !e || !ME.HTR ? null : hover || ME.HTR.confAtCaret(App.project, e.label);
+    host.hidden = !c;
+    host.textContent = '';
+    if (!c) return;
+    const pc = (v) => (c.band ? v + '–' + (v + 9) : String(v)) + ' %';
+    host.append('OCR', U.el('span', { class: 'ak' }, c.aksara), pc(c.pct));
+    const below = ME.HTR.doubtBelow();
+    host.classList.toggle('low', below > 0 && c.pct < 10 * below);
+    host.title = 'How sure the recogniser was of this akṣara' + (hover ? ' (under the mouse)' : ' (before the cursor)') + ': ' + pc(c.pct) + ', its least sure letter'
+      + (c.band ? ' (read before the exact figure was kept: in tenths only)' : '') + '. Letter by letter: ' + c.letters.map(([l, v]) => (/[ऀ-ःऺ-ॏॢॣ]/.test(l) ? '◌' + l : l) + ' ' + pc(v)).join(' · ');
+  }
+  App.showOcrConf = showOcrConf;
+
   function onCaret(pos, stack) {
     if (!App.project) return;
     updateStatus(pos, stack);
+    showOcrConf();
     const line = Editor.activeLine();
     if (line) PdfView.followX(ME.Follow.along(App.project, line, pos));
     if (App.project.ui.sidebarTab === 'tag') Commands.renderInspector($('tab-tag'), stack);
@@ -1536,6 +1557,20 @@
     };
     $('translit-badge').onclick = () => App.toggleTranslit();
     $('sel-proof').onchange = () => { const e = entry(); if (!App.project || !e) return; Model.setLevel(App.project, e.label, $('sel-proof').value); App.changed(); fillFolioSelect(); if (App.project.ui.sidebarTab === 'folio') App.refreshSidebar(); };
+    // the recogniser's confidence in the akṣara under the mouse (showOcrConf), looked up once a frame
+    let hoverAt = null;
+    $('editor-pane').addEventListener('mousemove', (ev) => {
+      if (!hoverAt) requestAnimationFrame(() => {
+        const at = hoverAt; hoverAt = null;
+        if (!at) return;
+        const e = entry();
+        const c = App.project && e && ME.HTR && ME.HTR.confAtPoint ? ME.HTR.confAtPoint(App.project, e.label, at.x, at.y) : null;
+        hoverConf = c ? Object.assign(c, { label: e.label }) : null;
+        showOcrConf();
+      });
+      hoverAt = { x: ev.clientX, y: ev.clientY };
+    });
+    $('editor-pane').addEventListener('mouseleave', () => { hoverAt = null; hoverConf = null; showOcrConf(); });
     // the line above or below, for a phone's keyboard, which has no arrows; the caret stays in the typing area
     for (const [id, dir] of [['btn-line-up', -1], ['btn-line-down', 1]]) {
       $(id).onpointerdown = (e) => e.preventDefault();

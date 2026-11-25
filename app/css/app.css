@@ -166,6 +166,10 @@ body.calibrating #pdf-pane { flex: 1 1 auto; height: auto !important; }
 /* how far the folio side's text has got, changed without leaving the typing area */
 #statusbar select.proof-level { font: 600 11px var(--ui); border: 1px solid var(--line-2); background: #fff; color: var(--muted); border-radius: 10px; padding: 1px 6px; max-width: 200px; cursor: pointer; }
 #statusbar select.proof-level.set { color: var(--ink); }
+/* how sure the recogniser was of the akṣara at the cursor or under the mouse, in a line it proposed */
+.ocr-conf { font: 600 11px var(--ui); border: 1px solid var(--line-2); background: #fff; color: var(--muted); border-radius: 10px; padding: 0 8px; white-space: nowrap; cursor: default; }
+.ocr-conf .ak { font: 14px var(--script); color: var(--ink); margin: 0 3px; }
+.ocr-conf.low { background: #fff3d6; border-color: #e0b060; color: #8a4b00; }
 .ed-zoom-ctl { display: inline-flex; border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; background: #fff; }
 .sbtn { border: 0; background: transparent; padding: 1px 7px; cursor: pointer; color: var(--ink); font-size: 12px; }
 .sbtn.zoom { min-width: 44px; font-variant-numeric: tabular-nums; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }

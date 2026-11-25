@@ -91,7 +91,7 @@
         const xi = RD.input(RD.cut(page.data, w, h, ch, baseline, outline, P), P);
         const y = await nets.recognise(xi.data, xi.height, xi.width);
         const r = RD.decode(y.data, y.T, y.C, chars);
-        boxes[box].push({ baseline, outline, text: r.text, conf: r.conf / 100, letters: r.letters });
+        boxes[box].push({ baseline, outline, text: r.text, conf: r.conf / 100, letters: r.letters, pcts: r.pcts });
         done++;
       }
     }
