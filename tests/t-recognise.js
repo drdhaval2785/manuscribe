@@ -218,15 +218,18 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       }
       ME.RecogPack.savePrefs({ doubt: 0 }); H.doubt(p, e.label); const off = hl();
       ME.RecogPack.savePrefs({ doubt: 9 }); H.doubt(p, e.label); const at90 = hl();
+      // at 90 %: the runs of letters under 90 % in the lines still unchanged (the edited one has lost its marks; runs
+      // under 70 % a letter or two apart join into one, so there may be fewer runs than at 70 %, never fewer letters)
+      const want90 = shown.filter(([i]) => !withMarks || i !== withMarks[0]).reduce((a, [, x]) => a + runs(x, 9), 0);
       ME.RecogPack.savePrefs({ doubt: 7 }); H.doubt(p, e.label);
       const other = shown.find(([i, x]) => (!withMarks || i !== withMarks[0]) && runs(x, 7) > 0);
       if (other) { H.accept(p, e.label, 'main', +other[0]); H.doubt(p, e.label); afterAccept = { got: hl(), want: want - (withMarks ? runs(withMarks[1], 7) : 0) - runs(other[1], 7) }; }
       const lowShare = entries.reduce((a, [, x]) => a + [...x.confs].filter((c) => c !== ' ' && +c < 7).length, 0) / entries.reduce((a, [, x]) => a + x.confs.replace(/ /g, '').length, 0);
-      return { lines: entries.length, aligned, pcts, want, first, afterEdit, afterAccept, off, at90, lowShare: Math.round(1000 * lowShare) / 10, api: typeof Highlight !== 'undefined' && !!CSS.highlights };
+      return { lines: entries.length, aligned, pcts, want, first, afterEdit, afterAccept, off, at90, want90, lowShare: Math.round(1000 * lowShare) / 10, api: typeof Highlight !== 'undefined' && !!CSS.highlights };
     });
     T.check('every letter read keeps its probability, letter for letter with the text placed (word spaces lined up), in tenths and in whole per cent; the ones under 70 % are marked (' + doubt.want + ' run(s), ' + doubt.lowShare + ' % of the letters), a line edited or accepted loses its marks, the setting turns them off or to 90 %',
       doubt.api && doubt.aligned && doubt.pcts && doubt.first === doubt.want && (!doubt.afterEdit || doubt.afterEdit.got === doubt.afterEdit.want) && (!doubt.afterAccept || doubt.afterAccept.got === doubt.afterAccept.want)
-        && doubt.off === 0 && doubt.at90 >= doubt.want, doubt);
+        && doubt.off === 0 && doubt.at90 === doubt.want90, doubt);
     T.check('Recognise is a button on the scan\'s toolbar; Calibrate a plain one, still there to correct blocks recognition found; and blocks found so never count as drawn for the segmenter',
       read.toolbar && !/accent/.test(read.calibrateClass) && read.calibrateShown && /found by recognition/.test(read.segmenter || ''), read);
 
