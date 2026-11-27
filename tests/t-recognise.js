@@ -22,7 +22,7 @@ const FIXTURES = path.resolve(ROOT, '..', '..', 'lexicon_manuscripts', 'manuscri
 // a key of the test's own, published as the site's contribute.json
 const KEY = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 const SPKI = KEY.publicKey.export({ type: 'spki', format: 'der' });
-const CONTRIBUTE = { schema: 1, inbox: 'test-owner/test-inbox', email: 'maintainer@example.org', wordings: ['1', '2'], sides: ['2'], script: 'sa-Deva',
+const CONTRIBUTE = { schema: 1, inbox: 'test-owner/test-inbox', email: 'maintainer@example.org', wordings: ['3'], sides: ['3'], script: 'sa-Deva',
   key: { id: crypto.createHash('sha256').update(SPKI).digest('hex').slice(0, 16), alg: 'RSA-OAEP-256+A256GCM', spki: SPKI.toString('base64') } };
 // what msocr.seal and the inbox do, by OpenSSL: the AES key unwrapped, the lines opened (the tag is GCM's last 16 bytes)
 function openSealed(seal, sealed) {
@@ -201,8 +201,19 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       // and in whole per cent, two digits a letter, the tenth of each being the letter's digit in confs
       const pcts = entries.every(([, x]) => typeof x.pcts === 'string' && x.pcts.length === 2 * x.confs.length
         && [...x.confs].every((c, k) => (c === ' ' ? x.pcts.slice(2 * k, 2 * k + 2) === '  ' : Math.floor(+x.pcts.slice(2 * k, 2 * k + 2) / 10) === +c)));
-      // the runs of letters under 70 % expected in the lines shown, as unchanged and not accepted
-      const runs = (x, below) => { let n = 0; for (let k = 0; k < x.confs.length; k++) if (x.confs[k] !== ' ' && +x.confs[k] < below && (k === 0 || x.confs[k - 1] === ' ' || +x.confs[k - 1] >= below)) n++; return n; };
+      // the runs of akṣaras with a letter under 70 % expected in the lines shown, as unchanged and not accepted (an
+      // akṣara is marked whole; a space ends a run)
+      const runs = (x, below) => {
+        let n = 0, prev = false;
+        for (let a = 0; a < x.text.length;) {
+          const b = Math.max(a + 1, ME.Editor.nextAksaraEnd(x.text, a));
+          let low = false;
+          for (let k = a; k < b; k++) low = low || (x.confs[k] !== ' ' && +x.confs[k] < below);
+          if (low && !prev) n++;
+          prev = low; a = b;
+        }
+        return n;
+      };
       const shown = entries.filter(([i]) => ME.Editor.lineEl('main', +i));
       const want = shown.reduce((a, [, x]) => a + runs(x, 7), 0);
       const hl = () => (CSS.highlights.get(H.DOUBT) || { size: 0 }).size;
@@ -218,8 +229,8 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       }
       ME.RecogPack.savePrefs({ doubt: 0 }); H.doubt(p, e.label); const off = hl();
       ME.RecogPack.savePrefs({ doubt: 9 }); H.doubt(p, e.label); const at90 = hl();
-      // at 90 %: the runs of letters under 90 % in the lines still unchanged (the edited one has lost its marks; runs
-      // under 70 % a letter or two apart join into one, so there may be fewer runs than at 70 %, never fewer letters)
+      // at 90 %: the runs of akṣaras with a letter under 90 % in the lines still unchanged (the edited one has lost its
+      // marks; runs under 70 % an akṣara or two apart join into one, so there may be fewer runs than at 70 %, never fewer akṣaras)
       const want90 = shown.filter(([i]) => !withMarks || i !== withMarks[0]).reduce((a, [, x]) => a + runs(x, 9), 0);
       ME.RecogPack.savePrefs({ doubt: 7 }); H.doubt(p, e.label);
       const other = shown.find(([i, x]) => (!withMarks || i !== withMarks[0]) && runs(x, 7) > 0);
@@ -227,7 +238,7 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       const lowShare = entries.reduce((a, [, x]) => a + [...x.confs].filter((c) => c !== ' ' && +c < 7).length, 0) / entries.reduce((a, [, x]) => a + x.confs.replace(/ /g, '').length, 0);
       return { lines: entries.length, aligned, pcts, want, first, afterEdit, afterAccept, off, at90, want90, lowShare: Math.round(1000 * lowShare) / 10, api: typeof Highlight !== 'undefined' && !!CSS.highlights };
     });
-    T.check('every letter read keeps its probability, letter for letter with the text placed (word spaces lined up), in tenths and in whole per cent; the ones under 70 % are marked (' + doubt.want + ' run(s), ' + doubt.lowShare + ' % of the letters), a line edited or accepted loses its marks, the setting turns them off or to 90 %',
+    T.check('every letter read keeps its probability, letter for letter with the text placed (word spaces lined up), in tenths and in whole per cent; the akṣaras with a letter under 70 % are marked whole (' + doubt.want + ' run(s), ' + doubt.lowShare + ' % of the letters), a line edited or accepted loses its marks, the setting turns them off or to 90 %',
       doubt.api && doubt.aligned && doubt.pcts && doubt.first === doubt.want && (!doubt.afterEdit || doubt.afterEdit.got === doubt.afterEdit.want) && (!doubt.afterAccept || doubt.afterAccept.got === doubt.afterAccept.want)
         && doubt.off === 0 && doubt.at90 === doubt.want90, doubt);
     T.check('Recognise is a button on the scan\'s toolbar; Calibrate a plain one, still there to correct blocks recognition found; and blocks found so never count as drawn for the segmenter',
@@ -236,7 +247,7 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     // ---- consent: the text approved; a draft could not be answered
     const shipped = await page.evaluate(() => ({ v: ME.RecogView.CONSENT.version, ok: ME.RecogView.CONSENT.approved, text: ME.RecogView.CONSENT.paragraphs.join(' ') }));
     T.check('the consent text is approved (version ' + shipped.v + '): lines and whole folio sides, kept to their language and script, the inbox and the maintainer\'s address, and models trained before a withdrawal remain',
-      shipped.v === '2' && shipped.ok && /whole folio sides|that whole side/.test(shipped.text) && /never mixed/.test(shipped.text) && /drdhaval2785\/manuscribe-contributions/.test(shipped.text) && /drdhaval2785@gmail\.com/.test(shipped.text) && /remain, and are not withdrawn/.test(shipped.text), shipped);
+      shipped.v === '3' && shipped.ok && /CC BY-NC-SA 4.0/.test(shipped.text) && /whole folio sides|that whole side/.test(shipped.text) && /never mixed/.test(shipped.text) && /drdhaval2785\/manuscribe-contributions/.test(shipped.text) && /drdhaval2785@gmail\.com/.test(shipped.text) && /remain, and are not withdrawn/.test(shipped.text), shipped);
     const draft = await page.evaluate(async () => {
       const C = ME.RecogView.CONSENT, was = C.approved;
       C.approved = false;
@@ -307,7 +318,7 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
     T.check('one sealed package saved (' + one.name + '): contribution.json in the clear (its id, the name, the count, the consent) and sealed.bin, no line\'s text in the clear',
       saved.length === 1 && sentRun && one.name === 'manuscribe-contribution-' + about.id + '.zip' && one.names.join() === 'contribution.json,sealed.bin' && about.version === 2 && about.sealed === true
         && about.id === 'c' + about.made.slice(0, 10).replace(/-/g, '') + '-' + sha.slice(0, 12) && about.seal.sha256 === sha && about.seal.bytes === sealedBytes.length && about.seal.key === CONTRIBUTE.key.id
-        && about.count === 2 && about.sides === 0 && about.consent.answer === 'yes' && about.wording.version === '2' && about.manuscript.script === 'sa-Deva' && about.consent.script === 'sa-Deva'
+        && about.count === 2 && about.sides === 0 && about.consent.answer === 'yes' && about.wording.version === '3' && about.manuscript.script === 'sa-Deva' && about.consent.script === 'sa-Deva'
         && about.inbox === CONTRIBUTE.inbox && !one.about.includes('संशोधितम्'),
       { name: one.name, names: one.names, about: Object.assign({}, about, { wording: undefined, seal: about.seal && { key: about.seal.key, bytes: about.seal.bytes } }) });
     let inner = null;

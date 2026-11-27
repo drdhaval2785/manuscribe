@@ -1356,7 +1356,7 @@
     // the browser sometimes leaves a <br> in an emptied line
     if (line.childNodes.length === 1 && line.firstChild.nodeName === 'BR') line.innerHTML = '';
     Editor.commit(line);
-    // a proposed line edited loses its marks of doubtful letters (htr.js)
+    // a proposed line edited loses its marks of doubtful akṣaras (htr.js)
     if (ME.HTR && ME.HTR.doubt && Editor.project && Editor.entry) ME.HTR.doubt(Editor.project, Editor.entry.label, folio);
   }
 

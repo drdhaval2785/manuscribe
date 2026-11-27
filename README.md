@@ -1084,7 +1084,9 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   from the models' site, about 45 MB once (30 MB where the browser has no WebGPU), checks every file against the
   checksum its manifest gives, and keeps them in this browser. It can also read a pack from a folder on disk (the
   site's folder, copied). After that recognition works offline, and from a copy of Manuscribe opened from disk.
-  The panel says what each model learned from; the weights are under CC BY-SA 4.0.
+  The panel says what each model learned from and the licence of each: from 27 November 2026 the segmenter, the
+  recogniser and the language model are under CC BY-NC-SA 4.0 and the word spacer under CC BY-SA 4.0 (earlier packs
+  CC BY-SA 4.0 throughout).
 - **Recognise** on the scan's toolbar (also in the Folio tab, Alt+J, or Ctrl+Alt+J if that is your modifier, and the
   palette); on a folio side with no text yet, **Recognise this side** is offered over the typing area, with **The whole
   manuscript…** beside it. The side's leaf is drawn from the PDF at the scale the models learned from (the leaf you
@@ -1112,8 +1114,9 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   calibrating; **Calibrate** stays, a plain button, to draw or correct them by hand. Counts and blocks found so are
   recognition's until you set them yourself, and only then do they vouch for the side when it is offered to train the
   segmenter.
-- **Doubtful letters marked.** Every letter read keeps the model's own probability for it, and the ones under a
-  threshold are put on a red ground in the proposed lines (their text black, like all proposed text), so that
+- **Doubtful akṣaras marked.** Every letter read keeps the model's own probability for it, and an akṣara with a letter
+  under a threshold is put on a red ground in the proposed lines, whole (a conjunct is one akṣara; Safari would not
+  paint a mark on a virama or the second consonant of a conjunct alone), its text black like all proposed text, so that
   proofreading goes to them first; a line loses its marks
   once you change or accept it. Settings › Recognition chooses the threshold (under 50, 70, the default, or 90 %) or
   none. Measured on three manuscripts' corrected pages: under 70 %, 6–10 % of the letters are marked and about a third

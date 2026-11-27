@@ -38,27 +38,43 @@
   const MB = (b) => (b / 1e6).toFixed(1) + ' MB';
   const runOf = (man, k) => { const s = (man.models[k] && man.models[k].source) || ''; return s.split('/').slice(-2, -1)[0] || k; };
 
+  // the licences of a pack's weights, from its manifest: one, or each model's (packs made before 27 November 2026 name
+  // none per model: CC BY-SA 4.0 throughout)
+  const licencesOf = (man) => {
+    const lic = {};
+    for (const [k, m] of Object.entries((man && man.models) || {})) lic[k] = m.licence || 'CC BY-SA 4.0';
+    const lm = man && man.lm && (man.lm.components || []).find((c) => c.licence);
+    if (man && man.lm) lic['language model'] = lm ? lm.licence : 'CC BY-SA 4.0';
+    const by = {};
+    for (const [k, v] of Object.entries(lic)) (by[v] = by[v] || []).push(k);
+    const keys = Object.keys(by);
+    return keys.length <= 1 ? (keys[0] || 'CC BY-SA 4.0') : keys.map((v) => by[v].join(', ') + ' ' + v).join('; ');
+  };
+  RV.licencesOf = licencesOf;
+
   /* ---------- the consent text ---------- */
 
   RV.CONSENT = {
-    version: '2',
-    date: '2026-11-24',
+    version: '3',
+    date: '2026-11-27',
     // approved by the maintainer; the inbox takes packages given on the wordings its approved.json lists. Wording 1
-    // (24 November 2026) gave lines only; wording 2 gives folio sides as well, and names the language and script
+    // (24 November 2026) gave lines only; wording 2 gives folio sides as well, and names the language and script;
+    // wording 3 (27 November 2026) names the models' new licence, CC BY-NC-SA 4.0 (1 and 2 named CC BY-SA 4.0, and are
+    // no longer taken: no package was given on them)
     approved: true,
     title: 'Corrected lines and folio sides for training the recognition models',
     paragraphs: [
       'Manuscribe reads manuscript pages with recognition models that run in this browser. The models read better when they learn from pages that people have read and corrected. You may choose to give the corrected lines and folio sides of this manuscript for that.',
       'What is given: for each line that Manuscribe read and you accepted after correcting it, the image of that line as Manuscribe cut it from the scan, its text as you corrected it, the text the model first proposed, the folio side and block it belongs to, and which model read it. And for each folio side whose blocks you have drawn on that side itself (Calibrate, not a calibration applied to the whole manuscript) and whose every block holds as many lines of text as you gave it, the image of that whole side as Manuscribe draws it from the scan, the blocks you drew and the number of lines in each. With them, the language and script of the manuscript, as you state them below. Not the PDF itself, not your notes or markup, not other manuscripts.',
       'How it is given: never automatically. “Contribute corrected lines” makes a file (a zip) and seals the lines and the images in it, so that only the maintainer of the models can open them. You send it yourself, by attaching it to a new issue in the GitHub repository drdhaval2785/manuscribe-contributions, which Manuscribe opens for you (a GitHub account is needed). That issue is public: it shows the name you give this manuscript below, its language and script, the number of lines and folio sides, the date and wording of this consent, and your GitHub account, but not the lines or the images. They are kept by the maintainer of the models, who can be written to at drdhaval2785@gmail.com.',
-      'How it is used: only to train the line segmenter (which finds the lines on a page) and the line recogniser (which reads them), and only those for the manuscript’s own language and script: the lines and pages of one language or script are never mixed into the training of another’s. The models trained on them are published under CC BY-SA 4.0, and each model’s card names the manuscripts it learned from, this one included, by the name you give below. The images and their texts are not republished.',
+      'How it is used: only to train the line segmenter (which finds the lines on a page) and the line recogniser (which reads them), and only those for the manuscript’s own language and script: the lines and pages of one language or script are never mixed into the training of another’s. The models trained on them are published under CC BY-NC-SA 4.0 (free to share and adapt for non-commercial use, with attribution, under the same terms), and each model’s card names the manuscripts it learned from, this one included, by the name you give below. The images and their texts are not republished.',
       'Your rights: give them only if you have the right to share these images, of lines and of whole folio sides, for this purpose. Many libraries restrict the reuse of their scans.',
       'Withdrawing: you can withdraw at any time in the Manuscript tab; nothing more is contributed after that. For lines and sides already sent, Manuscribe opens a withdrawal request in the same repository (without a GitHub account, write to drdhaval2785@gmail.com): they are then deleted from the store of contributions and left out of every model trained after the withdrawal. Models already trained on them while the consent was given remain, and are not withdrawn.',
     ],
     question: 'May the corrected lines and folio sides of this manuscript be used to train the recognition models?',
     rights: 'I have the right to share these images (of lines and of whole folio sides) for this purpose.',
     // the wordings that give folio sides, not lines only
-    sides: ['2'],
+    sides: ['2', '3'],
   };
   // the language and script tags (BCP 47: language-Script) offered for a manuscript, as in the Manuscript tab
   RV.SCRIPTS = ['sa-Deva', 'sa-Shrd', 'sa-Newa', 'sa-Beng', 'sa-Gujr', 'sa-Mlym', 'sa-Telu', 'sa-Knda', 'sa-Taml', 'sa-Gran', 'sa-Orya', 'sa-Sidd', 'pra-Deva', 'pi-Sinh', 'hi-Deva', 'mr-Deva', 'ne-Deva', 'gu-Gujr', 'bn-Beng', 'ta-Taml', 'te-Telu', 'kn-Knda', 'ml-Mlym', 'or-Orya', 'pa-Guru', 'bo-Tibt'];
@@ -989,7 +1005,7 @@
             U.el('li', null, 'Recogniser ' + runOf(man, 'recogniser') + (lineage ? ', trained ' + lineage : '') + '. It reads the hands it learned from well, others poorly.'),
             U.el('li', null, 'Word spacer ' + runOf(man, 'spacer') + (cards('spacer').texts ? ', learned from ' + cards('spacer').texts : '')),
             man.lm && man.lm.components ? U.el('li', null, 'Language model: ' + man.lm.components.map((c) => c.name + ' (' + (c.order || 6) + '-gram of ' + (c.letters ? Math.round(c.letters / 1e6 * 10) / 10 + ' M letters' : 'text') + ', weight ' + c.weight + ')').join(' and ') + '. Lines are read with it: a doubtful letter is settled by how Sanskrit runs.') : U.el('li', null, 'No language model in this pack: lines are read letter by letter, as the recogniser sees them.'),
-            U.el('li', null, 'Weights under CC BY-SA 4.0; ONNX Runtime Web ' + m.runtime.version + ' (' + m.runtime.licence + '), ' + (m.runtime.variant === 'webgpu' ? 'with WebGPU' : 'WebAssembly only'))));
+            U.el('li', null, 'Weights under ' + licencesOf(man) + '; ONNX Runtime Web ' + m.runtime.version + ' (' + m.runtime.licence + '), ' + (m.runtime.variant === 'webgpu' ? 'with WebGPU' : 'WebAssembly only'))));
       } else status.append(U.el('p', null, 'No recognition pack in this browser yet.'));
       const src = U.el('input', { type: 'text', value: Pack().source(), 'aria-label': 'Site of the recognition packs', 'data-recog': 'source' });
       const list = U.el('div', { class: 'recog-list' });

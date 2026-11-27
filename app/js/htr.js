@@ -270,13 +270,16 @@
     }
   };
 
-  /* Letters the program was unsure of, in its proposed lines still as it proposed them: marked through the browser's
+  /* Akṣaras the program was unsure of, in its proposed lines still as it proposed them: marked through the browser's
      Highlight API (::highlight(recog-doubt) in app.css), the text of the lines untouched, so that proofreading goes to
-     them first. e.confs: a digit for each character of the proposed text, its probability in tenths, a space where the
+     them first. An akṣara (as the editor counts them: a conjunct is one, Editor.nextAksaraEnd) is marked whole when any
+     of its letters is under the threshold: the unit the status bar's figure gives (H.confAt), and one every engine
+     paints (WebKit paints nothing for a range over a virama or the second consonant of a conjunct alone, 27 November
+     2026). e.confs: a digit for each character of the proposed text, its probability in tenths, a space where the
      text has one. A line edited or accepted loses its marks. The threshold, in tenths, is Settings › Recognition's
      (RecogPack prefs.doubt: 0 off; 7, under 70 %, unless chosen otherwise). Measured with ft4 on three manuscripts'
-     corrected pages, 24 November 2026: under 70 %, 6-10 % of letters marked and 29-37 % of the mistakes among them;
-     under 90 %, 14-22 % and 51-58 %; under 50 %, 1 % and 10 %. -> the number of runs of letters marked */
+     corrected pages, 24 November 2026, by letter: under 70 %, 6-10 % of letters marked and 29-37 % of the mistakes
+     among them; under 90 %, 14-22 % and 51-58 %; under 50 %, 1 % and 10 %. -> the number of runs of akṣaras marked */
   H.DOUBT = 'recog-doubt';
   H.doubtBelow = () => { const v = ME.RecogPack && ME.RecogPack.prefs().doubt; return v === undefined || v === null ? 7 : +v; };
   H.doubt = function (p, label, root) {
@@ -292,14 +295,24 @@
         for (let n = walk.nextNode(), off = 0; n; off += n.data.length, n = walk.nextNode()) nodes.push([n, off]);
         const at = (k) => { for (let j = nodes.length - 1; j >= 0; j--) if (nodes[j][1] <= k) return [nodes[j][0], k - nodes[j][1]]; return null; };
         const low = (k) => e.confs[k] !== ' ' && +e.confs[k] < below;
-        for (let k = 0; k < e.confs.length; k++) {
-          if (!low(k)) continue;
-          let j = k;
-          while (j + 1 < e.confs.length && low(j + 1)) j++;
-          const a = at(k), b = at(j);
+        const text = el.textContent;
+        const next = (a) => (ME.Editor && ME.Editor.nextAksaraEnd ? ME.Editor.nextAksaraEnd(text, a) : a + 1);
+        // runs of akṣaras with a letter under the threshold, each run one range (a space ends a run)
+        let run = null;
+        const flush = () => {
+          if (!run) return;
+          const a = at(run[0]), b = at(run[1] - 1);
           if (a && b) { const r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(b[0], b[1] + 1); ranges.push(r); }
-          k = j;
+          run = null;
+        };
+        for (let a = 0; a < text.length;) {
+          const b = Math.max(a + 1, next(a));
+          let doubtful = false;
+          for (let k = a; k < b && !doubtful; k++) doubtful = low(k);
+          if (doubtful) { if (run && run[1] === a) run[1] = b; else { flush(); run = [a, b]; } } else flush();
+          a = b;
         }
+        flush();
       }
     }
     if (ranges.length) CSS.highlights.set(H.DOUBT, new Highlight(...ranges)); else CSS.highlights.delete(H.DOUBT);
