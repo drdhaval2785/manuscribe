@@ -370,18 +370,28 @@
     const el = lineOf(node);
     if (!el) return null;
     const o = offsetIn(el, node, off);
-    // the nearest place between letters: the akṣara under the point is the one before it or the one after it
+    // the nearest place between letters: the akṣara under the point is the one before it or the one after it. The one
+    // whose box holds the point wins; only when neither does is a pixel's slack allowed. (Boxes of neighbouring akṣaras
+    // can overlap by a fraction of a pixel, as WebKit draws them: with the slack first, the point on the right edge of
+    // ध went to र्म after it.) Between two that both hold it, the one whose middle is nearer.
+    const nodes = [], walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(), at = 0; n; at += n.data.length, n = walk.nextNode()) nodes.push([n, at]);
+    const pos = (k) => { for (let j = nodes.length - 1; j >= 0; j--) if (nodes[j][1] <= k) return [nodes[j][0], Math.min(k - nodes[j][1], nodes[j][0].data.length)]; return null; };
+    let best = null;
     for (const c of [H.confAt(p, label, el, o, 'at'), o > 0 ? H.confAt(p, label, el, o, 'before') : null]) {
       if (!c) continue;
-      const nodes = [], walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      for (let n = walk.nextNode(), at = 0; n; at += n.data.length, n = walk.nextNode()) nodes.push([n, at]);
-      const pos = (k) => { for (let j = nodes.length - 1; j >= 0; j--) if (nodes[j][1] <= k) return [nodes[j][0], Math.min(k - nodes[j][1], nodes[j][0].data.length)]; return null; };
       const a = pos(c.span[0]), b = pos(c.span[1]);
       if (!a || !b) continue;
       const r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(b[0], b[1]);
-      for (const q of r.getClientRects()) if (x >= q.left - 1 && x <= q.right + 1 && y >= q.top - 2 && y <= q.bottom + 2) return c;
+      for (const q of r.getClientRects()) {
+        if (y < q.top - 2 || y > q.bottom + 2) continue;
+        const out = x < q.left ? q.left - x : x > q.right ? x - q.right : 0;     // how far the point is outside the box
+        if (out > 1) continue;
+        const score = [out, Math.abs(x - (q.left + q.right) / 2)];
+        if (!best || score[0] < best.score[0] || (score[0] === best.score[0] && score[1] < best.score[1])) best = { c, score };
+      }
     }
-    return null;
+    return best ? best.c : null;
   };
 
   ME.HTR = H;
