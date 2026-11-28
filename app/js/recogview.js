@@ -258,7 +258,7 @@
     for (const [box, rows] of Object.entries(res.boxes)) {
       if (!rows.length) continue;
       if (!boxes.includes(box)) { lost += rows.length; continue; }
-      regions.push({ id: box, type: box, lines: rows.map((r) => { const text = space && typeof r.spaced === 'string' ? r.spaced : r.text; return { text, conf: r.conf, confs: alignLetters(text, r.letters), pcts: alignLetters(text, r.pcts, 2) }; }) });
+      regions.push({ id: box, type: box, lines: rows.map((r) => { const text = space && typeof r.spaced === 'string' ? r.spaced : r.text; return { text, conf: r.conf, confs: alignLetters(text, r.letters), pcts: alignLetters(text, r.pcts, 2), raw: r.raw }; }) });
       names.push(box);
     }
     if (!regions.length) return { placed: 0, skipped: 0, lost, counts: 0 };

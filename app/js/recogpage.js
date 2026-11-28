@@ -17,7 +17,9 @@
               lm: the language model as RecogLM.mix gives it, or null: lines are then read with it (RecogLM.decode)}
      opts    {space: put in word spaces, progress(stage, k, n), untold: the lines segmented and the blocks they fall
               into found, the layout not given, and nothing read -> {untold: {box: rows}, lines, size, times}}
-   `text` is the row as read, `conf` the mean probability of its letters (0-1); `spaced` the row with word spaces:
+   `text` is the row as read, `conf` the mean probability of its letters (0-1); `raw`, only where the row was read
+   with the language model and that changed it, the recogniser's own reading, letter by letter (greedy, unspaced);
+   `spaced` the row with word spaces:
    each block's rows are spaced as one text, as the reference does, and the spaces given back to the rows, a space
    that falls between two rows ending the first (a row that ends in a space ends a word; one that does not runs on).
 
@@ -92,7 +94,10 @@
         const xi = RD.input(RD.cut(page.data, w, h, ch, baseline, outline, P), P);
         const y = await nets.recognise(xi.data, xi.height, xi.width);
         const r = pack.lm ? ME.RecogLM.decode(y.data, y.T, y.C, chars, pack.lm, P.lm) : RD.decode(y.data, y.T, y.C, chars);
-        boxes[box].push({ baseline, outline, text: r.text, conf: r.conf / 100, letters: r.letters, pcts: r.pcts });
+        const row = { baseline, outline, text: r.text, conf: r.conf / 100, letters: r.letters, pcts: r.pcts };
+        // the recogniser's own reading, letter by letter, where the language model read the row otherwise
+        if (pack.lm) { const g = RD.decode(y.data, y.T, y.C, chars).text; if (g !== r.text) row.raw = g; }
+        boxes[box].push(row);
         done++;
       }
     }

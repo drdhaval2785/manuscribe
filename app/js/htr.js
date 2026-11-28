@@ -136,6 +136,8 @@
           pg.proposed[box][i] = { text: tei, src: plan.src, conf: l.conf };
           if (typeof l.confs === 'string' && l.confs.length === l.text.length) pg.proposed[box][i].confs = l.confs;
           if (typeof l.pcts === 'string' && l.pcts.length === 2 * l.text.length) pg.proposed[box][i].pcts = l.pcts;
+          // the recogniser's own reading (unspaced), where the language model changed it (recogpage.js: raw)
+          if (typeof l.raw === 'string' && l.raw !== l.text.replace(/\s+/g, '')) pg.proposed[box][i].raw = l.raw;
           out.placed++;
         }
         const n = (pg.lines && pg.lines[box]) || p.layout.lines[box] || 0;
@@ -260,13 +262,22 @@
 
   /* ---------- in the folio ---------- */
 
+  /* A proposed line not yet accepted has the class `proposed`. A line that came with each letter's probability
+     (Manuscribe's own recognition: e.confs) is not marked further: its doubtful akṣaras are (H.doubt), and the status
+     bar says how sure the recogniser was of the akṣara under the mouse or the cursor, and what it read where the
+     language model changed it (H.confAt). A line from another program, which says nothing letter by letter, is
+     marked whole (dotted, striped: app.css) and says where it came from when the mouse rests on it. */
   H.mark = function (folio, p, label) {
     const pg = p.pages[label];
     H.doubt(p, label, folio);
     if (!pg || !pg.proposed) return;
     for (const el of folio.querySelectorAll('.line[data-box]')) {
       const e = entryOf(pg, el.dataset.box, +el.dataset.i);
-      if (e && !e.accepted) { el.classList.add('proposed'); const s = H.source(p, e.src); el.title = 'Proposed by ' + (s ? H.describe(s) : 'a program') + (e.conf !== null && e.conf !== undefined ? ', confidence ' + Math.round(e.conf * 100) + '%' : '') + '. Correct it, then accept it (' + (ME.Commands ? ME.Commands.keyLabel('Y') : 'Alt+Y') + ').'; }
+      if (!e || e.accepted) continue;
+      el.classList.add('proposed');
+      if (typeof e.confs === 'string') { el.classList.add('letters'); el.title = ''; continue; }
+      const s = H.source(p, e.src);
+      el.title = 'Proposed by ' + (s ? H.describe(s) : 'a program') + (e.conf !== null && e.conf !== undefined ? ', confidence ' + Math.round(e.conf * 100) + '%' : '') + '. Correct it, then accept it (' + (ME.Commands ? ME.Commands.keyLabel('Y') : 'Alt+Y') + ').';
     }
   };
 
@@ -324,7 +335,8 @@
      line read before pcts were kept (band: then pct is the tenth's lower end). Akṣaras as the editor counts them, a
      conjunct one. el: the line's element; off: a place in its text (textContent); side 'before': the akṣara that ends
      at the place (the caret stands after it; at the line's start, the first), 'at': the one that begins at or holds it.
-     -> {aksara, pct, band, letters: [[letter, pct]], span: [start, end]} or null */
+     -> {aksara, pct, band, letters: [[letter, pct]], span: [start, end], lm: {lm, raw} where the language model changed
+     the recogniser's reading there (lmChange), else null} or null */
   H.confAt = function (p, label, el, off, side) {
     const pg = p && label && p.pages[label];
     if (!pg || !pg.proposed || !el || !el.dataset || el.dataset.box === undefined) return null;
@@ -347,8 +359,47 @@
       letters.push([text[k], pc ? +pc.slice(2 * k, 2 * k + 2) : 10 * +e.confs[k]]);
     }
     if (!letters.length) return null;
-    return { aksara: text.slice(span[0], span[1]), pct: Math.min(...letters.map((x) => x[1])), band: !pc, letters, span };
+    return { aksara: text.slice(span[0], span[1]), pct: Math.min(...letters.map((x) => x[1])), band: !pc, letters, span, lm: lmChange(e, text, span) };
   };
+
+  /* Where the language model changed the recogniser's reading: the line as proposed and the recogniser's own reading
+     (e.raw, unspaced) aligned akṣara by akṣara (edit distance, a conjunct one unit, spaces left out); a run of akṣaras
+     that differ is one change. -> {lm: the run as proposed, raw: as the recogniser read it} for the run that holds the
+     akṣara at `span` of `text` (or that follows it, where the language model left out what the recogniser read), or
+     null where the two agree there. हारइति, read हारिति: over र or इ, {lm: 'रइ', raw: 'रि'}. */
+  function lmChange(e, text, span) {
+    if (typeof e.raw !== 'string') return null;
+    const next = (s, a) => (ME.Editor && ME.Editor.nextAksaraEnd ? ME.Editor.nextAksaraEnd(s, a) : a + 1);
+    const units = (s) => { const out = []; for (let a = 0; a < s.length;) { const b = Math.max(a + 1, next(s, a)); out.push([a, b]); a = b; } return out; };
+    const A = units(text).filter(([a, b]) => /\S/.test(text.slice(a, b)));
+    const As = A.map(([a, b]) => text.slice(a, b).replace(/\s+/g, '')), Bs = units(e.raw).map(([a, b]) => e.raw.slice(a, b));
+    const n = As.length, m = Bs.length;
+    const D = Array.from({ length: n + 1 }, (_, i) => { const r = new Int32Array(m + 1); r[0] = i; return r; });
+    for (let j = 0; j <= m; j++) D[0][j] = j;
+    for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1, D[i - 1][j - 1] + (As[i - 1] === Bs[j - 1] ? 0 : 1));
+    const ops = [];          // [akṣara of the line or -1, akṣara of the recogniser's reading or -1, the same]
+    for (let i = n, j = m; i > 0 || j > 0;) {
+      if (i > 0 && j > 0 && D[i][j] === D[i - 1][j - 1] + (As[i - 1] === Bs[j - 1] ? 0 : 1)) { ops.push([i - 1, j - 1, As[i - 1] === Bs[j - 1]]); i--; j--; }
+      else if (i > 0 && D[i][j] === D[i - 1][j] + 1) { ops.push([i - 1, -1, false]); i--; }
+      else { ops.push([-1, j - 1, false]); j--; }
+    }
+    ops.reverse();
+    const at = A.findIndex(([a, b]) => a === span[0] && b === span[1]);
+    const k = at < 0 ? -1 : ops.findIndex((o) => o[0] === at);
+    if (k < 0) return null;
+    if (ops[k][2]) {
+      // the same here; but the recogniser may have read more right after it, which the language model left out
+      let t = k + 1, more = '';
+      while (t < ops.length && ops[t][0] < 0) more += Bs[ops[t++][1]];
+      return more ? { lm: As[at], raw: As[at] + more } : null;
+    }
+    let s = k, t = k;
+    while (s > 0 && !ops[s - 1][2]) s--;
+    while (t < ops.length - 1 && !ops[t + 1][2]) t++;
+    const run = ops.slice(s, t + 1);
+    return { lm: run.filter((o) => o[0] >= 0).map((o) => As[o[0]]).join(''), raw: run.filter((o) => o[1] >= 0).map((o) => Bs[o[1]]).join('') };
+  }
+  H.lmChange = lmChange;
 
   // the place in a line's text (as textContent counts) of a DOM position inside it
   const offsetIn = (el, node, off) => { const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, off); return r.toString().length; };

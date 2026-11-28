@@ -705,7 +705,8 @@
   }
 
   /* Beside the side's level: how sure the recogniser was of the akṣara under the mouse, else of the one the cursor
-     stands after, in a line it proposed and nobody has changed yet (HTR.confAt); hidden elsewhere. */
+     stands after, in a line it proposed and nobody has changed yet (HTR.confAt), and, where the language model changed
+     the recogniser's reading there, what the recogniser read; hidden elsewhere. */
   let hoverConf = null;
   function showOcrConf() {
     const host = $('ocr-conf'), e = entry();
@@ -721,6 +722,11 @@
     host.classList.toggle('low', below > 0 && c.pct < 10 * below);
     host.title = 'How sure the recogniser was of this akṣara' + (hover ? ' (under the mouse)' : ' (before the cursor)') + ': ' + pc(c.pct) + ', its least sure letter'
       + (c.band ? ' (read before the exact figure was kept: in tenths only)' : '') + '. Letter by letter: ' + c.letters.map(([l, v]) => (/[ऀ-ःऺ-ॏॢॣ]/.test(l) ? '◌' + l : l) + ' ' + pc(v)).join(' · ');
+    host.classList.toggle('lm', !!c.lm);
+    if (c.lm) {
+      host.append(' · recogniser', U.el('span', { class: 'ak' }, c.lm.raw || '—'));
+      host.title += '. The language model changed the recogniser’s reading here: the recogniser read ' + (c.lm.raw ? c.lm.raw : 'nothing') + ', the language model made it ' + (c.lm.lm || 'nothing') + ' (how Sanskrit runs, from the lexica texts and the transcribed manuscripts).';
+    }
   }
   App.showOcrConf = showOcrConf;
 

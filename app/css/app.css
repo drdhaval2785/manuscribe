@@ -170,6 +170,7 @@ body.calibrating #pdf-pane { flex: 1 1 auto; height: auto !important; }
 .ocr-conf { font: 600 11px var(--ui); border: 1px solid var(--line-2); background: #fff; color: var(--muted); border-radius: 10px; padding: 0 8px; white-space: nowrap; cursor: default; }
 .ocr-conf .ak { font: 14px var(--script); color: var(--ink); margin: 0 3px; }
 .ocr-conf.low { background: #fff3d6; border-color: #e0b060; color: #8a4b00; }
+.ocr-conf.lm { border-color: #7a6bb0; box-shadow: inset 0 0 0 1px #7a6bb0; }
 .ed-zoom-ctl { display: inline-flex; border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; background: #fff; }
 .sbtn { border: 0; background: transparent; padding: 1px 7px; cursor: pointer; color: var(--ink); font-size: 12px; }
 .sbtn.zoom { min-width: 44px; font-variant-numeric: tabular-nums; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
@@ -698,8 +699,9 @@ tr.cov-bad th .ly-abbr-tag, tr.cov-bad th, tr.cv-bad .cv-unit { color: #8a2a17; 
 .xv td input[type=text] { width: 100%; min-width: 12em; }
 .ct-conflict ul { margin: 6px 0 0; padding-left: 18px; }
 
-/* text proposed by a program, not yet accepted */
+/* text proposed by a program, not yet accepted; a line read here, letter by letter, is marked by its doubtful akṣaras only */
 .line.proposed { color: inherit; background: repeating-linear-gradient(90deg, rgba(120, 100, 180, 0.07) 0 6px, transparent 6px 12px); text-decoration: underline dotted rgba(90, 74, 138, 0.6); text-underline-offset: 4px; }
+.line.proposed.letters { background: none; text-decoration: none; }
 .proposed-panel { background: #f1edf8; border: 1px solid #d6cdea; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
 table.sources td .help { font-size: 11px; }
 .nv-ok { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: #e9f6ea; border: 1px solid #b9dcbc; font-size: 13px; }

@@ -1062,7 +1062,8 @@ is, and for several regions which block each goes to; and what made it: the prog
 and for AI output the prompt, of which only a SHA-256 hash is kept.
 
 - **Nothing you have typed is replaced.** Each recognised line goes to its own line of the block, and only if that
-  line is empty. A proposed line shows in a lighter colour, dotted, with its source and confidence when you point at it.
+  line is empty. A line proposed by another program shows dotted, with its source and confidence when you point at it;
+  one read in this browser is marked letter by letter instead (below, *Doubtful akṣaras marked*).
 - **Read it, correct it, accept it** with Alt+Y (Ctrl+Alt+Y if that is your modifier); with Shift, every proposed line on the
   folio side. Until it is accepted a proposed line is **not collated**: it counts as text not yet read, neither
   agreeing nor differing. The TEI export names each program in the header (`<appInfo>`) and warns of lines not yet
@@ -1128,7 +1129,11 @@ rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word 
   once you change or accept it. Settings › Recognition chooses the threshold (under 50, 70, the default, or 90 %) or
   none. Measured on three manuscripts' corrected pages: under 70 %, 6–10 % of the letters are marked and about a third
   of the mistakes are among them; under 90 %, 14–22 % and more than half. Many mistakes are made with confidence (a
-  letter or a virama left out has no letter to mark), so a line without marks still needs reading.
+  letter or a virama left out has no letter to mark), so a line without marks still needs reading. Under the mouse, or
+  before the cursor, the status bar says how sure the recogniser was of that akṣara (*OCR र 92 %*), and where the
+  language model changed the recogniser's reading there, what the recogniser itself read (*· recogniser रि*: हारइति,
+  read हारिति by the recogniser, made हारइति by the language model). A line read here is marked by its doubtful
+  akṣaras only, not dotted whole.
 - **Many sides at once.** This side is read in front of you, and the next ones (or the whole manuscript) in the
   background while you work: the status bar shows how far it has got, with **Stop**. When a new manuscript is
   imported, Manuscribe offers to read it all this way. A side already proofread is left as it is in the background;

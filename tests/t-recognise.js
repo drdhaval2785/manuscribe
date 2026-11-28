@@ -257,8 +257,40 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       const prop = Object.entries(pg.proposed || {}).flatMap(([box, l]) => Object.entries(l).map(([i, x]) => ({ box, i: +i, x })));
       return { last: ME.RecogView.last, proposed: prop.length, withCut: prop.filter((y) => y.x.cut && y.x.cut.b.length > 1).length, typed: pg.boxes.main[0], firstProposed: prop.length ? prop[0].i : null,
         count: ME.Model.lineCount(p, e.label, 'main'), from: pg.linesFrom && pg.linesFrom.main, length: pg.boxes.main.length, shown: document.querySelectorAll('.line').length,
-        sources: (p.sources || []).map((s) => s.model + ' ' + s.version), marked: document.querySelectorAll('.line.proposed').length, sample: prop.slice(0, 3).map((y) => y.x.text) };
+        sources: (p.sources || []).map((s) => s.model + ' ' + s.version), marked: document.querySelectorAll('.line.proposed').length, sample: prop.slice(0, 3).map((y) => y.x.text),
+        letters: document.querySelectorAll('.line.proposed.letters').length, titled: Array.from(document.querySelectorAll('.line.proposed')).filter((l) => l.title).length,
+        striped: Array.from(document.querySelectorAll('.line.proposed')).filter((l) => getComputedStyle(l).textDecorationLine.includes('underline')).length,
+        raws: prop.filter((y) => typeof y.x.raw === 'string').map((y) => [y.x.raw, y.x.text.replace(/\s+/g, '')]) };
     });
+    T.check('a line read here is not marked whole (no dotted underline, no "Proposed by" on the mouse): its letters are (' + run.letters + ' lines)',
+      run.letters === run.marked && run.marked > 0 && run.titled === 0 && run.striped === 0, { letters: run.letters, marked: run.marked, titled: run.titled, striped: run.striped });
+    T.check('where the language model changed a line, the recogniser\'s own reading is kept with it (' + run.raws.length + ' of ' + run.proposed + ' lines)', run.raws.every(([raw, text]) => raw && raw !== text), run.raws.length);
+    const lmc = await page.evaluate(() => {
+      const H = ME.HTR, t = 'हारइति', e = { raw: 'हारिति' };
+      const at = (s, x) => { const a = x.indexOf(s); return [a, ME.Editor.nextAksaraEnd(x, a)]; };
+      return { ra: H.lmChange(e, t, at('र', t)), i: H.lmChange(e, t, at('इ', t)), ha: H.lmChange(e, t, at('हा', t)), ti: H.lmChange(e, t, at('ति', t)),
+        spaced: H.lmChange(e, 'हार इति', at('इ', 'हार इति')), visarga: H.lmChange({ raw: 'रामःइति' }, 'रामइति', at('म', 'रामइति')), none: H.lmChange({}, t, at('र', t)) };
+    });
+    T.check('over an akṣara the language model changed, the recogniser\'s reading of the run (हारइति read हारिति: over र or इ, रइ read रि; हा and ति unchanged; spaces and a visarga left out)',
+      lmc.ra && lmc.ra.lm === 'रइ' && lmc.ra.raw === 'रि' && lmc.i && lmc.i.raw === 'रि' && !lmc.ha && !lmc.ti && lmc.spaced && lmc.spaced.raw === 'रि' && lmc.visarga && lmc.visarga.raw === 'मः' && !lmc.none, lmc);
+    // the status bar, over a line given a reading of the recogniser's own: the badge says what the recogniser read
+    const badge = await page.evaluate(() => {
+      const p = ME.App.project, e = ME.App.entries[ME.App.idx], pg = p.pages[e.label];
+      const hit = Object.entries(pg.proposed).flatMap(([box, l]) => Object.entries(l).map(([i, x]) => ({ box, i: +i, x }))).find((y) => !y.x.accepted && typeof y.x.confs === 'string' && y.x.text.length > 3);
+      if (!hit) return null;
+      const keep = hit.x.raw;
+      const plainText = hit.x.text.replace(/\s+/g, '');
+      // the recogniser's reading made to differ in the line's second akṣara
+      const a = ME.Editor.nextAksaraEnd(plainText, 0), b = ME.Editor.nextAksaraEnd(plainText, a);
+      hit.x.raw = plainText.slice(0, a) + 'ङ' + plainText.slice(b);
+      const el = ME.Editor.lineEl(hit.box, hit.i), text = el.textContent;
+      const sa = ME.Editor.nextAksaraEnd(text, 0), off = /\s/.test(text[sa]) ? sa + 1 : sa;
+      const c = ME.HTR.confAt(p, e.label, el, off, 'at');
+      if (keep === undefined) delete hit.x.raw; else hit.x.raw = keep;
+      return c && { lm: c.lm, aksara: c.aksara };
+    });
+    if (!badge) T.skip('the recogniser\'s reading under the mouse', 'no line read with letter confidences on this side');
+    else T.check('HTR.confAt over that akṣara gives the recogniser\'s reading beside its confidence (' + JSON.stringify(badge) + ')', badge.lm && badge.lm.raw === 'ङ' && badge.lm.lm === badge.aksara, badge);
     T.check('"Recognise this side" proposes lines (' + run.proposed + ', ' + (run.last && run.last.times[0] ? run.last.times[0].total + ' ms, ' + Object.entries(run.last.times[0].backends || {}).map(([k, v]) => k + ' ' + v).join(', ') : '') + '), each with where it was cut from, marked as proposed in the folio',
       run.proposed > 0 && run.withCut === run.proposed && run.marked > 0 && !run.last.error, run);
     T.check('the side\'s line count becomes the rows found (' + run.count + ', it was 40), its empty lines after them dropped, the count kept as recognition\'s',
