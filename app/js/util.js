@@ -3,7 +3,7 @@
    because classic <script> tags are used (ES modules do not load from file://). */
 window.ME = window.ME || {};
 // The version of Manuscribe, named in every output and release.
-ME.VERSION = '0.13.4';
+ME.VERSION = '0.13.5';
 (function (ME) {
   const U = {};
 
