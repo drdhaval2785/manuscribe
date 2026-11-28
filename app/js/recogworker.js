@@ -11,7 +11,7 @@
    classicOrt(text)          ONNX Runtime's ES-module bundle as a classic script that sets self.ort
    start(bundle)             -> {read(page, layout, opts, onProgress) -> Promise<result>, close(), backends}
      bundle  {ortJs: the bundle's text, wasm: ArrayBuffer, gpu: whether to try WebGPU,
-              models: {segmenter, recogniser, spacer: ArrayBuffer}, P, chars, S, threshold,
+              models: {segmenter, recogniser, spacer: ArrayBuffer} (spacer only where it is kept), P, chars, S, threshold,
               spacerLength: the fixed length of a spacer exported at one, else null,
               lm: [{name, weight, data: the model's file, gzipped}] or null (RecogLM reads them; lines are then
               read with the language model)}
@@ -70,7 +70,7 @@
             segment: async (x, h, W) => (await seg.run({ x: new ort.Tensor('float32', x, [1, 1, h, W]) })).y.data,
             recognise: async (x, h, w) => { const y = (await rec.run({ x: new ort.Tensor('float32', x, [1, 1, h, w]) })).y; return { data: y.data, T: y.dims[1], C: y.dims[2] }; },
           };
-          if (opts && opts.space) {
+          if (opts && opts.space && cfg.models.spacer) {         // no spacer kept: the lines come unspaced
             const sp = await session('spacer'), RS = self.ME.RecogSpace;
             if (cfg.spacerLength) nets.spaceBatch = RS.ortBatchNetwork(ort, sp, cfg.S, cfg.spacerLength);
             else nets.space = RS.ortNetwork(ort, sp, cfg.S, null);

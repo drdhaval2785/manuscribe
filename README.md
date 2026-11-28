@@ -1080,10 +1080,17 @@ and for AI output the prompt, of which only a SHA-256 hash is kept.
 Manuscribe can also read a folio side itself, on your computer, with three models: a **line segmenter** that finds the
 rows and blocks, a **line recogniser** for Devanagari manuscripts, and a **word spacer** for Sanskrit.
 
-- **The recognition pack.** Settings › Recognition fetches the models and the runtime that runs them (ONNX Runtime Web)
-  from the models' site, about 45 MB once (30 MB where the browser has no WebGPU), checks every file against the
-  checksum its manifest gives, and keeps them in this browser. It can also read a pack from a folder on disk (the
-  site's folder, copied). After that recognition works offline, and from a copy of Manuscribe opened from disk.
+- **The recognition pack.** Settings › Recognition shows the site's newest pack in front, part by part, each with its
+  size: ONNX Runtime Web, which runs the models (29 MB with WebGPU, 15 MB where the browser has none), the segmenter
+  (8 MB) and the recogniser (8 MB), all three required, and the language model (22 MB) and the word spacer (13 MB),
+  which may be left out (lines are then read letter by letter, or come unspaced) and fetched later; the total of the
+  parts ticked is what is fetched (pack-20261128: 80 MB in all with WebGPU, 66 MB without the spacer). A file already
+  in the browser with the same checksum is not fetched again, so the next pack fetches only the models that changed.
+  The older packs are under **Older models**. Every file is checked against the checksum its manifest gives, and kept
+  in this browser. The language model kept can be turned off there too. A pack can also be read from a folder on
+  disk: the site's folder, or a pack's folder alone, its runtime being the one already in the browser, or found in a
+  second folder (the site's `runtime/` folder, or ONNX Runtime Web's own `dist` folder, known by its checksums).
+  After that recognition works offline, and from a copy of Manuscribe opened from disk.
   The panel says what each model learned from and the licence of each: from 27 November 2026 the segmenter, the
   recogniser and the language model are under CC BY-NC-SA 4.0 and the word spacer under CC BY-SA 4.0 (earlier packs
   CC BY-SA 4.0 throughout).

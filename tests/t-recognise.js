@@ -18,6 +18,7 @@ const { readPng } = require('./png');
 const T = checks('recognition in the app: pack, worker, proposed lines, consent');
 const SITE = process.env.MANUSCRIBE_RECOG_SITE || path.resolve(ROOT, '..', '..', 'lexicon_manuscripts', 'manuscribe-models');
 const FIXTURES = path.resolve(ROOT, '..', '..', 'lexicon_manuscripts', 'manuscript_ocr', 'data', 'fixtures');
+const DIST = path.join(__dirname, 'node_modules', 'onnxruntime-web', 'dist');
 
 // a key of the test's own, published as the site's contribute.json
 const KEY = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -39,10 +40,12 @@ function siteServer() {
     const tampered = rel.startsWith('tampered/');
     if (tampered) rel = rel.slice('tampered/'.length);
     if (rel === 'contribute.json') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(CONTRIBUTE)); return; }
-    const f = path.join(SITE, rel);
-    if (!f.startsWith(SITE) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404, { 'access-control-allow-origin': '*' }); res.end(); return; }
+    // __dist/: ONNX Runtime Web's own dist folder, as npm has it (no runtime.json)
+    const root = rel.startsWith('__dist/') ? DIST : SITE;
+    const f = path.join(root, rel.startsWith('__dist/') ? rel.slice('__dist/'.length) : rel);
+    if (!f.startsWith(root) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404, { 'access-control-allow-origin': '*' }); res.end(); return; }
     let body = fs.readFileSync(f);
-    if (tampered && rel.endsWith('recogniser.onnx')) { body = Buffer.from(body); body[body.length - 1] ^= 1; }
+    if (tampered && (rel.endsWith('recogniser.onnx') || rel.endsWith('spacer.onnx'))) { body = Buffer.from(body); body[body.length - 1] ^= 1; }
     res.writeHead(200, { 'content-type': rel.endsWith('.json') ? 'application/json' : 'application/octet-stream', 'access-control-allow-origin': '*' });
     res.end(body);
   });
@@ -72,22 +75,80 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
   const url = 'http://127.0.0.1:' + server.address().port + '/';
   const { browser, page } = await launch('recognise');
   try {
-    // ---- the pack: fetched, checked, kept
+    // ---- the pack: fetched in parts, checked, kept
+    const index = JSON.parse(fs.readFileSync(path.join(SITE, 'index.json'), 'utf8'));
+    const latestEntry = index.packs.find((p) => p.id === index.latest);
+    const latestMan = JSON.parse(fs.readFileSync(path.join(SITE, latestEntry.manifest), 'utf8'));
+    const nLm = ((latestMan.lm && latestMan.lm.components) || []).length;
+    const fbytes = (n) => latestMan.files[n].bytes;
+    const spacerBytes = latestMan.models.spacer.bytes + fbytes('spacer.json');
+    // kept without the spacer: two models, two parameter files, the runtime's two, the language model's files
     const got = await page.evaluate(async (url) => {
       const steps = [];
-      const rec = await ME.RecogPack.install(url, null, (p) => steps.push(p.got));
-      const kept = await ME.RecogPack.installed();
-      return { pack: rec.pack, bytes: rec.bytes, variant: kept && kept.runtime.variant, steps: steps.length, keys: kept && kept.keys.length };
+      const rec = await ME.RecogPack.install(url, null, (p) => steps.push(p.got), ['lm']);
+      const kept = await ME.RecogPack.installed(), b = await ME.RecogPack.load();
+      return { pack: rec.pack, bytes: rec.bytes, variant: kept && kept.runtime.variant, steps: steps.length, keys: kept && kept.keys.length, parts: kept.parts, spacer: b.spacer, models: Object.keys(b.models), lm: !!b.lm };
     }, url);
-    const index = JSON.parse(fs.readFileSync(path.join(SITE, 'index.json'), 'utf8'));
-    // kept: three models, three parameter files, the runtime's two, and the language model's files where the pack has them
-    const latestMan = JSON.parse(fs.readFileSync(path.join(SITE, index.packs.find((p) => p.id === index.latest).manifest), 'utf8'));
-    const nKeys = 8 + ((latestMan.lm && latestMan.lm.components) || []).length;
-    T.check('the pack fetched from the site, checked and kept (' + got.pack + ', ' + (got.bytes / 1e6).toFixed(1) + ' MB, runtime for ' + got.variant + (nKeys > 8 ? ', with its language model' : '') + ')', got.pack === index.latest && got.keys === nKeys && got.steps > 8, got);
+    T.check('the pack fetched from the site without its word spacer, checked and kept (' + got.pack + ', ' + (got.bytes / 1e6).toFixed(1) + ' MB, runtime for ' + got.variant + ')',
+      got.pack === index.latest && got.keys === 6 + nLm && got.steps > 6 && !got.spacer && !got.models.includes('spacer') && got.lm === nLm > 0 && got.parts.join() === ['runtime', 'segmenter', 'recogniser'].concat(nLm ? ['lm'] : []).join(), got);
+    const synth = fixturePages().find((pg) => pg.page.startsWith('synthetic'));
+    if (synth) {
+      const png = readPng(path.join(synth.d, '00_page.png'));
+      const r = await page.evaluate(async (b64, w, h, ch, layout) => {
+        const api = ME.RecogWorker.start(await ME.RecogPack.load());
+        await api.ready;
+        const res = await api.read({ data: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)), width: w, height: h, channels: ch }, layout, { space: true });
+        api.close();
+        const rows = Object.values(res.boxes).flat();
+        return { rows: rows.length, spaced: rows.filter((x) => typeof x.spaced === 'string').length, backends: res.backends };
+      }, Buffer.from(png.data).toString('base64'), png.width, png.height, png.channels, synth.layout);
+      const want = Object.values(synth.text).reduce((a, x) => a + x.length, 0);
+      T.check('without the word spacer a side is read all the same, unspaced, though spaces were asked for (' + r.rows + ' rows)', r.rows === want && r.spaced === 0 && !r.backends.spacer, r);
+    }
     const bad = await page.evaluate(async (url) => {
-      try { await ME.RecogPack.install(url + 'tampered/'); return { refused: false }; } catch (e) { return { refused: /checksum/.test(e.message), msg: e.message, still: (await ME.RecogPack.installed()).source }; }
+      try { await ME.RecogPack.install(url + 'tampered/'); return { refused: false }; } catch (e) { const k = await ME.RecogPack.installed(); return { refused: /checksum/.test(e.message), msg: e.message, still: k.source, parts: k.parts.length }; }
     }, url);
-    T.check('a file that is not what its manifest names is refused, and the pack kept before stays', bad.refused && bad.still === url, bad);
+    T.check('a file that is not what its manifest names (the spacer, fetched now) is refused, and the pack kept before stays', bad.refused && bad.still === url && bad.parts === got.parts.length, bad);
+    const added = await page.evaluate(async (url) => {
+      const rec = await ME.RecogPack.install(url);
+      const pl = await ME.RecogPack.plan(url);
+      return { fetched: rec.fetched, keys: rec.keys.length, parts: rec.parts, toFetch: pl.parts.reduce((a, p) => a + p.toFetch, 0), allKept: pl.parts.every((p) => p.kept),
+        total: pl.parts.reduce((a, p) => a + p.bytes, 0), runtime: pl.parts.find((p) => p.part === 'runtime').bytes, variant: pl.runtime.variant };
+    }, url);
+    T.check('the spacer added later: only its files fetched (' + (added.fetched / 1e6).toFixed(1) + ' MB), the rest kept as it was', added.fetched === spacerBytes && added.keys === 8 + nLm && added.parts.includes('spacer') && added.allKept && added.toFetch === 0, added);
+    const rtv = index.runtimes[latestMan.needs.runtime].variants[added.variant];
+    const wantTotal = Object.values(latestMan.models).reduce((a, m) => a + m.bytes, 0) + Object.values(latestMan.files).reduce((a, f) => a + f.bytes, 0)
+      + ((latestMan.lm && latestMan.lm.components) || []).reduce((a, c) => a + c.bytes, 0) + rtv.js.bytes + rtv.wasm.bytes;
+    T.check('the pack\'s whole size is every file it takes, the runtime and the language model too (' + (added.total / 1e6).toFixed(1) + ' MB; the site\'s index says ' + (latestEntry.bytes / 1e6).toFixed(1) + ' MB for the three networks)', added.total === wantTotal && added.runtime === rtv.js.bytes + rtv.wasm.bytes, { added, wantTotal });
+    const lmOff = await page.evaluate(async () => { ME.RecogPack.savePrefs({ lm: false }); const off = !(await ME.RecogPack.load()).lm; ME.RecogPack.savePrefs({ lm: true }); return off && !!(await ME.RecogPack.load()).lm === !!(await ME.RecogPack.installed()).manifest.lm; });
+    T.check('the language model turned off in Settings is not handed to the worker', lmOff);
+
+    // ---- Settings › Recognition: the newest pack in front, its parts and sizes; the older ones folded away
+    const panel = await page.evaluate(async (url, nOlder) => {
+      ME.RecogPack.setSource(url);
+      const host = ME.RecogView.settingsPanel();
+      document.body.append(host);
+      for (let k = 0; k < 100 && !host.querySelector('[data-recog="pack"]'); k++) await new Promise((r) => setTimeout(r, 100));
+      const card = host.querySelector('[data-recog="pack"]'), older = host.querySelector('[data-recog="older"]');
+      const out = { pack: card && card.dataset.pack, newest: card && card.classList.contains('newest'), rows: card ? card.querySelectorAll('tr[data-part]').length : 0,
+        fixed: card ? Array.from(card.querySelectorAll('input[data-part]')).filter((i) => i.disabled).map((i) => i.dataset.part) : [],
+        button: card && card.querySelector('[data-action="fetch-pack"]').textContent, total: card && card.querySelector('[data-recog="pack-total"]').textContent,
+        olderClosed: !!older && !older.open && !older.querySelector('[data-recog="pack"]') };
+      if (older) {
+        older.open = true;
+        for (let k = 0; k < 100 && older.querySelectorAll('[data-recog="pack"]').length < nOlder; k++) await new Promise((r) => setTimeout(r, 100));
+        out.olderCards = older.querySelectorAll('[data-recog="pack"]').length;
+      }
+      // an optional part unticked: the button lets it go
+      const sp = card && card.querySelector('input[data-part="spacer"]');
+      if (sp) { sp.checked = false; sp.dispatchEvent(new Event('change')); out.untick = card.querySelector('[data-action="fetch-pack"]').textContent; sp.checked = true; sp.dispatchEvent(new Event('change')); }
+      host.remove();
+      return out;
+    }, url, index.packs.length - 1);
+    T.check('Settings shows the newest pack first, with its five parts, the runtime, segmenter and recogniser required, all kept (' + panel.total + ')',
+      panel.pack === index.latest && panel.newest && panel.rows === 4 + (nLm ? 1 : 0) && panel.fixed.join() === 'runtime,segmenter,recogniser' && panel.button === 'Kept' && panel.total.includes((added.total / 1e6).toFixed(1) + ' MB'), panel);
+    T.check('the older packs only when “Older models” is opened (' + (index.packs.length - 1) + ')', panel.olderClosed && panel.olderCards === index.packs.length - 1, panel);
+    T.check('an optional part unticked in a kept pack is let go by the button', panel.untick === 'Keep the parts ticked', panel);
 
     // ---- the worker on the reference's fixture pages
     const pages = fixturePages();
@@ -139,6 +200,32 @@ const sameSpaces = (got, want) => Object.keys(want).every((b) => got[b] && got[b
       return out;
     })());
     T.check('the pack read from the site\'s folder chosen on disk (' + fromFiles.variant + ')', fromFiles.pack === index.latest && fromFiles.source === 'files', fromFiles);
+
+    // ---- a pack's folder and the runtime's apart: the runtime kept here, or ONNX Runtime Web's own dist folder
+    const packDir = path.dirname(latestEntry.manifest), dist = path.join(__dirname, 'node_modules', 'onnxruntime-web', 'dist');
+    const filesOf = (dir, as, only) => fs.readdirSync(dir).filter((f) => fs.statSync(path.join(dir, f)).isFile() && (!only || only.test(f))).map((f) => ({ rel: as + '/' + f, abs: path.join(dir, f) }));
+    const packFiles = filesOf(path.join(SITE, packDir), path.basename(packDir));
+    const distFiles = filesOf(dist, 'dist', /^ort.*\.(mjs|wasm)$/);
+    const apart = await page.evaluate(async (url, packFiles, distFiles) => {
+      const get = async (list) => Promise.all(list.map(async (x) => {
+        const f = new File([await (await fetch(url + x.url)).blob()], x.rel.split('/').pop());
+        Object.defineProperty(f, 'webkitRelativePath', { value: x.rel });
+        return f;
+      }));
+      const pk = await get(packFiles);
+      const kept = await ME.RecogPack.installFiles(pk);                  // the runtime is in this browser already
+      const out = { kept: kept.pack, keptFetched: kept.fetched, keptParts: kept.parts };
+      await ME.RecogPack.remove();
+      try { await ME.RecogPack.installFiles(pk); out.alone = 'kept'; } catch (e) { out.alone = e.code; out.msg = e.message; }
+      const rec = await ME.RecogPack.installFiles(pk.concat(await get(distFiles)));
+      out.withDist = rec.pack;
+      out.variant = rec.runtime.variant;
+      out.loads = !!(await ME.RecogPack.load()).ortJs;
+      return out;
+    }, url, packFiles.map((x) => ({ rel: x.rel, url: path.relative(SITE, x.abs).split(path.sep).join('/') })), distFiles.map((x) => ({ rel: x.rel, url: '__dist/' + path.basename(x.abs) })));
+    T.check('a pack\'s folder alone, the runtime being in this browser: kept, nothing read again', apart.kept === index.latest && apart.keptFetched === 0 && apart.keptParts.length === 4 + (nLm ? 1 : 0), apart);
+    T.check('a pack\'s folder alone, no runtime anywhere: asked for the runtime\'s folder (' + (apart.msg || '') + ')', apart.alone === 'runtime', apart);
+    T.check('the pack\'s folder with ONNX Runtime Web\'s own dist folder (no runtime.json): known by its checksums (' + apart.variant + ')', apart.withDist === index.latest && apart.loads, apart);
 
     // ---- in a project: "Recognise this side"
     const pdf = path.join(ROOT, 'linear.pdf');

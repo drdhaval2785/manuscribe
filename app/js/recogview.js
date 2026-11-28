@@ -212,7 +212,7 @@
     RV._worker = null;
     const bundle = await Pack().load();
     const api = ME.RecogWorker.start(bundle);
-    const entry = { api, pack: m.pack, date: m.date, P: bundle.P };
+    const entry = { api, pack: m.pack, date: m.date, P: bundle.P, lm: !!bundle.lm, spacer: !!bundle.spacer };
     try { await api.ready; } catch (err) { api.close(); throw err; }
     RV._worker = entry;
     return entry;
@@ -242,8 +242,10 @@
     return j === letters.length ? out : null;
   }
 
-  function sourceFor(p, man, space) {
-    const model = SOFTWARE + ': segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + (space ? ', word spacer ' + runOf(man, 'spacer') : '');
+  // the source of the lines read: a reading without the pack's language model is a source of its own
+  function sourceFor(p, man, space, lm) {
+    const model = SOFTWARE + ': segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + (space ? ', word spacer ' + runOf(man, 'spacer') : '')
+      + (man.lm && man.lm.components && !lm ? ', without its language model' : '');
     const s = (p.sources || []).find((x) => x.software === SOFTWARE && x.version === man.pack && x.model === model);
     return s || ME.HTR.addSource(p, { kind: 'htr', software: SOFTWARE, model, version: man.pack, date: new Date().toISOString().slice(0, 10), format: 'read in this browser', file: '' });
   }
@@ -342,7 +344,7 @@
   // no pack yet: say where it comes from -> false
   async function needPack() {
     if (await Pack().installed()) return true;
-    const go = await UI.modal({ title: 'Recognise folio sides', body: U.el('p', null, 'There is no recognition pack in this browser yet. Settings › Recognition fetches one (about 45 MB, once), or reads one from a folder on disk.'),
+    const go = await UI.modal({ title: 'Recognise folio sides', body: U.el('p', null, 'There is no recognition pack in this browser yet. Settings › Recognition fetches one, once (it shows what each part takes; the language model and the word spacer may be left out), or reads one from a folder on disk.'),
       buttons: [{ label: 'Close', value: false, kind: 'ghost' }, { label: 'Settings…', value: true, kind: 'primary' }] });
     if (go) App().showSettings('recognition');
     return false;
@@ -369,16 +371,17 @@
     if (want && have && want !== have && !await UI.confirm('This recognition pack reads ' + want + ' (language-script); this manuscript is marked ' + have + ' in its Manuscript tab. Its lines would be read as if they were in ' + want + '. Read it all the same?', { title: 'Another language or script', ok: 'Read all the same' })) return;
     const prefs = Pack().prefs(), e0 = A.entries[A.idx], left = A.entries.length - A.idx;
     const count = U.el('input', { type: 'number', min: '1', max: String(left), value: '1', 'aria-label': 'Folio sides', 'data-recog': 'count' });
-    const space = U.el('input', { type: 'checkbox', checked: prefs.space !== false, 'data-recog': 'space' });
+    const hasSp = Pack().hasPart(m, 'spacer');
+    const space = U.el('input', { type: 'checkbox', checked: hasSp && prefs.space !== false, disabled: !hasSp, 'data-recog': 'space' });
     const back = U.el('input', { type: 'checkbox', checked: true, 'data-recog': 'background' });
     const ok = await UI.modal({ title: 'Recognise folio sides', body: U.el('div', null,
       U.el('p', { class: 'help' }, 'Read in this browser with ' + man.pack + ' (segmenter ' + runOf(man, 'segmenter') + ', recogniser ' + runOf(man, 'recogniser') + '). The lines found go, as proposed lines, into the empty lines of each block, to be read and accepted; each side read is marked “OCR: recognised, not yet read”, and where no blocks were drawn on it, its blocks are taken from the rows found.'),
       U.el('label', { class: 'field small' }, U.el('span', null, 'Folio sides, from ' + e0.label), count),
       U.el('label', { class: 'field checkbox' }, back, U.el('span', null, 'After this side, the others in the background, while you work')),
-      U.el('label', { class: 'field checkbox' }, space, U.el('span', null, 'Put in word spaces (a line that ends in a space ends its word)'))),
+      U.el('label', { class: 'field checkbox' }, space, U.el('span', null, hasSp ? 'Put in word spaces (a line that ends in a space ends its word)' : 'Put in word spaces (the word spacer is not kept in this browser: Settings › Recognition fetches it)'))),
     buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Recognise', value: true, kind: 'primary' }] });
     if (!ok) return;
-    Pack().savePrefs({ space: space.checked });
+    if (hasSp) Pack().savePrefs({ space: space.checked });
     const n = Math.max(1, Math.min(left, parseInt(count.value, 10) || 1));
     const sides = A.entries.slice(A.idx, A.idx + n).filter((e) => !e.orphan && e.pdfPage);
     return RV.recogniseSides(p, sides, { space: space.checked, background: back.checked });
@@ -395,17 +398,17 @@
     if (await busy()) return null;
     const all = A.entries.filter((e) => !e.orphan && e.pdfPage), at = Math.max(0, all.indexOf(A.entries[A.idx]));
     const sides = all.slice(at).concat(all.slice(0, at));
-    const prefs = Pack().prefs();
-    let space = prefs.space !== false;
+    const prefs = Pack().prefs(), hasSp = Pack().hasPart(await Pack().installed(), 'spacer');
+    let space = hasSp && prefs.space !== false;
     if (!opts || opts.ask !== false) {
-      const sp = U.el('input', { type: 'checkbox', checked: space, 'data-recog': 'space' });
+      const sp = U.el('input', { type: 'checkbox', checked: space, disabled: !hasSp, 'data-recog': 'space' });
       const ok = await UI.modal({ title: 'Recognise the whole manuscript', className: 'recog-whole-dialog', body: U.el('div', null,
         U.el('p', { class: 'help' }, 'All ' + sides.length + ' folio sides: this one now, the rest in the background while you work (the status bar shows how far it has got, and stops it). Their lines come in as proposed lines, only into empty lines; each side read is marked “OCR: recognised, not yet read”, and where no blocks were drawn on it, its blocks are taken from the rows found.'),
-        U.el('label', { class: 'field checkbox' }, sp, U.el('span', null, 'Put in word spaces'))),
+        U.el('label', { class: 'field checkbox' }, sp, U.el('span', null, hasSp ? 'Put in word spaces' : 'Put in word spaces (the word spacer is not kept in this browser: Settings › Recognition fetches it)'))),
       buttons: [{ label: 'Cancel', value: false, kind: 'ghost' }, { label: 'Recognise all ' + sides.length, value: true, kind: 'primary' }] });
       if (!ok) return null;
       space = sp.checked;
-      Pack().savePrefs({ space });
+      if (hasSp) Pack().savePrefs({ space });
     }
     return RV.recogniseSides(p, sides, { space, background: true });
   };
@@ -417,7 +420,7 @@
     const m = await Pack().installed();
     const v = await UI.modal({ title: 'Read this manuscript?', className: 'recog-offer-dialog', body: U.el('div', null,
       U.el('p', null, m ? 'The recognition models in this browser can read every folio side of it: the first now, the rest in the background while you work. Their lines come in as proposed lines, to be read and accepted; each side read is marked “OCR: recognised, not yet read”, and its blocks are taken from the rows found, so that calibrating by hand is needed only where they are wrong.'
-        : 'Manuscribe can read every folio side of it with recognition models that run in this browser, once they are fetched: Settings › Recognition (about 45 MB, once).'),
+        : 'Manuscribe can read every folio side of it with recognition models that run in this browser, once they are fetched: Settings › Recognition (once; it shows the size of each part).'),
       U.el('p', { class: 'help' }, 'Or draw the leaf and the text blocks on the PDF yourself (Calibrate), and type.')),
     buttons: [{ label: 'Not now', value: null, kind: 'ghost' }, { label: 'Calibrate…', value: 'calibrate' },
       m ? { label: 'Recognise the whole manuscript', value: 'all', kind: 'primary' } : { label: 'Fetch the models…', value: 'settings', kind: 'primary' }] });
@@ -601,7 +604,8 @@
     show();
     try {
       const w = await worker(m);
-      const src = sourceFor(p, man, opts.space);
+      opts = Object.assign({}, opts, { space: opts.space && w.spacer });
+      const src = sourceFor(p, man, opts.space, w.lm);
       const targetH = (man.page_height && man.page_height.median) || 700;
       for (const e of sides) {
         if (bg.stopped || A.project !== p || ME.PdfView.doc !== doc) { bg.stopped = true; break; }
@@ -643,7 +647,8 @@
     const tot = { placed: 0, skipped: 0, lost: 0, counts: 0, sides: 0, stopped: false, error: null, times: [] };
     try {
       const w = await worker(m);
-      const src = sourceFor(p, man, opts.space);
+      opts = Object.assign({}, opts, { space: opts.space && w.spacer });
+      const src = sourceFor(p, man, opts.space, w.lm);
       await ME.Store.backupNow(p);
       const targetH = (man.page_height && man.page_height.median) || 700;
       for (let k = 0; k < sides.length && !stopped; k++) {
@@ -988,6 +993,56 @@
     return out;
   };
 
+  /* ---------- the packs of the site, in Settings ---------- */
+  const PART_LABEL = { runtime: 'ONNX Runtime Web', segmenter: 'Segmenter', recogniser: 'Recogniser', lm: 'Language model', spacer: 'Word spacer' };
+  const PART_DOES = {
+    runtime: 'runs the models in this browser',
+    segmenter: 'finds the lines of a folio side',
+    recogniser: 'reads the lines',
+    lm: 'settles a doubtful letter by how Sanskrit runs',
+    spacer: 'puts in word spaces',
+  };
+  const PART_WITHOUT = { lm: 'Lines are read letter by letter, as the recogniser sees them.', spacer: 'Lines come without word spaces.' };
+  const partName = (pl, k) => (k === 'runtime' ? PART_LABEL[k] + ' ' + pl.runtime.version + (pl.runtime.variant === 'webgpu' ? ' (WebGPU and WebAssembly)' : ' (WebAssembly)')
+    : k === 'lm' ? PART_LABEL[k] : PART_LABEL[k] + ' ' + runOf(pl.manifest, k));
+
+  // a pack of the site: its parts with their sizes, the required ones ticked for good, the optional ones as chosen;
+  // what the parts ticked take in all and what of it is to be fetched; fetch(plan, the optional parts wanted)
+  function packCard(pl, m, fetch, newest) {
+    const card = U.el('div', { class: 'recog-pack' + (newest ? ' newest' : ''), 'data-recog': 'pack', 'data-pack': pl.pack });
+    const mine = !!m && m.pack === pl.pack && m.source === pl.source;
+    const made = String(pl.manifest.created || (pl.entry && pl.entry.created) || '').slice(0, 10);
+    card.append(U.el('p', { class: 'recog-pack-head' }, U.el('strong', null, pl.pack), newest ? U.el('span', { class: 'recog-tag newest' }, 'newest') : null,
+      made ? ' made ' + made : '', mine ? ' · in this browser' : ''));
+    if (pl.problem) { card.append(U.el('p', { class: 'help' }, 'Not for this Manuscribe: ' + pl.problem + '.')); return card; }
+    const ticks = {};
+    const total = U.el('p', { class: 'help', 'data-recog': 'pack-total' });
+    const btn = U.el('button', { class: 'btn small' + (newest ? ' primary' : ''), 'data-action': 'fetch-pack', onclick: () => fetch(pl, pl.parts.filter((pt) => !pt.required && ticks[pt.part].checked).map((pt) => pt.part)) });
+    const update = () => {
+      const want = pl.parts.filter((pt) => ticks[pt.part].checked);
+      const all = want.reduce((a, pt) => a + pt.bytes, 0), toFetch = want.reduce((a, pt) => a + pt.toFetch, 0);
+      const everything = pl.parts.reduce((a, pt) => a + pt.bytes, 0);
+      const letGo = mine && pl.parts.some((pt) => !pt.required && !ticks[pt.part].checked && Pack().hasPart(m, pt.part));
+      total.textContent = 'The parts ticked: ' + MB(all) + (toFetch === all ? ' to fetch' : toFetch ? ', of which ' + MB(toFetch) + ' to fetch (the rest is in this browser already)' : ', all in this browser already')
+        + (all < everything ? '; the whole pack ' + MB(everything) : '') + '.';
+      btn.disabled = mine && !letGo && !toFetch;
+      btn.textContent = btn.disabled ? 'Kept' : toFetch ? 'Fetch ' + MB(toFetch) : 'Keep the parts ticked';
+    };
+    const rows = pl.parts.map((pt) => {
+      const here = mine && Pack().hasPart(m, pt.part);
+      ticks[pt.part] = U.el('input', { type: 'checkbox', checked: pt.required || (mine ? here : true), disabled: pt.required, 'data-part': pt.part, 'aria-label': PART_LABEL[pt.part], onchange: update });
+      return U.el('tr', { 'data-part': pt.part },
+        U.el('td', null, ticks[pt.part]),
+        U.el('td', null, partName(pl, pt.part), U.el('div', { class: 'help' }, PART_DOES[pt.part] + (pt.required ? '' : '. Without it: ' + PART_WITHOUT[pt.part].charAt(0).toLowerCase() + PART_WITHOUT[pt.part].slice(1)))),
+        U.el('td', null, U.el('span', { class: 'recog-tag ' + (pt.required ? 'required' : 'optional') }, pt.required ? 'required' : 'optional')),
+        U.el('td', { class: 'num' }, MB(pt.bytes)),
+        U.el('td', { class: 'help' }, here ? 'kept' : pt.kept ? 'in this browser already' : pt.toFetch < pt.bytes ? MB(pt.toFetch) + ' to fetch' : ''));
+    });
+    card.append(U.el('table', { class: 'ed-table recog-parts' }, U.el('tbody', null, rows)), total, U.el('div', { class: 'btn-row' }, btn));
+    update();
+    return card;
+  }
+
   RV.settingsPanel = function () {
     const host = U.el('div', { class: 'recog-settings', 'data-recog': 'settings' });
     const draw = async () => {
@@ -998,37 +1053,74 @@
         const man = m.manifest, cards = (k) => (man.models[k] && man.models[k].card) || {};
         const lineage = (cards('recogniser').lineage || []).slice().reverse().map((s) => s.run + ' on ' + s.manuscript).join(', then ');
         const segMs = Object.keys(cards('segmenter').manuscripts || {}).length;
+        const parts = {};
+        Pack().keptParts(m).forEach((pt) => { parts[pt.part] = pt; });
+        const size = (k) => (parts[k] ? ' (' + MB(parts[k].bytes) + ')' : '');
+        const left = (k) => U.el('li', { 'data-part': k }, PART_LABEL[k] + ': not kept. ' + PART_WITHOUT[k] + ' Tick it in the pack below to fetch it.');
+        const hasLm = Pack().hasPart(m, 'lm');
+        const useLm = U.el('input', { type: 'checkbox', checked: prefs.lm !== false, 'data-recog': 'use-lm', onchange: () => { Pack().savePrefs({ lm: useLm.checked }); RV.stop(); } });
         status.append(
-          U.el('p', null, U.el('strong', null, man.pack), ' · ' + MB(m.bytes) + ' · kept ' + m.date.slice(0, 10) + ' · from ' + (m.source === 'files' ? 'files on disk' : m.source)),
+          U.el('p', null, U.el('strong', null, man.pack), ' · ' + MB(m.bytes) + ' in this browser · kept ' + m.date.slice(0, 10) + ' · from ' + (m.source === 'files' ? 'files on disk' : m.source)),
           U.el('ul', { class: 'help' },
-            U.el('li', null, 'Segmenter ' + runOf(man, 'segmenter') + (segMs ? ', learned from ' + segMs + ' manuscripts' : '')),
-            U.el('li', null, 'Recogniser ' + runOf(man, 'recogniser') + (lineage ? ', trained ' + lineage : '') + '. It reads the hands it learned from well, others poorly.'),
-            U.el('li', null, 'Word spacer ' + runOf(man, 'spacer') + (cards('spacer').texts ? ', learned from ' + cards('spacer').texts : '')),
-            man.lm && man.lm.components ? U.el('li', null, 'Language model: ' + man.lm.components.map((c) => c.name + ' (' + (c.order || 6) + '-gram of ' + (c.letters ? Math.round(c.letters / 1e6 * 10) / 10 + ' M letters' : 'text') + ', weight ' + c.weight + ')').join(' and ') + '. Lines are read with it: a doubtful letter is settled by how Sanskrit runs.') : U.el('li', null, 'No language model in this pack: lines are read letter by letter, as the recogniser sees them.'),
-            U.el('li', null, 'Weights under ' + licencesOf(man) + '; ONNX Runtime Web ' + m.runtime.version + ' (' + m.runtime.licence + '), ' + (m.runtime.variant === 'webgpu' ? 'with WebGPU' : 'WebAssembly only'))));
+            U.el('li', { 'data-part': 'segmenter' }, 'Segmenter ' + runOf(man, 'segmenter') + size('segmenter') + (segMs ? ', learned from ' + segMs + ' manuscripts' : '')),
+            U.el('li', { 'data-part': 'recogniser' }, 'Recogniser ' + runOf(man, 'recogniser') + size('recogniser') + (lineage ? ', trained ' + lineage : '') + '. It reads the hands it learned from well, others poorly.'),
+            !(man.lm && man.lm.components) ? U.el('li', null, 'No language model in this pack: lines are read letter by letter, as the recogniser sees them.')
+              : hasLm ? U.el('li', { 'data-part': 'lm' }, 'Language model' + size('lm') + ': ' + man.lm.components.map((c) => c.name + ' (' + (c.order || 6) + '-gram of ' + (c.letters ? Math.round(c.letters / 1e6 * 10) / 10 + ' M letters' : 'text') + ', weight ' + c.weight + ')').join(' and ') + '. A doubtful letter is settled by how Sanskrit runs.') : left('lm'),
+            Pack().hasPart(m, 'spacer') ? U.el('li', { 'data-part': 'spacer' }, 'Word spacer ' + runOf(man, 'spacer') + size('spacer') + (cards('spacer').texts ? ', learned from ' + cards('spacer').texts : '')) : left('spacer'),
+            U.el('li', { 'data-part': 'runtime' }, 'ONNX Runtime Web ' + m.runtime.version + size('runtime') + ' (' + m.runtime.licence + '), ' + (m.runtime.variant === 'webgpu' ? 'with WebGPU' : 'WebAssembly only')),
+            U.el('li', null, 'Weights under ' + licencesOf(man) + '.')),
+          hasLm ? U.el('label', { class: 'field checkbox' }, useLm, U.el('span', null, 'Read with the language model (untick to read letter by letter, as the recogniser sees them)')) : null);
       } else status.append(U.el('p', null, 'No recognition pack in this browser yet.'));
       const src = U.el('input', { type: 'text', value: Pack().source(), 'aria-label': 'Site of the recognition packs', 'data-recog': 'source' });
-      const list = U.el('div', { class: 'recog-list' });
+      const list = U.el('div', { class: 'recog-list', 'data-recog': 'packs' });
       const bar = U.el('progress', { max: 1, value: 0, hidden: true }), say = U.el('p', { class: 'help', 'data-recog': 'progress' });
       const progress = (pr) => { bar.hidden = false; bar.value = pr.total ? pr.got / pr.total : 0; say.textContent = pr.name + ' · ' + MB(pr.got) + (pr.total ? ' of ' + MB(pr.total) : ''); };
-      const done = (rec) => { bar.hidden = true; say.textContent = ''; U.toast('Recognition pack ' + rec.pack + ' kept in this browser', 'ok'); RV.stop(); draw(); };
+      const done = (rec) => { bar.hidden = true; say.textContent = ''; U.toast('Recognition pack ' + rec.pack + ' kept in this browser' + (rec.fetched < rec.bytes ? ' (' + MB(rec.fetched) + ' fetched; the rest was here already)' : ''), 'ok'); RV.stop(); draw(); };
       const fail = (err) => { bar.hidden = true; say.textContent = ''; U.toast(err.message || String(err), 'err', 8000); };
+      const fetchPack = (pl, want) => Pack().install(pl.source, pl.pack, progress, want).then(done, fail);
       const check = async () => {
         list.innerHTML = '';
-        Pack().setSource(src.value.trim());
+        const url = src.value.trim();
+        Pack().setSource(url);
+        list.append(U.el('p', { class: 'help' }, 'Reading the site…'));
         try {
-          const idx = await Pack().catalogue(src.value.trim());
-          list.append(U.el('table', { class: 'ed-table' }, U.el('tbody', null, (idx.packs || []).slice().reverse().map((pk) => U.el('tr', null,
-            U.el('td', null, pk.id + (pk.id === idx.latest ? ' (newest)' : ''), U.el('div', { class: 'help' }, Object.entries(pk.models || {}).map(([k, v]) => k + ' ' + v).join(', '))),
-            U.el('td', { class: 'num' }, pk.bytes ? MB(pk.bytes) : ''),
-            U.el('td', null, pk.problem ? U.el('span', { class: 'help' }, pk.problem)
-              : U.el('button', { class: 'btn small', 'data-action': 'fetch-pack', disabled: m && m.pack === pk.id && m.source === Pack().source(), onclick: () => Pack().install(src.value.trim(), pk.id, progress).then(done, fail) }, m && m.pack === pk.id ? 'Kept' : 'Fetch')))))));
-        } catch (err) { list.append(U.el('p', { class: 'help' }, 'Could not read the site: ' + (err.message || err))); }
+          const idx = await Pack().catalogue(url);
+          const newest = await Pack().plan(url, idx.latest, idx);
+          const older = (idx.packs || []).filter((pk) => pk.id !== idx.latest).reverse();
+          list.innerHTML = '';
+          list.append(packCard(newest, m, fetchPack, true));
+          if (older.length) {
+            const det = U.el('details', { class: 'recog-older', 'data-recog': 'older' }, U.el('summary', null, 'Older models (' + older.length + ')'));
+            det.addEventListener('toggle', async () => {
+              if (!det.open || det.dataset.read) return;
+              det.dataset.read = '1';
+              for (const pk of older) {
+                const slot = U.el('p', { class: 'help' }, pk.id + ': reading its manifest…');
+                det.append(slot);
+                try { slot.replaceWith(packCard(await Pack().plan(url, pk.id, idx), m, fetchPack, false)); } catch (err) { slot.textContent = pk.id + ': ' + (err.message || err); }
+              }
+            });
+            list.append(det);
+          }
+        } catch (err) { list.innerHTML = ''; list.append(U.el('p', { class: 'help' }, 'Could not read the site: ' + (err.message || err))); }
       };
-      const fromFiles = () => {
+      // a folder's files (the site's folder, a pack's, a runtime's)
+      const pickFolder = () => new Promise((resolve) => {
         const inp = U.el('input', { type: 'file', multiple: true, webkitdirectory: true });
-        inp.addEventListener('change', () => { if (inp.files.length) Pack().installFiles(inp.files, progress).then(done, fail); });
+        inp.addEventListener('change', () => resolve(Array.from(inp.files)));
+        inp.addEventListener('cancel', () => resolve([]));
         inp.click();
+      });
+      // a pack's folder; where the runtime is in none of its files, and not in this browser either, its folder next
+      const fromFiles = async () => {
+        const first = await pickFolder();
+        if (!first.length) return;
+        try { done(await Pack().installFiles(first, progress)); } catch (err) {
+          if (err.code !== 'runtime') { fail(err); return; }
+          if (!await UI.confirm(err.message + '. Choose that folder now?', { title: 'The runtime’s folder', ok: 'Choose its folder…' })) return;
+          const second = await pickFolder();
+          if (second.length) Pack().installFiles(first.concat(second), progress).then(done, fail);
+        }
       };
       const backend = U.el('select', { 'aria-label': 'How the models run', onchange: () => { Pack().savePrefs({ backend: backend.value }); RV.stop(); } },
         U.el('option', { value: 'auto', selected: prefs.backend !== 'wasm' }, 'WebGPU where this browser has it (faster), else WebAssembly'),
@@ -1043,10 +1135,10 @@
       const ask = U.el('input', { type: 'checkbox', checked: !!prefs.askTraining && RV.CONSENT.approved, disabled: !RV.CONSENT.approved, 'data-recog': 'ask', onchange: () => Pack().savePrefs({ askTraining: ask.checked }) });
       host.append(
         U.el('h4', null, 'Recognition pack'), status,
-        U.el('p', { class: 'help' }, 'The models that read folio sides (a line segmenter, a line recogniser for Devanagari and a Sanskrit word spacer) and the runtime that runs them, about 45 MB, fetched once and kept in this browser: recognition then runs here, offline, and sends nothing anywhere. Every file is checked against the checksum its manifest gives.'),
+        U.el('p', { class: 'help' }, 'The models that read folio sides (a line segmenter, a line recogniser for Devanagari, a language model of Sanskrit and a Sanskrit word spacer) and the runtime that runs them, fetched once and kept in this browser: recognition then runs here, offline, and sends nothing anywhere. The runtime, the segmenter and the recogniser are required; the language model and the word spacer may be left out. A file already in this browser (the same checksum) is not fetched again, and every file is checked against the checksum its manifest gives.'),
         U.el('label', { class: 'field' }, U.el('span', null, 'Site'), src),
         U.el('div', { class: 'btn-row' },
-          U.el('button', { class: 'btn small', 'data-action': 'check-packs', onclick: check }, 'See its packs'),
+          U.el('button', { class: 'btn small', 'data-action': 'check-packs', onclick: check }, 'Read the site again'),
           U.el('button', { class: 'btn small ghost', onclick: fromFiles }, 'Read a pack from a folder…'),
           m ? U.el('button', { class: 'btn small ghost', 'data-action': 'remove-pack', onclick: async () => { if (await UI.confirm('Remove the recognition pack from this browser? Lines already proposed stay.', { ok: 'Remove', danger: true })) { RV.stop(); await Pack().remove(); draw(); } } }, 'Remove') : null),
         list, bar, say,
@@ -1057,6 +1149,7 @@
         U.el('label', { class: 'field checkbox' }, ask, U.el('span', null, 'Ask me, for each manuscript I read here, whether its corrected lines may help train the recognition models')),
         U.el('p', { class: 'help' + (RV.CONSENT.approved ? '' : ' recog-draft') }, RV.CONSENT.approved ? 'Off unless you tick it. Nothing is ever contributed without a yes for that manuscript, and then only as a sealed file you send yourself, attached to a GitHub issue.' : DRAFT_NOTE),
         U.el('button', { class: 'btn small ghost', onclick: () => RV.showConsentText() }, 'Read the consent text…'));
+      check();          // the site's newest pack at once: reading index.json and one manifest sends nothing
     };
     draw();
     return host;
